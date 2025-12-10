@@ -97,14 +97,16 @@ impl ShortIdIndex {
     /// Resolve a short ID reference to a full entity ID
     ///
     /// Accepts:
-    /// - `PREFIX@N` format (e.g., `REQ@1`, `RISK@42`)
+    /// - `PREFIX@N` format (e.g., `REQ@1`, `req@1`, `Req@1`)
     /// - Full or partial entity ID (passed through)
     pub fn resolve(&self, reference: &str) -> Option<String> {
-        // Check for prefixed format: PREFIX@N
+        // Check for prefixed format: PREFIX@N (case-insensitive)
         if let Some(at_pos) = reference.find('@') {
             let prefix = &reference[..at_pos];
-            if !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_uppercase()) {
-                return self.entries.get(reference).cloned();
+            if !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_alphabetic()) {
+                // Normalize to uppercase for lookup
+                let normalized = format!("{}@{}", prefix.to_ascii_uppercase(), &reference[at_pos + 1..]);
+                return self.entries.get(&normalized).cloned();
             }
         }
 
@@ -249,5 +251,23 @@ mod tests {
         assert_eq!(index.resolve("RISK@1"), Some("RISK-01GHIJKL".to_string()));
         assert_eq!(index.resolve("TEST@1"), Some("TEST-01MNOPQR".to_string()));
         assert_eq!(index.resolve("RSLT@1"), Some("RSLT-01STUVWX".to_string()));
+    }
+
+    #[test]
+    fn test_case_insensitive_resolve() {
+        let mut index = ShortIdIndex::new();
+
+        index.add("REQ-01ABCDEF".to_string());
+        index.add("RISK-01GHIJKL".to_string());
+
+        // All case variants should resolve
+        assert_eq!(index.resolve("REQ@1"), Some("REQ-01ABCDEF".to_string()));
+        assert_eq!(index.resolve("req@1"), Some("REQ-01ABCDEF".to_string()));
+        assert_eq!(index.resolve("Req@1"), Some("REQ-01ABCDEF".to_string()));
+        assert_eq!(index.resolve("rEq@1"), Some("REQ-01ABCDEF".to_string()));
+
+        assert_eq!(index.resolve("RISK@1"), Some("RISK-01GHIJKL".to_string()));
+        assert_eq!(index.resolve("risk@1"), Some("RISK-01GHIJKL".to_string()));
+        assert_eq!(index.resolve("Risk@1"), Some("RISK-01GHIJKL".to_string()));
     }
 }
