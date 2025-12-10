@@ -606,4 +606,154 @@ unknown_field: "This should not be here"
         let offset: usize = span.offset();
         assert!(offset > 0);
     }
+
+    #[test]
+    fn test_valid_risk() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let yaml = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+type: design
+title: "Test Risk"
+description: |
+  A test risk for validation.
+status: draft
+created: 2024-01-01T00:00:00Z
+author: Test
+revision: 1
+"#;
+
+        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        assert!(result.is_ok(), "Valid risk should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_risk_missing_required_fields() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let yaml = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+type: design
+# missing: title, description, status, created, author
+"#;
+
+        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        assert!(result.is_err(), "Missing required fields should fail");
+        let err = result.unwrap_err();
+        assert!(err.violation_count() > 0);
+    }
+
+    #[test]
+    fn test_risk_invalid_type() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let yaml = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+type: safety
+title: "Test Risk"
+description: "A test risk."
+status: draft
+created: 2024-01-01T00:00:00Z
+author: Test
+"#;
+
+        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        assert!(result.is_err(), "Invalid type value should fail");
+    }
+
+    #[test]
+    fn test_risk_with_fmea_fields() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let yaml = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+type: design
+title: "Test Risk"
+description: "A test risk."
+failure_mode: "Component fails to operate"
+cause: "Manufacturing defect"
+effect: "System shutdown"
+severity: 8
+occurrence: 3
+detection: 5
+rpn: 120
+status: draft
+risk_level: medium
+created: 2024-01-01T00:00:00Z
+author: Test
+"#;
+
+        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        assert!(result.is_ok(), "Risk with FMEA fields should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_risk_severity_out_of_range() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let yaml = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+type: design
+title: "Test Risk"
+description: "A test risk."
+severity: 15
+status: draft
+created: 2024-01-01T00:00:00Z
+author: Test
+"#;
+
+        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        assert!(result.is_err(), "Severity > 10 should fail");
+    }
+
+    #[test]
+    fn test_risk_with_mitigations() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let yaml = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+type: process
+title: "Test Risk"
+description: "A test risk."
+mitigations:
+  - action: "Add safety interlock"
+    type: prevention
+    status: proposed
+    owner: "John Doe"
+  - action: "Add monitoring alarm"
+    type: detection
+    status: completed
+status: draft
+created: 2024-01-01T00:00:00Z
+author: Test
+"#;
+
+        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        assert!(result.is_ok(), "Risk with mitigations should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_risk_invalid_id_pattern() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let yaml = r#"
+id: RISK-invalid
+type: design
+title: "Test Risk"
+description: "A test risk."
+status: draft
+created: 2024-01-01T00:00:00Z
+author: Test
+"#;
+
+        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        assert!(result.is_err(), "Invalid RISK ID pattern should fail");
+    }
 }

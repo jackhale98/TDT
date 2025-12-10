@@ -262,15 +262,16 @@ pdt trace coverage --uncovered
 ### Status Workflow
 
 ```
-draft → review → approved
-                    ↓
-                 obsolete
+draft → review → approved → released
+                    ↓           ↓
+                 obsolete ← ← ← ┘
 ```
 
 1. **draft**: Initial creation, still being written
 2. **review**: Ready for stakeholder review
 3. **approved**: Signed off and baselined
-4. **obsolete**: No longer applicable (keep for history)
+4. **released**: Released to production/manufacturing
+5. **obsolete**: No longer applicable (keep for history)
 
 ### Priority Guidelines
 

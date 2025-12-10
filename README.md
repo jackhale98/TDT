@@ -8,7 +8,9 @@ A CLI tool for managing product development artifacts as plain-text YAML files. 
 - **Schema validation** - JSON Schema validation with helpful error messages
 - **Traceability** - Link entities together and generate traceability matrices
 - **ULID-based IDs** - Unique, sortable identifiers for all entities
+- **Short ID aliases** - Use `@1`, `@2`, etc. instead of typing long IDs
 - **Beautiful error messages** - Line numbers, context, and actionable suggestions
+- **FMEA Risk Management** - Built-in support for Failure Mode and Effects Analysis
 
 ## Installation
 
@@ -33,15 +35,38 @@ pdt init
 # Create a requirement
 pdt req new --title "Operating Temperature Range" --type input
 
-# List all requirements
+# List all requirements (shows @N short IDs)
 pdt req list
 
-# Show a specific requirement (partial ID match)
-pdt req show REQ-01HC2
+# Show a specific requirement using short ID
+pdt req show @1                    # Use short ID from list
+pdt req show REQ-01HC2             # Or partial ID match
+
+# Create a risk
+pdt risk new --title "Battery Overheating" -t design
 
 # Validate all project files
 pdt validate
 ```
+
+## Short IDs
+
+After running `list` commands, PDT assigns short IDs (`@1`, `@2`, etc.) to entities:
+
+```bash
+$ pdt req list
+@     ID               TYPE     TITLE                                STATUS     PRIORITY
+------------------------------------------------------------------------------------------
+@1    REQ-01HC2JB7...  input    Operating Temperature Range          approved   high
+@2    REQ-01HC2JB8...  output   Thermal Management Specification     draft      high
+
+# Now use @N instead of full ID
+pdt req show @1
+pdt req edit @2
+pdt link add @1 --type satisfied_by @2
+```
+
+Short IDs are session-local and regenerated each time you run `list`.
 
 ## Project Structure
 
@@ -100,6 +125,22 @@ manufacturing/
 | QUOT | Quote | Quote / cost record |
 | ACT | Action | Action item |
 
+## Output Formats
+
+Use `-f/--format` to control output format:
+
+```bash
+pdt req list -f json        # JSON output (for scripting)
+pdt req list -f yaml        # YAML output
+pdt req list -f csv         # CSV output (for spreadsheets)
+pdt req list -f tsv         # Tab-separated (default for lists)
+pdt req list -f md          # Markdown table
+pdt req list -f id          # Just IDs, one per line
+
+pdt req show REQ-01 -f json # Full entity as JSON
+pdt req show REQ-01 -f yaml # Full entity as YAML
+```
+
 ## Commands
 
 ### Project Management
@@ -117,7 +158,7 @@ pdt validate --summary      # Show summary only
 ```bash
 pdt req new                           # Create with template
 pdt req new --title "Title" -t input  # Create with options
-pdt req new -i                        # Interactive wizard
+pdt req new -i                        # Interactive wizard (schema-driven)
 pdt req list                          # List all
 pdt req list --status draft           # Filter by status
 pdt req list --priority high          # Filter by priority
@@ -126,6 +167,23 @@ pdt req list --search "temperature"   # Search in title/text
 pdt req list --orphans                # Show unlinked requirements
 pdt req show REQ-01HC2                # Show details (partial ID match)
 pdt req edit REQ-01HC2                # Open in editor
+```
+
+### Risks (FMEA)
+
+```bash
+pdt risk new                           # Create with template
+pdt risk new --title "Overheating"     # Create with title
+pdt risk new -t process                # Create process risk
+pdt risk new --severity 8 --occurrence 5 --detection 3  # Set FMEA ratings
+pdt risk new -i                        # Interactive wizard
+pdt risk list                          # List all risks
+pdt risk list --level high             # Filter by risk level
+pdt risk list --by-rpn                 # Sort by RPN (highest first)
+pdt risk list --min-rpn 100            # Filter by minimum RPN
+pdt risk list --unmitigated            # Show risks without mitigations
+pdt risk show RISK-01HC2               # Show details
+pdt risk edit RISK-01HC2               # Open in editor
 ```
 
 ### Link Management
@@ -191,6 +249,64 @@ author: Jane Doe
 revision: 1
 ```
 
+## Risk Example (FMEA)
+
+```yaml
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+type: design
+title: "Battery Thermal Runaway"
+
+category: "Electrical Safety"
+tags: [battery, thermal, safety]
+
+description: |
+  Risk of thermal runaway in lithium-ion battery pack during
+  charging or high-temperature operation.
+
+failure_mode: |
+  Battery cells exceed thermal limits causing cascading
+  thermal runaway across the pack.
+
+cause: |
+  Internal short circuit, overcharging, or external heat source
+  causing cell temperature to exceed safe limits.
+
+effect: |
+  Fire, explosion, or toxic gas release endangering users
+  and damaging equipment.
+
+# FMEA Risk Assessment (1-10 scale)
+severity: 9      # Impact if failure occurs
+occurrence: 3    # Likelihood of occurrence
+detection: 4     # Ability to detect before failure
+rpn: 108         # Risk Priority Number (S x O x D)
+
+mitigations:
+  - action: "Add thermal cutoff protection circuit"
+    type: prevention
+    status: completed
+    owner: "John Smith"
+  - action: "Add temperature monitoring sensors"
+    type: detection
+    status: in_progress
+    owner: "Jane Doe"
+
+status: review
+risk_level: medium
+
+links:
+  related_to:
+    - REQ-01HC2JB7SMQX7RS1Y0GFKBHPTE
+  mitigated_by:
+    - REQ-01HC2JB7SMQX7RS1Y0GFKBHPTF
+  verified_by:
+    - TEST-01HC2JB7SMQX7RS1Y0GFKBHPTG
+
+created: 2024-01-15T10:30:00Z
+author: Jane Doe
+revision: 2
+```
+
 ## Validation
 
 PDT validates files against JSON Schema with detailed error messages:
@@ -229,6 +345,36 @@ draft → review → approved → released
 | high | Core functionality, key differentiators |
 | medium | Standard features, quality of life |
 | low | Nice to have, future considerations |
+
+## Risk Assessment (FMEA)
+
+PDT uses FMEA (Failure Mode and Effects Analysis) methodology:
+
+### FMEA Ratings (1-10 scale)
+
+| Factor | 1 | 10 |
+|--------|---|-----|
+| **Severity** | Minimal impact | Catastrophic, safety hazard |
+| **Occurrence** | Very unlikely | Almost certain |
+| **Detection** | Always detected | Cannot be detected |
+
+### Risk Priority Number (RPN)
+
+RPN = Severity x Occurrence x Detection (range: 1-1000)
+
+| RPN Range | Risk Level | Action |
+|-----------|------------|--------|
+| 1-50 | Low | Monitor, no immediate action needed |
+| 51-150 | Medium | Plan mitigations, track progress |
+| 151-400 | High | Prioritize mitigations, escalate |
+| 401+ | Critical | Immediate action required |
+
+### Mitigation Types
+
+| Type | Purpose |
+|------|---------|
+| **prevention** | Reduces occurrence probability |
+| **detection** | Improves ability to detect before failure |
 
 ## Best Practices
 

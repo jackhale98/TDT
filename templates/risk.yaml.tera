@@ -1,0 +1,60 @@
+# Risk: {{ title }}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {{ id }}
+type: {{ risk_type }}
+title: "{{ title }}"
+
+category: "{{ category }}"
+tags: []
+
+description: |
+  # Describe the risk scenario here
+  # What could go wrong? Under what conditions?
+
+# FMEA Fields (Failure Mode and Effects Analysis)
+failure_mode: |
+  # How does this failure manifest?
+
+cause: |
+  # What is the root cause or mechanism?
+
+effect: |
+  # What is the impact or consequence?
+
+# Risk Assessment (1-10 scale)
+# Severity: 1=minimal, 10=catastrophic
+# Occurrence: 1=rare, 10=almost certain
+# Detection: 1=always detected, 10=undetectable
+severity: {{ severity }}
+occurrence: {{ occurrence }}
+detection: {{ detection }}
+rpn: {{ rpn }}
+
+# Initial assessment (before mitigations) - optional
+# initial_risk:
+#   severity: {{ severity }}
+#   occurrence: {{ occurrence }}
+#   detection: {{ detection }}
+#   rpn: {{ rpn }}
+
+# Risk mitigations
+mitigations:
+  - action: ""
+    type: prevention  # prevention or detection
+    status: proposed  # proposed, in_progress, completed, verified
+    owner: ""
+    # due_date: 2024-12-31
+
+status: draft
+risk_level: {{ risk_level }}
+
+links:
+  related_to: []
+  mitigated_by: []
+  verified_by: []
+
+# Auto-managed metadata (do not edit manually)
+created: {{ created }}
+author: {{ author }}
+revision: 1

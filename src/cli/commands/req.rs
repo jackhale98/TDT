@@ -9,6 +9,7 @@ use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::entity::Priority;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
+use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
 use crate::entities::requirement::{Requirement, RequirementType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
@@ -293,6 +294,11 @@ fn run_list(_args: ListArgs, global: &GlobalOpts) -> Result<()> {
     // Sort by created date (default)
     reqs.sort_by(|a, b| a.created.cmp(&b.created));
 
+    // Rebuild short ID index with current requirements
+    let mut short_ids = ShortIdIndex::new();
+    short_ids.rebuild(reqs.iter().map(|r| r.id.to_string()));
+    let _ = short_ids.save(&project); // Ignore save errors
+
     // Output based on format
     let format = match global.format {
         OutputFormat::Auto => OutputFormat::Tsv, // Default to TSV for list
@@ -309,10 +315,12 @@ fn run_list(_args: ListArgs, global: &GlobalOpts) -> Result<()> {
             print!("{}", yaml);
         }
         OutputFormat::Csv => {
-            println!("id,type,title,status,priority,category,author,created");
+            println!("short_id,id,type,title,status,priority,category,author,created");
             for req in &reqs {
+                let short_id = short_ids.get_short_id(&req.id.to_string()).unwrap_or(0);
                 println!(
-                    "{},{},{},{},{},{},{},{}",
+                    "@{},{},{},{},{},{},{},{},{}",
+                    short_id,
                     req.id,
                     req.req_type,
                     escape_csv(&req.title),
@@ -325,28 +333,39 @@ fn run_list(_args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Tsv => {
-            // Print header
+            // Print header with short ID column
             println!(
-                "{:<16} {:<8} {:<40} {:<10} {:<10}",
+                "{:<5} {:<16} {:<8} {:<36} {:<10} {:<10}",
+                style("@").bold().dim(),
                 style("ID").bold(),
                 style("TYPE").bold(),
                 style("TITLE").bold(),
                 style("STATUS").bold(),
                 style("PRIORITY").bold()
             );
-            println!("{}", "-".repeat(86));
+            println!("{}", "-".repeat(90));
 
             for req in &reqs {
+                let short_id = short_ids.get_short_id(&req.id.to_string()).unwrap_or(0);
                 let id_display = format_short_id(&req.id);
-                let title_truncated = truncate_str(&req.title, 38);
+                let title_truncated = truncate_str(&req.title, 34);
                 println!(
-                    "{:<16} {:<8} {:<40} {:<10} {:<10}",
-                    id_display, req.req_type, title_truncated, req.status, req.priority
+                    "{:<5} {:<16} {:<8} {:<36} {:<10} {:<10}",
+                    style(format!("@{}", short_id)).cyan(),
+                    id_display,
+                    req.req_type,
+                    title_truncated,
+                    req.status,
+                    req.priority
                 );
             }
 
             println!();
-            println!("{} requirement(s) found", style(reqs.len()).cyan());
+            println!(
+                "{} requirement(s) found. Use {} to reference by short ID.",
+                style(reqs.len()).cyan(),
+                style("@N").cyan()
+            );
         }
         OutputFormat::Id => {
             for req in &reqs {
@@ -354,11 +373,13 @@ fn run_list(_args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Md => {
-            println!("| ID | Type | Title | Status | Priority |");
-            println!("|---|---|---|---|---|");
+            println!("| @ | ID | Type | Title | Status | Priority |");
+            println!("|---|---|---|---|---|---|");
             for req in &reqs {
+                let short_id = short_ids.get_short_id(&req.id.to_string()).unwrap_or(0);
                 println!(
-                    "| {} | {} | {} | {} | {} |",
+                    "| @{} | {} | {} | {} | {} | {} |",
+                    short_id,
                     format_short_id(&req.id),
                     req.req_type,
                     req.title,
@@ -638,8 +659,12 @@ fn run_edit(args: EditArgs) -> Result<()> {
     Ok(())
 }
 
-/// Find a requirement by ID prefix match
+/// Find a requirement by ID prefix match or short ID (@N)
 fn find_requirement(project: &Project, id_query: &str) -> Result<Requirement> {
+    // First, try to resolve short ID (@N) to full ID
+    let short_ids = ShortIdIndex::load(project);
+    let resolved_query = short_ids.resolve(id_query).unwrap_or_else(|| id_query.to_string());
+
     let mut matches: Vec<(Requirement, std::path::PathBuf)> = Vec::new();
 
     // Search both inputs and outputs
@@ -658,12 +683,14 @@ fn find_requirement(project: &Project, id_query: &str) -> Result<Requirement> {
             if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 // Check if ID matches (prefix or full)
                 let id_str = req.id.to_string();
-                if id_str.starts_with(id_query) || id_str == id_query {
+                if id_str.starts_with(&resolved_query) || id_str == resolved_query {
                     matches.push((req, entry.path().to_path_buf()));
                 }
-                // Also check title for fuzzy match
-                else if req.title.to_lowercase().contains(&id_query.to_lowercase()) {
-                    matches.push((req, entry.path().to_path_buf()));
+                // Also check title for fuzzy match (only if not a short ID lookup)
+                else if !id_query.starts_with('@') && !id_query.chars().all(|c| c.is_ascii_digit()) {
+                    if req.title.to_lowercase().contains(&resolved_query.to_lowercase()) {
+                        matches.push((req, entry.path().to_path_buf()));
+                    }
                 }
             }
         }

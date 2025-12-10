@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pdt.dev/schemas/risk.schema.json",
+  "title": "Risk",
+  "description": "A risk or FMEA (Failure Mode and Effects Analysis) item",
+  "type": "object",
+  "required": ["id", "type", "title", "description", "status", "created", "author"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^RISK-[0-9A-Z]{26}$",
+      "description": "Unique identifier (RISK prefix + ULID)"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["design", "process"],
+      "description": "Risk category - design or process risk"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Short descriptive title"
+    },
+    "category": {
+      "type": "string",
+      "description": "User-defined category (e.g., electrical, mechanical, software)"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags for filtering and organization"
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Detailed description of the risk"
+    },
+    "failure_mode": {
+      "type": "string",
+      "description": "How the failure manifests (FMEA: Failure Mode)"
+    },
+    "cause": {
+      "type": "string",
+      "description": "Root cause or mechanism of the failure (FMEA: Cause)"
+    },
+    "effect": {
+      "type": "string",
+      "description": "Impact or consequence of the failure (FMEA: Effect)"
+    },
+    "severity": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Severity rating 1-10 (FMEA: S)"
+    },
+    "occurrence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Occurrence/probability rating 1-10 (FMEA: O)"
+    },
+    "detection": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "Detection difficulty rating 1-10 (FMEA: D)"
+    },
+    "rpn": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1000,
+      "description": "Risk Priority Number = S x O x D (calculated)"
+    },
+    "initial_risk": {
+      "type": "object",
+      "properties": {
+        "severity": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "occurrence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "detection": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10
+        },
+        "rpn": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "description": "Initial risk assessment before mitigations"
+    },
+    "mitigations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "description": "Mitigation action description"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["prevention", "detection"],
+            "description": "Whether this prevents occurrence or improves detection"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["proposed", "in_progress", "completed", "verified"],
+            "description": "Implementation status of the mitigation"
+          },
+          "owner": {
+            "type": "string",
+            "description": "Person responsible for implementing"
+          },
+          "due_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Target completion date"
+          }
+        },
+        "required": ["action"]
+      },
+      "description": "List of risk mitigation actions"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "review", "approved", "released", "obsolete"],
+      "default": "draft",
+      "description": "Current status"
+    },
+    "risk_level": {
+      "type": "string",
+      "enum": ["low", "medium", "high", "critical"],
+      "description": "Overall risk level assessment"
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "related_to": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs of related requirements or other entities"
+        },
+        "mitigated_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs of design outputs that mitigate this risk"
+        },
+        "verified_by": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs of tests that verify risk mitigation"
+        }
+      }
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Revision number"
+    }
+  },
+  "additionalProperties": false
+}

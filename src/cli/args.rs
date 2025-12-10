@@ -7,6 +7,7 @@ use crate::cli::commands::{
     init::InitArgs,
     link::LinkCommands,
     req::ReqCommands,
+    risk::RiskCommands,
     trace::TraceCommands,
     validate::ValidateArgs,
 };
@@ -51,6 +52,10 @@ pub enum Commands {
     /// Requirement management
     #[command(subcommand)]
     Req(ReqCommands),
+
+    /// Risk/FMEA management
+    #[command(subcommand)]
+    Risk(RiskCommands),
 
     /// Validate project files against schemas
     Validate(ValidateArgs),

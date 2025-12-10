@@ -182,6 +182,15 @@ impl Project {
         }
     }
 
+    /// Get the directory for risks of a specific type
+    pub fn risk_directory(&self, risk_type: &str) -> PathBuf {
+        match risk_type {
+            "design" => self.root.join("risks/design"),
+            "process" => self.root.join("risks/process"),
+            _ => self.root.join("risks/design"),
+        }
+    }
+
     /// Iterate all entity files of a given prefix type
     pub fn iter_entity_files(&self, prefix: EntityPrefix) -> impl Iterator<Item = PathBuf> {
         let dir = self.root.join(Self::entity_directory(prefix));

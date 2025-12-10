@@ -1,0 +1,56 @@
+# Risk: Battery Thermal Runaway
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: RISK-01JEES3N5M6P7R8S9T0UVWXYZ
+type: design
+title: "Battery Thermal Runaway"
+
+category: "Electrical Safety"
+tags: [battery, thermal, safety]
+
+description: |
+  Risk of thermal runaway in lithium-ion battery pack during
+  charging or high-temperature operation.
+
+failure_mode: |
+  Battery cells exceed thermal limits causing cascading
+  thermal runaway across the pack.
+
+cause: |
+  Internal short circuit, overcharging, or external heat source
+  causing cell temperature to exceed safe limits.
+
+effect: |
+  Fire, explosion, or toxic gas release endangering users
+  and damaging equipment.
+
+severity: 9
+occurrence: 3
+detection: 4
+rpn: 108
+
+mitigations:
+  - action: "Add thermal cutoff protection circuit"
+    type: prevention
+    status: completed
+    owner: "John Smith"
+  - action: "Add temperature monitoring sensors"
+    type: detection
+    status: in_progress
+    owner: "Jane Doe"
+    due_date: 2024-06-30
+
+status: review
+risk_level: medium
+
+links:
+  related_to:
+    - REQ-01JEES3N5M6P7R8S9T0UVWXY1
+  mitigated_by:
+    - REQ-01JEES3N5M6P7R8S9T0UVWXY2
+  verified_by:
+    - TEST-01JEES3N5M6P7R8S9T0UVWXY3
+
+created: 2024-03-15T10:30:00Z
+author: "Test Author"
+revision: 2
