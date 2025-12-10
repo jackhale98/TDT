@@ -413,7 +413,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
     // Update short ID index with current risks (preserves other entity types)
     let mut short_ids = ShortIdIndex::load(&project);
-    short_ids.rebuild_for_prefix("RISK", risks.iter().map(|r| r.id.to_string()));
+    short_ids.ensure_all(risks.iter().map(|r| r.id.to_string()));
     let _ = short_ids.save(&project);
 
     // Output based on format
@@ -434,9 +434,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Csv => {
             println!("short_id,id,type,title,status,risk_level,severity,occurrence,detection,rpn");
             for risk in &risks {
-                let short_id = short_ids.get_number(&risk.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&risk.id.to_string()).unwrap_or_default();
                 println!(
-                    "@{},{},{},{},{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{},{},{},{}",
                     short_id,
                     risk.id,
                     risk.risk_type,
@@ -452,8 +452,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         }
         OutputFormat::Tsv => {
             println!(
-                "{:<5} {:<17} {:<9} {:<32} {:<10} {:<8} {:<5}",
-                style("@").bold().dim(),
+                "{:<8} {:<17} {:<9} {:<28} {:<10} {:<8} {:<5}",
+                style("SHORT").bold().dim(),
                 style("ID").bold(),
                 style("TYPE").bold(),
                 style("TITLE").bold(),
@@ -464,9 +464,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", "-".repeat(90));
 
             for risk in &risks {
-                let short_id = short_ids.get_number(&risk.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&risk.id.to_string()).unwrap_or_default();
                 let id_display = format_short_id(&risk.id);
-                let title_truncated = truncate_str(&risk.title, 30);
+                let title_truncated = truncate_str(&risk.title, 26);
                 let level_str = risk.risk_level.map_or("-".to_string(), |l| l.to_string());
                 let rpn_str = risk.rpn.map_or("-".to_string(), |r| r.to_string());
 
@@ -478,8 +478,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 };
 
                 println!(
-                    "{:<5} {:<17} {:<9} {:<32} {:<10} {:<8} {:<5}",
-                    style(format!("@{}", short_id)).cyan(),
+                    "{:<8} {:<17} {:<9} {:<28} {:<10} {:<8} {:<5}",
+                    style(&short_id).cyan(),
                     id_display,
                     risk.risk_type,
                     title_truncated,
@@ -493,7 +493,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!(
                 "{} risk(s) found. Use {} to reference by short ID.",
                 style(risks.len()).cyan(),
-                style("@N").cyan()
+                style("RISK@N").cyan()
             );
         }
         OutputFormat::Id => {
@@ -502,12 +502,12 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Md => {
-            println!("| @ | ID | Type | Title | Status | Level | RPN |");
+            println!("| Short | ID | Type | Title | Status | Level | RPN |");
             println!("|---|---|---|---|---|---|---|");
             for risk in &risks {
-                let short_id = short_ids.get_number(&risk.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&risk.id.to_string()).unwrap_or_default();
                 println!(
-                    "| @{} | {} | {} | {} | {} | {} | {} |",
+                    "| {} | {} | {} | {} | {} | {} | {} |",
                     short_id,
                     format_short_id(&risk.id),
                     risk.risk_type,
@@ -638,10 +638,15 @@ fn run_new(args: NewArgs) -> Result<()> {
     // Write file
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
 
+    // Add to short ID index
+    let mut short_ids = ShortIdIndex::load(&project);
+    let short_id = short_ids.add(id.to_string());
+    let _ = short_ids.save(&project);
+
     println!(
         "{} Created risk {}",
         style("✓").green(),
-        style(format_short_id(&id)).cyan()
+        style(short_id.unwrap_or_else(|| format_short_id(&id))).cyan()
     );
     println!("   {}", style(file_path.display()).dim());
     println!("   RPN: {} ({})", style(rpn).yellow(), risk_level);

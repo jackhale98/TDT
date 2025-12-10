@@ -396,7 +396,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
     // Update short ID index with current results (preserves other entity types)
     let mut short_ids = ShortIdIndex::load(&project);
-    short_ids.rebuild_for_prefix("RSLT", results.iter().map(|r| r.id.to_string()));
+    short_ids.ensure_all(results.iter().map(|r| r.id.to_string()));
     let _ = short_ids.save(&project);
 
     // Output based on format
@@ -417,9 +417,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Csv => {
             println!("short_id,id,test_id,verdict,status,executed_by,executed_date");
             for result in &results {
-                let short_id = short_ids.get_number(&result.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&result.id.to_string()).unwrap_or_default();
                 println!(
-                    "@{},{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{}",
                     short_id,
                     result.id,
                     format_short_id(&result.test_id),
@@ -432,8 +432,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         }
         OutputFormat::Tsv => {
             println!(
-                "{:<5} {:<17} {:<17} {:<12} {:<10} {:<15} {:<12}",
-                style("@").bold().dim(),
+                "{:<8} {:<17} {:<17} {:<12} {:<10} {:<15} {:<12}",
+                style("SHORT").bold().dim(),
                 style("ID").bold(),
                 style("TEST").bold(),
                 style("VERDICT").bold(),
@@ -441,10 +441,10 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("EXECUTED BY").bold(),
                 style("DATE").bold()
             );
-            println!("{}", "-".repeat(95));
+            println!("{}", "-".repeat(98));
 
             for result in &results {
-                let short_id = short_ids.get_number(&result.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&result.id.to_string()).unwrap_or_default();
                 let id_display = format_short_id(&result.id);
                 let test_display = format_short_id(&result.test_id);
                 let executor_truncated = truncate_str(&result.executed_by, 13);
@@ -459,8 +459,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 };
 
                 println!(
-                    "{:<5} {:<17} {:<17} {:<12} {:<10} {:<15} {:<12}",
-                    style(format!("@{}", short_id)).cyan(),
+                    "{:<8} {:<17} {:<17} {:<12} {:<10} {:<15} {:<12}",
+                    style(&short_id).cyan(),
                     id_display,
                     test_display,
                     verdict_display,
@@ -474,7 +474,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!(
                 "{} result(s) found. Use {} to reference by short ID.",
                 style(results.len()).cyan(),
-                style("@N").cyan()
+                style("RSLT@N").cyan()
             );
         }
         OutputFormat::Id => {
@@ -483,12 +483,12 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Md => {
-            println!("| @ | ID | Test | Verdict | Status | Executed By | Date |");
+            println!("| Short | ID | Test | Verdict | Status | Executed By | Date |");
             println!("|---|---|---|---|---|---|---|");
             for result in &results {
-                let short_id = short_ids.get_number(&result.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&result.id.to_string()).unwrap_or_default();
                 println!(
-                    "| @{} | {} | {} | {} | {} | {} | {} |",
+                    "| {} | {} | {} | {} | {} | {} | {} |",
                     short_id,
                     format_short_id(&result.id),
                     format_short_id(&result.test_id),
@@ -627,10 +627,15 @@ fn run_new(args: NewArgs) -> Result<()> {
     // Write file
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
 
+    // Add to short ID index
+    let mut short_ids = ShortIdIndex::load(&project);
+    let short_id = short_ids.add(id.to_string());
+    let _ = short_ids.save(&project);
+
     println!(
         "{} Created result {}",
         style("✓").green(),
-        style(format_short_id(&id)).cyan()
+        style(short_id.unwrap_or_else(|| format_short_id(&id))).cyan()
     );
     println!("   {}", style(file_path.display()).dim());
     println!(

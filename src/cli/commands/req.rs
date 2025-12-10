@@ -410,7 +410,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
     // Update short ID index with current requirements (preserves other entity types)
     let mut short_ids = ShortIdIndex::load(&project);
-    short_ids.rebuild_for_prefix("REQ", reqs.iter().map(|r| r.id.to_string()));
+    short_ids.ensure_all(reqs.iter().map(|r| r.id.to_string()));
     let _ = short_ids.save(&project); // Ignore save errors
 
     // Output based on format
@@ -431,9 +431,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Csv => {
             println!("short_id,id,type,title,status,priority,category,author,created");
             for req in &reqs {
-                let short_id = short_ids.get_number(&req.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&req.id.to_string()).unwrap_or_default();
                 println!(
-                    "@{},{},{},{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{},{},{}",
                     short_id,
                     req.id,
                     req.req_type,
@@ -449,8 +449,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Tsv => {
             // Print header with short ID column
             println!(
-                "{:<5} {:<16} {:<8} {:<36} {:<10} {:<10}",
-                style("@").bold().dim(),
+                "{:<8} {:<16} {:<8} {:<34} {:<10} {:<10}",
+                style("SHORT").bold().dim(),
                 style("ID").bold(),
                 style("TYPE").bold(),
                 style("TITLE").bold(),
@@ -460,12 +460,12 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", "-".repeat(90));
 
             for req in &reqs {
-                let short_id = short_ids.get_number(&req.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&req.id.to_string()).unwrap_or_default();
                 let id_display = format_short_id(&req.id);
-                let title_truncated = truncate_str(&req.title, 34);
+                let title_truncated = truncate_str(&req.title, 32);
                 println!(
-                    "{:<5} {:<16} {:<8} {:<36} {:<10} {:<10}",
-                    style(format!("@{}", short_id)).cyan(),
+                    "{:<8} {:<16} {:<8} {:<34} {:<10} {:<10}",
+                    style(&short_id).cyan(),
                     id_display,
                     req.req_type,
                     title_truncated,
@@ -478,7 +478,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!(
                 "{} requirement(s) found. Use {} to reference by short ID.",
                 style(reqs.len()).cyan(),
-                style("@N").cyan()
+                style("REQ@N").cyan()
             );
         }
         OutputFormat::Id => {
@@ -487,12 +487,12 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Md => {
-            println!("| @ | ID | Type | Title | Status | Priority |");
+            println!("| Short | ID | Type | Title | Status | Priority |");
             println!("|---|---|---|---|---|---|");
             for req in &reqs {
-                let short_id = short_ids.get_number(&req.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&req.id.to_string()).unwrap_or_default();
                 println!(
-                    "| @{} | {} | {} | {} | {} | {} |",
+                    "| {} | {} | {} | {} | {} | {} |",
                     short_id,
                     format_short_id(&req.id),
                     req.req_type,
@@ -624,10 +624,15 @@ fn run_new(args: NewArgs) -> Result<()> {
     // Write file
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
 
+    // Add to short ID index
+    let mut short_ids = ShortIdIndex::load(&project);
+    let short_id = short_ids.add(id.to_string());
+    let _ = short_ids.save(&project);
+
     println!(
         "{} Created requirement {}",
         style("✓").green(),
-        style(format_short_id(&id)).cyan()
+        style(short_id.unwrap_or_else(|| format_short_id(&id))).cyan()
     );
     println!("   {}", style(file_path.display()).dim());
 

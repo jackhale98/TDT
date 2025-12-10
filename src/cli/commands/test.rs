@@ -428,7 +428,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
     // Update short ID index with current tests (preserves other entity types)
     let mut short_ids = ShortIdIndex::load(&project);
-    short_ids.rebuild_for_prefix("TEST", tests.iter().map(|t| t.id.to_string()));
+    short_ids.ensure_all(tests.iter().map(|t| t.id.to_string()));
     let _ = short_ids.save(&project);
 
     // Output based on format
@@ -449,9 +449,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Csv => {
             println!("short_id,id,type,level,method,title,status,priority");
             for test in &tests {
-                let short_id = short_ids.get_number(&test.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&test.id.to_string()).unwrap_or_default();
                 println!(
-                    "@{},{},{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{},{}",
                     short_id,
                     test.id,
                     test.test_type,
@@ -465,8 +465,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         }
         OutputFormat::Tsv => {
             println!(
-                "{:<5} {:<17} {:<12} {:<8} {:<12} {:<28} {:<10} {:<8}",
-                style("@").bold().dim(),
+                "{:<8} {:<17} {:<12} {:<8} {:<12} {:<24} {:<10} {:<8}",
+                style("SHORT").bold().dim(),
                 style("ID").bold(),
                 style("TYPE").bold(),
                 style("LEVEL").bold(),
@@ -478,15 +478,15 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", "-".repeat(105));
 
             for test in &tests {
-                let short_id = short_ids.get_number(&test.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&test.id.to_string()).unwrap_or_default();
                 let id_display = format_short_id(&test.id);
-                let title_truncated = truncate_str(&test.title, 26);
+                let title_truncated = truncate_str(&test.title, 22);
                 let level_str = test.test_level.map_or("-".to_string(), |l| l.to_string());
                 let method_str = test.test_method.map_or("-".to_string(), |m| m.to_string());
 
                 println!(
-                    "{:<5} {:<17} {:<12} {:<8} {:<12} {:<28} {:<10} {:<8}",
-                    style(format!("@{}", short_id)).cyan(),
+                    "{:<8} {:<17} {:<12} {:<8} {:<12} {:<24} {:<10} {:<8}",
+                    style(&short_id).cyan(),
                     id_display,
                     test.test_type,
                     level_str,
@@ -501,7 +501,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!(
                 "{} test(s) found. Use {} to reference by short ID.",
                 style(tests.len()).cyan(),
-                style("@N").cyan()
+                style("TEST@N").cyan()
             );
         }
         OutputFormat::Id => {
@@ -510,12 +510,12 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Md => {
-            println!("| @ | ID | Type | Level | Method | Title | Status | Priority |");
+            println!("| Short | ID | Type | Level | Method | Title | Status | Priority |");
             println!("|---|---|---|---|---|---|---|---|");
             for test in &tests {
-                let short_id = short_ids.get_number(&test.id.to_string()).unwrap_or(0);
+                let short_id = short_ids.get_short_id(&test.id.to_string()).unwrap_or_default();
                 println!(
-                    "| @{} | {} | {} | {} | {} | {} | {} | {} |",
+                    "| {} | {} | {} | {} | {} | {} | {} | {} |",
                     short_id,
                     format_short_id(&test.id),
                     test.test_type,
@@ -671,10 +671,15 @@ fn run_new(args: NewArgs) -> Result<()> {
     // Write file
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
 
+    // Add to short ID index
+    let mut short_ids = ShortIdIndex::load(&project);
+    let short_id = short_ids.add(id.to_string());
+    let _ = short_ids.save(&project);
+
     println!(
         "{} Created test {}",
         style("✓").green(),
-        style(format_short_id(&id)).cyan()
+        style(short_id.unwrap_or_else(|| format_short_id(&id))).cyan()
     );
     println!("   {}", style(file_path.display()).dim());
     println!(
