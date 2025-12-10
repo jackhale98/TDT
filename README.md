@@ -49,17 +49,37 @@ After `pdt init`, your project will have:
 
 ```
 .pdt/
-├── config.yaml          # Project configuration
-├── schema/              # Custom schema overrides
-└── templates/           # Custom templates
+└── config.yaml              # Project configuration
 
 requirements/
-├── inputs/              # Design inputs (customer requirements)
-└── outputs/             # Design outputs (specifications)
+├── inputs/                  # Design inputs (customer requirements)
+└── outputs/                 # Design outputs (specifications)
 
 risks/
-├── design/              # Design risks
-└── process/             # Process risks
+├── design/                  # Design risks
+└── process/                 # Process risks
+
+bom/
+├── assemblies/              # Assembly definitions
+├── components/              # Component definitions
+└── quotes/                  # Supplier quotes
+
+tolerances/
+├── features/                # Feature tolerances
+├── mates/                   # Mating features
+└── stackups/                # Tolerance stackups
+
+verification/
+├── protocols/               # Verification test protocols
+└── results/                 # Test results
+
+validation/
+├── protocols/               # Validation protocols
+└── results/                 # Validation results
+
+manufacturing/
+├── processes/               # Manufacturing processes
+└── controls/                # Process controls
 ```
 
 ## Entity Types
@@ -79,8 +99,10 @@ risks/
 
 ```bash
 pdt init                    # Initialize a new project
+pdt init --git              # Initialize with git repository
 pdt validate                # Validate all project files
 pdt validate --keep-going   # Continue after errors
+pdt validate --summary      # Show summary only
 ```
 
 ### Requirements
@@ -94,17 +116,18 @@ pdt req list --status draft           # Filter by status
 pdt req list --priority high          # Filter by priority
 pdt req list --type input             # Filter by type
 pdt req list --search "temperature"   # Search in title/text
-pdt req show REQ-01HC2                # Show details
+pdt req list --orphans                # Show unlinked requirements
+pdt req show REQ-01HC2                # Show details (partial ID match)
 pdt req edit REQ-01HC2                # Open in editor
 ```
 
 ### Link Management
 
 ```bash
-pdt link add REQ-01 --type satisfied_by REQ-02   # Add link
+pdt link add REQ-01 --type satisfied_by REQ-02    # Add link
 pdt link remove REQ-01 --type satisfied_by REQ-02 # Remove link
-pdt link show REQ-01                              # Show all links
-pdt link check                                    # Check for broken links
+pdt link show REQ-01                               # Show all links
+pdt link check                                     # Check for broken links
 ```
 
 ### Traceability
@@ -175,21 +198,29 @@ error[pdt::schema::validation]: Schema validation failed
   help: Valid values: draft, review, approved, obsolete
 ```
 
-## Configuration
+## Status Workflow
 
-Project configuration in `.pdt/config.yaml`:
-
-```yaml
-project:
-  name: "My Product"
-  version: "1.0.0"
-
-author:
-  name: "Your Name"
-  email: "you@example.com"
-
-editor: "code --wait"  # Default editor for 'edit' commands
 ```
+draft → review → approved
+                    ↓
+                 obsolete
+```
+
+| Status | Description |
+|--------|-------------|
+| draft | Initial creation, still being written |
+| review | Ready for stakeholder review |
+| approved | Signed off and baselined |
+| obsolete | No longer applicable |
+
+## Priority Levels
+
+| Priority | Use For |
+|----------|---------|
+| critical | Safety, regulatory, blocking requirements |
+| high | Core functionality, key differentiators |
+| medium | Standard features, quality of life |
+| low | Nice to have, future considerations |
 
 ## Best Practices
 
@@ -201,22 +232,12 @@ editor: "code --wait"  # Default editor for 'edit' commands
 - Be specific and testable
 - One requirement per file
 
-### Status Workflow
+### Organizing Requirements
 
-```
-draft → review → approved → released
-                    ↓
-                 obsolete
-```
-
-### Priority Guidelines
-
-| Priority | Use For |
-|----------|---------|
-| critical | Safety, regulatory, blocking |
-| high | Core functionality |
-| medium | Standard features |
-| low | Nice to have |
+- Use **categories** to group related requirements
+- Use **tags** for cross-cutting concerns
+- Separate **inputs** from **outputs** in different directories
+- Link related requirements with `satisfied_by` relationships
 
 ## License
 
