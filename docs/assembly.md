@@ -1,0 +1,306 @@
+# PDT Assembly Entity (BOM)
+
+This document describes the Assembly entity type in PDT (Plain-text Product Development Toolkit).
+
+## Overview
+
+Assemblies represent collections of components and sub-assemblies in your Bill of Materials (BOM). They track part numbers, BOM quantities, and hierarchical structure. Assemblies can contain other assemblies (sub-assemblies) to create a multi-level BOM.
+
+## Entity Type
+
+- **Prefix**: `ASM`
+- **File extension**: `.pdt.yaml`
+- **Directory**: `bom/assemblies/`
+
+## Schema
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier (ASM-[26-char ULID]) |
+| `title` | string | Short descriptive title (1-200 chars) |
+| `status` | enum | `draft`, `review`, `approved`, `released`, `obsolete` |
+| `created` | datetime | Creation timestamp (ISO 8601) |
+| `author` | string | Author name |
+
+### Optional Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `part_number` | string | Assembly part number |
+| `revision` | string | Assembly revision (e.g., "A", "B") |
+| `description` | string | Detailed description |
+| `bom` | array[BomItem] | List of components in this assembly |
+| `subassemblies` | array[string] | IDs of sub-assemblies |
+| `documents` | array[Document] | Related documents |
+| `tags` | array[string] | Tags for filtering |
+| `entity_revision` | integer | Entity revision number (default: 1) |
+
+### BomItem Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `component_id` | string | Component ID (CMP-...) |
+| `quantity` | integer | Quantity used in this assembly |
+| `reference_designators` | array[string] | Reference designators (e.g., R1, R2) |
+| `notes` | string | Assembly notes (e.g., "Use thread locker") |
+
+### Document Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `type` | string | Document type (drawing, spec) |
+| `path` | string | Path to document file |
+| `revision` | string | Document revision |
+
+### Links
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `links.related_to` | array[EntityId] | Related entities |
+| `links.parent` | EntityId | Parent assembly (if sub-assembly) |
+
+## Example
+
+```yaml
+# Assembly: Main Assembly
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: ASM-01HC2JB7SMQX7RS1Y0GFKBHPTE
+part_number: "ASM-001"
+revision: "A"
+title: "Main Assembly"
+
+description: |
+  Top-level product assembly containing all major sub-systems.
+  Assembly weight: 2.5 kg
+
+bom:
+  - component_id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
+    quantity: 4
+    reference_designators: ["BRK1", "BRK2", "BRK3", "BRK4"]
+    notes: "Use thread locker on mounting screws"
+  - component_id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTF
+    quantity: 8
+    reference_designators: []
+    notes: "M4x10 screws"
+  - component_id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTG
+    quantity: 1
+    reference_designators: ["PCB1"]
+    notes: "Handle with ESD precautions"
+
+subassemblies:
+  - ASM-01HC2JB7SMQX7RS1Y0GFKBHPTH  # Power sub-assembly
+  - ASM-01HC2JB7SMQX7RS1Y0GFKBHPTI  # Sensor sub-assembly
+
+documents:
+  - type: "drawing"
+    path: "drawings/ASM-001.pdf"
+    revision: "A"
+  - type: "assembly_instructions"
+    path: "docs/ASM-001-instructions.pdf"
+    revision: "A"
+
+tags: [top-level, product]
+status: approved
+
+links:
+  related_to:
+    - REQ-01HC2JB7SMQX7RS1Y0GFKBHPTJ
+  parent: null
+
+# Auto-managed metadata
+created: 2024-01-15T10:30:00Z
+author: Jack Hale
+entity_revision: 1
+```
+
+## CLI Commands
+
+### Create a new assembly
+
+```bash
+# Create with default template
+pdt asm new
+
+# Create with title and part number
+pdt asm new --title "Main Assembly" --part-number "ASM-001"
+
+# Create with interactive wizard
+pdt asm new -i
+
+# Create and immediately edit
+pdt asm new --title "New Assembly" --edit
+```
+
+### List assemblies
+
+```bash
+# List all assemblies
+pdt asm list
+
+# Filter by status
+pdt asm list --status approved
+pdt asm list --status draft
+
+# Search in title/description
+pdt asm list --search "power"
+
+# Sort and limit
+pdt asm list --sort title
+pdt asm list --limit 10
+
+# Count only
+pdt asm list --count
+
+# Output formats
+pdt asm list -f json
+pdt asm list -f csv
+pdt asm list -f md
+```
+
+### Show assembly details
+
+```bash
+# Show by ID (partial match supported)
+pdt asm show ASM-01HC2
+
+# Show using short ID
+pdt asm show ASM@1
+
+# Output as JSON
+pdt asm show ASM@1 -f json
+
+# Output as YAML
+pdt asm show ASM@1 -f yaml
+```
+
+### Show flattened BOM
+
+```bash
+# Show all components with quantities
+pdt asm bom ASM@1
+
+# Recursively expand sub-assemblies
+pdt asm bom ASM@1 --recursive
+
+# Output as CSV for import
+pdt asm bom ASM@1 -f csv
+```
+
+### Edit an assembly
+
+```bash
+# Open in editor
+pdt asm edit ASM-01HC2
+
+# Using short ID
+pdt asm edit ASM@1
+```
+
+## BOM Structure
+
+### Single-Level BOM
+
+Lists only direct children of the assembly:
+
+```
+ASM-001 Main Assembly
+├── CMP-001 Bracket (qty: 4)
+├── CMP-002 Screw M4x10 (qty: 8)
+├── ASM-002 Power Sub-assembly (qty: 1)
+└── ASM-003 Sensor Sub-assembly (qty: 1)
+```
+
+### Multi-Level BOM (Indented)
+
+Expands sub-assemblies recursively:
+
+```
+ASM-001 Main Assembly
+├── CMP-001 Bracket (qty: 4)
+├── CMP-002 Screw M4x10 (qty: 8)
+├── ASM-002 Power Sub-assembly (qty: 1)
+│   ├── CMP-003 Power Board (qty: 1)
+│   ├── CMP-004 Connector (qty: 2)
+│   └── CMP-005 Cable (qty: 1)
+└── ASM-003 Sensor Sub-assembly (qty: 1)
+    ├── CMP-006 Sensor PCB (qty: 1)
+    └── CMP-007 Housing (qty: 1)
+```
+
+### Flattened BOM
+
+Sums quantities across all levels:
+
+| Part Number | Description | Total Qty |
+|-------------|-------------|-----------|
+| CMP-001 | Bracket | 4 |
+| CMP-002 | Screw M4x10 | 8 |
+| CMP-003 | Power Board | 1 |
+| CMP-004 | Connector | 2 |
+| CMP-005 | Cable | 1 |
+| CMP-006 | Sensor PCB | 1 |
+| CMP-007 | Housing | 1 |
+
+## Reference Designators
+
+Reference designators identify specific instances of components:
+
+| Convention | Use | Examples |
+|------------|-----|----------|
+| R1, R2 | Resistors | R1, R2, R101 |
+| C1, C2 | Capacitors | C1, C2, C101 |
+| U1, U2 | ICs | U1, U2, U101 |
+| J1, J2 | Connectors | J1, J2 |
+| BRK1 | Custom | BRK1, MTR1 |
+
+## Best Practices
+
+### Assembly Structure
+
+1. **Logical grouping** - Group components that are assembled together
+2. **Sub-assemblies** - Create sub-assemblies for reusable modules
+3. **Flat vs deep** - Balance between flat BOMs and deep nesting
+4. **Track quantities** - Verify quantities match drawings
+
+### Documentation
+
+1. **Assembly drawings** - Link to assembly drawings
+2. **Work instructions** - Document assembly sequence
+3. **Notes** - Add notes for special handling
+
+### Configuration Management
+
+1. **Revision control** - Track assembly revisions
+2. **Where-used** - Track which higher assemblies use this one
+3. **Effectivity** - Document when changes take effect
+
+## Validation
+
+Assemblies are validated against a JSON Schema:
+
+```bash
+# Validate all project files
+pdt validate
+
+# Validate specific file
+pdt validate bom/assemblies/ASM-01HC2JB7SMQX7RS1Y0GFKBHPTE.pdt.yaml
+```
+
+### Validation Rules
+
+1. **ID Format**: Must match `ASM-[A-Z0-9]{26}` pattern
+2. **Title**: Required, 1-200 characters
+3. **BOM Items**: Must have `component_id` and `quantity`
+4. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
+5. **No Additional Properties**: Unknown fields are not allowed
+
+## JSON Schema
+
+The full JSON Schema for assemblies is available at:
+
+```
+pdt/schemas/asm.schema.json
+```

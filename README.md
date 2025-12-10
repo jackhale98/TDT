@@ -11,6 +11,8 @@ A CLI tool for managing product development artifacts as plain-text YAML files. 
 - **Short ID aliases** - Use `REQ@1`, `RISK@2`, etc. instead of typing long IDs
 - **Beautiful error messages** - Line numbers, context, and actionable suggestions
 - **FMEA Risk Management** - Built-in support for Failure Mode and Effects Analysis
+- **BOM Management** - Components and assemblies with supplier tracking
+- **Tolerance Analysis** - Features, mates, and stackups with worst-case, RSS, and Monte Carlo analysis
 
 ## Installation
 
@@ -226,6 +228,66 @@ pdt rslt list --with-failures                 # Show only results with failures
 pdt rslt list --recent 7                      # Show results from last 7 days
 pdt rslt show RSLT-01HC2                      # Show details
 pdt rslt edit RSLT-01HC2                      # Open in editor
+```
+
+### Components (BOM)
+
+```bash
+pdt cmp new                                   # Create with template
+pdt cmp new --title "Motor Assembly" --part-number "PN-001"
+pdt cmp new --make-buy buy --category mechanical
+pdt cmp list                                  # List all components
+pdt cmp list --make-buy buy                   # Filter by make/buy
+pdt cmp list --category electrical            # Filter by category
+pdt cmp show CMP@1                            # Show details
+pdt cmp edit CMP@1                            # Open in editor
+```
+
+### Assemblies (BOM)
+
+```bash
+pdt asm new                                   # Create with template
+pdt asm new --title "Main Assembly" --part-number "ASM-001"
+pdt asm list                                  # List all assemblies
+pdt asm show ASM@1                            # Show details
+pdt asm bom ASM@1                             # Show flattened BOM
+pdt asm edit ASM@1                            # Open in editor
+```
+
+### Features (Tolerances)
+
+```bash
+pdt feat new --component CMP@1 --type hole --title "Mounting Hole"
+pdt feat new --component CMP@1 --type shaft   # Feature requires parent component
+pdt feat list                                 # List all features
+pdt feat list --component CMP@1               # Filter by component
+pdt feat list --type hole                     # Filter by type
+pdt feat show FEAT@1                          # Show details
+pdt feat edit FEAT@1                          # Open in editor
+```
+
+### Mates (Tolerances)
+
+```bash
+pdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "Pin-Hole Fit"
+pdt mate list                                 # List all mates
+pdt mate list --type clearance_fit            # Filter by mate type
+pdt mate show MATE@1                          # Show details with fit calculation
+pdt mate recalc MATE@1                        # Recalculate fit from features
+pdt mate edit MATE@1                          # Open in editor
+```
+
+### Stackups (Tolerance Analysis)
+
+```bash
+pdt tol new --title "Gap Analysis" --target-nominal 1.0 --target-upper 1.5 --target-lower 0.5
+pdt tol list                                  # List all stackups
+pdt tol list --result pass                    # Filter by worst-case result
+pdt tol list --critical                       # Show only critical stackups
+pdt tol show TOL@1                            # Show details with analysis
+pdt tol analyze TOL@1                         # Run worst-case, RSS, Monte Carlo
+pdt tol analyze TOL@1 --iterations 50000      # Custom Monte Carlo iterations
+pdt tol edit TOL@1                            # Open in editor
 ```
 
 ### Link Management
@@ -493,6 +555,199 @@ author: John Smith
 revision: 1
 ```
 
+## Component Example (BOM)
+
+```yaml
+id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
+part_number: "PN-001"
+revision: "A"
+title: "Widget Bracket"
+
+make_buy: buy
+category: mechanical
+material: "6061-T6 Aluminum"
+mass_kg: 0.125
+unit_cost: 12.50
+
+suppliers:
+  - name: "Acme Corp"
+    supplier_pn: "ACM-123"
+    lead_time_days: 14
+    moq: 100
+    unit_cost: 11.00
+
+documents:
+  - type: "drawing"
+    path: "drawings/PN-001.pdf"
+    revision: "A"
+
+tags: [mechanical, bracket]
+status: approved
+
+links:
+  used_in: []
+
+created: 2024-01-15T10:30:00Z
+author: Jack Hale
+entity_revision: 1
+```
+
+## Feature Example (Tolerances)
+
+```yaml
+id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE
+component: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
+feature_type: hole
+title: "Mounting Hole A"
+
+# Dimensions use plus_tol/minus_tol (NOT +/- symbol)
+dimensions:
+  - name: "diameter"
+    nominal: 10.0
+    plus_tol: 0.1      # +0.1
+    minus_tol: 0.05    # -0.05
+    units: "mm"
+
+gdt:
+  - symbol: position
+    value: 0.25
+    units: "mm"
+    datum_refs: ["A", "B", "C"]
+    material_condition: mmc
+
+drawing:
+  number: "DWG-001"
+  revision: "A"
+  zone: "B3"
+
+tags: [mounting]
+status: approved
+
+links:
+  used_in_mates: []
+  used_in_stackups: []
+
+created: 2024-01-15T10:30:00Z
+author: Jack Hale
+entity_revision: 1
+```
+
+## Mate Example (Fit Calculation)
+
+```yaml
+id: MATE-01HC2JB7SMQX7RS1Y0GFKBHPTF
+title: "Pin-Hole Mate"
+description: "Locating pin engagement"
+
+feature_a: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE  # Hole
+feature_b: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTG  # Shaft
+
+mate_type: clearance_fit
+
+# Auto-calculated from feature dimensions
+fit_analysis:
+  worst_case_min_clearance: 0.02
+  worst_case_max_clearance: 0.15
+  fit_result: clearance    # clearance | interference | transition
+
+notes: "Critical for alignment"
+tags: [alignment, locating]
+status: approved
+
+links:
+  used_in_stackups: []
+  verifies: []
+
+created: 2024-01-15T10:30:00Z
+author: Jack Hale
+entity_revision: 1
+```
+
+## Stackup Example (Tolerance Analysis)
+
+```yaml
+id: TOL-01HC2JB7SMQX7RS1Y0GFKBHPTH
+title: "Gap Analysis"
+
+target:
+  name: "Gap"
+  nominal: 1.0
+  upper_limit: 1.5
+  lower_limit: 0.5
+  units: "mm"
+  critical: true
+
+# Contributors use plus_tol/minus_tol (NOT +/- symbol)
+contributors:
+  - name: "Part A Length"
+    feature_id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE
+    direction: positive
+    nominal: 10.0
+    plus_tol: 0.1
+    minus_tol: 0.05
+    distribution: normal
+    source: "DWG-001 Rev A"
+  - name: "Part B Length"
+    direction: negative
+    nominal: 9.0
+    plus_tol: 0.08
+    minus_tol: 0.08
+    distribution: normal
+    source: "DWG-002 Rev A"
+
+# Auto-calculated by 'pdt tol analyze'
+analysis_results:
+  worst_case:
+    min: 0.87
+    max: 1.18
+    margin: 0.32
+    result: pass
+  rss:
+    mean: 1.0
+    sigma_3: 0.11
+    margin: 0.39
+    cpk: 4.56
+    yield_percent: 99.9999
+  monte_carlo:
+    iterations: 10000
+    mean: 1.0
+    std_dev: 0.037
+    min: 0.85
+    max: 1.14
+    yield_percent: 100.0
+    percentile_2_5: 0.93
+    percentile_97_5: 1.07
+
+disposition: approved
+tags: [critical, assembly]
+status: approved
+
+links:
+  verifies: []
+  mates_used: []
+
+created: 2024-01-15T10:30:00Z
+author: Jack Hale
+entity_revision: 1
+```
+
+## Tolerance Format
+
+PDT uses `plus_tol` and `minus_tol` fields instead of the `±` symbol (which is hard to type):
+
+```yaml
+# Correct: 10.0 +0.1/-0.05
+dimensions:
+  - name: "diameter"
+    nominal: 10.0
+    plus_tol: 0.1     # Positive deviation allowed
+    minus_tol: 0.05   # Negative deviation allowed (stored as positive number)
+```
+
+Both values are stored as **positive numbers**. The actual tolerance range is:
+- Maximum: `nominal + plus_tol` = 10.1
+- Minimum: `nominal - minus_tol` = 9.95
+
 ## Validation
 
 PDT validates files against JSON Schema with detailed error messages:
@@ -590,6 +845,50 @@ Tests can use different verification methods (Inspection, Analysis, Demonstratio
 | **Analysis** | Calculation/simulation | Complex systems, safety-critical |
 | **Demonstration** | Show functionality | User interface, simple operations |
 | **Test** | Measured execution | Performance, environmental, stress |
+
+## Tolerance Analysis
+
+PDT supports three analysis methods for tolerance stackups:
+
+### Worst-Case Analysis
+
+Assumes all dimensions are at their worst-case limits simultaneously:
+- **Min result**: All positive contributors at minimum, all negative at maximum
+- **Max result**: All positive contributors at maximum, all negative at minimum
+- **Conservative** but often overly pessimistic
+
+### RSS (Root Sum Square) Analysis
+
+Statistical analysis assuming normal distributions:
+- Calculates mean and 3σ spread
+- Computes Cpk (process capability index)
+- Estimates yield percentage
+- More realistic than worst-case for multi-contributor stacks
+
+| Cpk | Yield | Quality Level |
+|-----|-------|---------------|
+| 0.33 | 68.27% | Poor |
+| 0.67 | 95.45% | Marginal |
+| 1.0 | 99.73% | Capable |
+| 1.33 | 99.99% | Good |
+| 1.67 | 99.9997% | Excellent |
+| 2.0 | 99.9999% | Six Sigma |
+
+### Monte Carlo Simulation
+
+Runs thousands of random samples:
+- Supports normal, uniform, and triangular distributions
+- Provides actual yield percentage
+- Reports 95% confidence interval (2.5th to 97.5th percentile)
+- Default: 10,000 iterations
+
+```bash
+# Run analysis with default iterations
+pdt tol analyze TOL@1
+
+# Run with more iterations for higher confidence
+pdt tol analyze TOL@1 --iterations 100000
+```
 
 ### Test Verdicts
 

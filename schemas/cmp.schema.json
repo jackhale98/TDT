@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pdt.dev/schemas/component.schema.json",
+  "title": "Component",
+  "description": "An individual part (purchased or manufactured)",
+  "type": "object",
+  "required": ["id", "part_number", "title", "make_buy", "category", "status", "created", "author"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^CMP-[0-9A-Z]{26}$",
+      "description": "Unique identifier (CMP prefix + ULID)"
+    },
+    "part_number": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Part number"
+    },
+    "revision": {
+      "type": "string",
+      "maxLength": 20,
+      "description": "Part revision"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Short descriptive title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description"
+    },
+    "make_buy": {
+      "type": "string",
+      "enum": ["make", "buy"],
+      "default": "buy",
+      "description": "Make or buy decision"
+    },
+    "category": {
+      "type": "string",
+      "enum": ["mechanical", "electrical", "software", "fastener", "consumable"],
+      "default": "mechanical",
+      "description": "Component category"
+    },
+    "material": {
+      "type": "string",
+      "description": "Material specification"
+    },
+    "mass_kg": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Mass in kilograms"
+    },
+    "unit_cost": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Unit cost"
+    },
+    "suppliers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Supplier name"
+          },
+          "supplier_pn": {
+            "type": "string",
+            "description": "Supplier's part number"
+          },
+          "lead_time_days": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Lead time in days"
+          },
+          "moq": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Minimum order quantity"
+          },
+          "unit_cost": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Unit cost from this supplier"
+          }
+        }
+      },
+      "description": "Supplier information"
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "path"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Document type (drawing, specification, datasheet, etc.)"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path to the document"
+          },
+          "revision": {
+            "type": "string",
+            "description": "Document revision"
+          }
+        }
+      },
+      "description": "Associated documents"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags for filtering and organization"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "review", "approved", "released", "obsolete"],
+      "default": "draft",
+      "description": "Current status"
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "related_to": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs of related entities"
+        },
+        "used_in": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs of assemblies using this component"
+        }
+      }
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name"
+    },
+    "entity_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Entity revision number"
+    }
+  },
+  "additionalProperties": false
+}

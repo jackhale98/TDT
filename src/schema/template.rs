@@ -39,6 +39,24 @@ pub struct TemplateContext {
     pub executed_by: Option<String>,
     pub executed_date: Option<DateTime<Utc>>,
     pub duration: Option<String>,
+    // CMP fields
+    pub part_number: Option<String>,
+    pub part_revision: Option<String>,
+    pub make_buy: Option<String>,
+    pub component_category: Option<String>,
+    pub material: Option<String>,
+    // FEAT fields
+    pub component_id: Option<String>,
+    pub feature_type: Option<String>,
+    // MATE fields
+    pub feature_a: Option<String>,
+    pub feature_b: Option<String>,
+    pub mate_type: Option<String>,
+    // TOL (Stackup) fields
+    pub target_name: Option<String>,
+    pub target_nominal: Option<f64>,
+    pub target_upper: Option<f64>,
+    pub target_lower: Option<f64>,
 }
 
 impl TemplateContext {
@@ -66,6 +84,20 @@ impl TemplateContext {
             executed_by: None,
             executed_date: None,
             duration: None,
+            part_number: None,
+            part_revision: None,
+            make_buy: None,
+            component_category: None,
+            material: None,
+            component_id: None,
+            feature_type: None,
+            feature_a: None,
+            feature_b: None,
+            mate_type: None,
+            target_name: None,
+            target_nominal: None,
+            target_upper: None,
+            target_lower: None,
         }
     }
 
@@ -161,6 +193,64 @@ impl TemplateContext {
 
     pub fn with_duration(mut self, duration: impl Into<String>) -> Self {
         self.duration = Some(duration.into());
+        self
+    }
+
+    pub fn with_part_number(mut self, part_number: impl Into<String>) -> Self {
+        self.part_number = Some(part_number.into());
+        self
+    }
+
+    pub fn with_part_revision(mut self, revision: impl Into<String>) -> Self {
+        self.part_revision = Some(revision.into());
+        self
+    }
+
+    pub fn with_make_buy(mut self, make_buy: impl Into<String>) -> Self {
+        self.make_buy = Some(make_buy.into());
+        self
+    }
+
+    pub fn with_component_category(mut self, category: impl Into<String>) -> Self {
+        self.component_category = Some(category.into());
+        self
+    }
+
+    pub fn with_material(mut self, material: impl Into<String>) -> Self {
+        self.material = Some(material.into());
+        self
+    }
+
+    pub fn with_component_id(mut self, component_id: impl Into<String>) -> Self {
+        self.component_id = Some(component_id.into());
+        self
+    }
+
+    pub fn with_feature_type(mut self, feature_type: impl Into<String>) -> Self {
+        self.feature_type = Some(feature_type.into());
+        self
+    }
+
+    pub fn with_feature_a(mut self, feature_a: impl Into<String>) -> Self {
+        self.feature_a = Some(feature_a.into());
+        self
+    }
+
+    pub fn with_feature_b(mut self, feature_b: impl Into<String>) -> Self {
+        self.feature_b = Some(feature_b.into());
+        self
+    }
+
+    pub fn with_mate_type(mut self, mate_type: impl Into<String>) -> Self {
+        self.mate_type = Some(mate_type.into());
+        self
+    }
+
+    pub fn with_target(mut self, name: impl Into<String>, nominal: f64, upper: f64, lower: f64) -> Self {
+        self.target_name = Some(name.into());
+        self.target_nominal = Some(nominal);
+        self.target_upper = Some(upper);
+        self.target_lower = Some(lower);
         self
     }
 }
@@ -295,6 +385,414 @@ impl TemplateGenerator {
             // Hardcoded fallback template
             Ok(self.hardcoded_risk_template(ctx))
         }
+    }
+
+    /// Generate a component template
+    pub fn generate_component(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        let mut context = tera::Context::new();
+        context.insert("id", &ctx.id.to_string());
+        context.insert("author", &ctx.author);
+        context.insert("created", &ctx.created.to_rfc3339());
+        context.insert("title", &ctx.title.clone().unwrap_or_default());
+        context.insert("part_number", &ctx.part_number.clone().unwrap_or_default());
+        context.insert("part_revision", &ctx.part_revision.clone().unwrap_or_default());
+        context.insert("make_buy", &ctx.make_buy.clone().unwrap_or_else(|| "buy".to_string()));
+        context.insert("category", &ctx.component_category.clone().unwrap_or_else(|| "mechanical".to_string()));
+        context.insert("material", &ctx.material.clone().unwrap_or_default());
+
+        if self.tera.get_template_names().any(|n| n == "component.yaml.tera") {
+            self.tera
+                .render("component.yaml.tera", &context)
+                .map_err(|e| TemplateError::RenderError(e.to_string()))
+        } else {
+            Ok(self.hardcoded_component_template(ctx))
+        }
+    }
+
+    /// Generate an assembly template
+    pub fn generate_assembly(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        let mut context = tera::Context::new();
+        context.insert("id", &ctx.id.to_string());
+        context.insert("author", &ctx.author);
+        context.insert("created", &ctx.created.to_rfc3339());
+        context.insert("title", &ctx.title.clone().unwrap_or_default());
+        context.insert("part_number", &ctx.part_number.clone().unwrap_or_default());
+        context.insert("part_revision", &ctx.part_revision.clone().unwrap_or_default());
+
+        if self.tera.get_template_names().any(|n| n == "assembly.yaml.tera") {
+            self.tera
+                .render("assembly.yaml.tera", &context)
+                .map_err(|e| TemplateError::RenderError(e.to_string()))
+        } else {
+            Ok(self.hardcoded_assembly_template(ctx))
+        }
+    }
+
+    fn hardcoded_assembly_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let part_number = ctx.part_number.clone().unwrap_or_default();
+        let part_revision = ctx.part_revision.clone().unwrap_or_default();
+        let created = ctx.created.to_rfc3339();
+
+        format!(
+            r#"# Assembly: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+part_number: "{part_number}"
+revision: "{part_revision}"
+title: "{title}"
+
+description: |
+  # Detailed description of this assembly
+  # Include key specifications and assembly requirements
+
+# Bill of Materials
+bom:
+  - component_id: ""
+    quantity: 1
+    reference_designators: []
+    notes: ""
+
+# Sub-assembly references (ASM-... IDs)
+subassemblies: []
+
+# Associated documents
+documents:
+  - type: drawing
+    path: ""
+    revision: ""
+
+tags: []
+status: draft
+
+links:
+  related_to: []
+  parent: null
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            part_number = part_number,
+            part_revision = part_revision,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a feature template
+    pub fn generate_feature(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        let mut context = tera::Context::new();
+        context.insert("id", &ctx.id.to_string());
+        context.insert("author", &ctx.author);
+        context.insert("created", &ctx.created.to_rfc3339());
+        context.insert("title", &ctx.title.clone().unwrap_or_default());
+        context.insert("component_id", &ctx.component_id.clone().unwrap_or_default());
+        context.insert("feature_type", &ctx.feature_type.clone().unwrap_or_else(|| "hole".to_string()));
+
+        if self.tera.get_template_names().any(|n| n == "feature.yaml.tera") {
+            self.tera
+                .render("feature.yaml.tera", &context)
+                .map_err(|e| TemplateError::RenderError(e.to_string()))
+        } else {
+            Ok(self.hardcoded_feature_template(ctx))
+        }
+    }
+
+    fn hardcoded_feature_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let component_id = ctx.component_id.clone().unwrap_or_default();
+        let feature_type = ctx.feature_type.clone().unwrap_or_else(|| "hole".to_string());
+        let created = ctx.created.to_rfc3339();
+
+        format!(
+            r#"# Feature: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+component: {component_id}
+feature_type: {feature_type}
+title: "{title}"
+
+description: |
+  # Detailed description of this feature
+  # Include key dimensional requirements
+
+# Dimensions with tolerances
+# Uses plus_tol/minus_tol format (not +/- symbol)
+dimensions:
+  - name: "diameter"
+    nominal: 10.0
+    plus_tol: 0.1
+    minus_tol: 0.05
+    units: "mm"
+
+# GD&T controls (optional)
+gdt: []
+
+# Drawing reference
+drawing:
+  number: ""
+  revision: ""
+  zone: ""
+
+tags: []
+status: draft
+
+links:
+  used_in_mates: []
+  used_in_stackups: []
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            component_id = component_id,
+            feature_type = feature_type,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a mate template
+    pub fn generate_mate(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        let mut context = tera::Context::new();
+        context.insert("id", &ctx.id.to_string());
+        context.insert("author", &ctx.author);
+        context.insert("created", &ctx.created.to_rfc3339());
+        context.insert("title", &ctx.title.clone().unwrap_or_default());
+        context.insert("feature_a", &ctx.feature_a.clone().unwrap_or_default());
+        context.insert("feature_b", &ctx.feature_b.clone().unwrap_or_default());
+        context.insert("mate_type", &ctx.mate_type.clone().unwrap_or_else(|| "clearance_fit".to_string()));
+
+        if self.tera.get_template_names().any(|n| n == "mate.yaml.tera") {
+            self.tera
+                .render("mate.yaml.tera", &context)
+                .map_err(|e| TemplateError::RenderError(e.to_string()))
+        } else {
+            Ok(self.hardcoded_mate_template(ctx))
+        }
+    }
+
+    fn hardcoded_mate_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let feature_a = ctx.feature_a.clone().unwrap_or_default();
+        let feature_b = ctx.feature_b.clone().unwrap_or_default();
+        let mate_type = ctx.mate_type.clone().unwrap_or_else(|| "clearance_fit".to_string());
+        let created = ctx.created.to_rfc3339();
+
+        format!(
+            r#"# Mate: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+title: "{title}"
+
+description: |
+  # Detailed description of this mate
+  # Describe the contact and fit requirements
+
+# Features being mated (both REQUIRED)
+feature_a: {feature_a}   # Typically hole/bore
+feature_b: {feature_b}   # Typically shaft/pin
+
+mate_type: {mate_type}
+
+# Fit analysis (auto-calculated when features have dimensions)
+# Run 'pdt mate recalc MATE@N' to update
+fit_analysis: null
+
+notes: |
+  # Additional assembly or fit notes
+
+tags: []
+status: draft
+
+links:
+  used_in_stackups: []
+  verifies: []
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            feature_a = feature_a,
+            feature_b = feature_b,
+            mate_type = mate_type,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a stackup template
+    pub fn generate_stackup(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        let mut context = tera::Context::new();
+        context.insert("id", &ctx.id.to_string());
+        context.insert("author", &ctx.author);
+        context.insert("created", &ctx.created.to_rfc3339());
+        context.insert("title", &ctx.title.clone().unwrap_or_default());
+        context.insert("target_name", &ctx.target_name.clone().unwrap_or_else(|| "Gap".to_string()));
+        context.insert("target_nominal", &ctx.target_nominal.unwrap_or(1.0));
+        context.insert("target_upper", &ctx.target_upper.unwrap_or(1.5));
+        context.insert("target_lower", &ctx.target_lower.unwrap_or(0.5));
+
+        if self.tera.get_template_names().any(|n| n == "stackup.yaml.tera") {
+            self.tera
+                .render("stackup.yaml.tera", &context)
+                .map_err(|e| TemplateError::RenderError(e.to_string()))
+        } else {
+            Ok(self.hardcoded_stackup_template(ctx))
+        }
+    }
+
+    fn hardcoded_stackup_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let target_name = ctx.target_name.clone().unwrap_or_else(|| "Gap".to_string());
+        let target_nominal = ctx.target_nominal.unwrap_or(1.0);
+        let target_upper = ctx.target_upper.unwrap_or(1.5);
+        let target_lower = ctx.target_lower.unwrap_or(0.5);
+        let created = ctx.created.to_rfc3339();
+
+        format!(
+            r#"# Stackup: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+title: "{title}"
+
+description: |
+  # Detailed description of this tolerance stackup
+  # Include the tolerance chain being analyzed
+
+# Target specification
+target:
+  name: "{target_name}"
+  nominal: {target_nominal}
+  upper_limit: {target_upper}
+  lower_limit: {target_lower}
+  units: "mm"
+  critical: false
+
+# Contributors to the stackup
+# Use plus_tol/minus_tol format (not +/- symbol)
+contributors:
+  - name: "Part A Length"
+    feature_id: null
+    direction: positive
+    nominal: 10.0
+    plus_tol: 0.1
+    minus_tol: 0.05
+    distribution: normal
+    source: "DWG-001 Rev A"
+
+# Analysis results (auto-calculated)
+# Run 'pdt tol analyze TOL@N' to calculate
+analysis_results:
+  worst_case: null
+  rss: null
+  monte_carlo: null
+
+disposition: under_review
+
+tags: []
+status: draft
+
+links:
+  verifies: []
+  mates_used: []
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            target_name = target_name,
+            target_nominal = target_nominal,
+            target_upper = target_upper,
+            target_lower = target_lower,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    fn hardcoded_component_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let part_number = ctx.part_number.clone().unwrap_or_default();
+        let part_revision = ctx.part_revision.clone().unwrap_or_default();
+        let make_buy = ctx.make_buy.clone().unwrap_or_else(|| "buy".to_string());
+        let category = ctx.component_category.clone().unwrap_or_else(|| "mechanical".to_string());
+        let material = ctx.material.clone().unwrap_or_default();
+        let created = ctx.created.to_rfc3339();
+
+        format!(
+            r#"# Component: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+part_number: "{part_number}"
+revision: "{part_revision}"
+title: "{title}"
+
+description: |
+  # Detailed description of this component
+  # Include key specifications and requirements
+
+make_buy: {make_buy}
+category: {category}
+
+# Physical properties
+material: "{material}"
+mass_kg: null
+unit_cost: null
+
+# Supplier information
+suppliers:
+  - name: ""
+    supplier_pn: ""
+    lead_time_days: null
+    moq: null
+    unit_cost: null
+
+# Associated documents
+documents:
+  - type: drawing
+    path: ""
+    revision: ""
+
+tags: []
+status: draft
+
+links:
+  related_to: []
+  used_in: []
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            part_number = part_number,
+            part_revision = part_revision,
+            make_buy = make_buy,
+            category = category,
+            material = material,
+            created = created,
+            author = ctx.author,
+        )
     }
 
     fn hardcoded_risk_template(&self, ctx: &TemplateContext) -> String {

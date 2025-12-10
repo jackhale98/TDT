@@ -1,0 +1,164 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pdt.dev/schemas/feature.schema.json",
+  "title": "Feature",
+  "description": "A dimensional feature on a component with tolerances",
+  "type": "object",
+  "required": ["id", "component", "feature_type", "title", "status", "created", "author"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^FEAT-[0-9A-Z]{26}$",
+      "description": "Unique identifier (FEAT prefix + ULID)"
+    },
+    "component": {
+      "type": "string",
+      "pattern": "^CMP-[0-9A-Z]{26}$",
+      "description": "Parent component ID (REQUIRED)"
+    },
+    "feature_type": {
+      "type": "string",
+      "enum": ["hole", "shaft", "planar_surface", "slot", "thread", "counterbore", "countersink", "boss", "pocket", "edge", "other"],
+      "description": "Feature type classification"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Short descriptive title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description"
+    },
+    "dimensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "nominal", "plus_tol", "minus_tol"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Dimension name (e.g., diameter, length)"
+          },
+          "nominal": {
+            "type": "number",
+            "description": "Nominal value"
+          },
+          "plus_tol": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Plus tolerance (positive number, e.g., 0.1 means +0.1)"
+          },
+          "minus_tol": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Minus tolerance (positive number, e.g., 0.05 means -0.05)"
+          },
+          "units": {
+            "type": "string",
+            "default": "mm",
+            "description": "Units (mm, in, etc.)"
+          }
+        }
+      },
+      "description": "Dimensional characteristics with tolerances"
+    },
+    "gdt": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["symbol", "value"],
+        "properties": {
+          "symbol": {
+            "type": "string",
+            "enum": ["position", "flatness", "perpendicularity", "parallelism", "concentricity", "runout", "total_runout", "profile_surface", "profile_line", "circularity", "cylindricity", "straightness", "angularity", "symmetry"],
+            "description": "GD&T symbol"
+          },
+          "value": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Tolerance value"
+          },
+          "units": {
+            "type": "string",
+            "default": "mm",
+            "description": "Units"
+          },
+          "datum_refs": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Datum references (e.g., A, B, C)"
+          },
+          "material_condition": {
+            "type": "string",
+            "enum": ["mmc", "lmc", "rfs"],
+            "default": "rfs",
+            "description": "Material condition modifier"
+          }
+        }
+      },
+      "description": "GD&T controls"
+    },
+    "drawing": {
+      "type": "object",
+      "properties": {
+        "number": {
+          "type": "string",
+          "description": "Drawing number"
+        },
+        "revision": {
+          "type": "string",
+          "description": "Drawing revision"
+        },
+        "zone": {
+          "type": "string",
+          "description": "Zone on drawing (e.g., B3)"
+        }
+      },
+      "description": "Drawing reference"
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Tags for filtering and organization"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "review", "approved", "released", "obsolete"],
+      "default": "draft",
+      "description": "Current status"
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "used_in_mates": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Mate IDs using this feature"
+        },
+        "used_in_stackups": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Stackup IDs using this feature"
+        }
+      }
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name"
+    },
+    "entity_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Entity revision number"
+    }
+  },
+  "additionalProperties": false
+}

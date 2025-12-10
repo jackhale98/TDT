@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pdt.dev/schemas/mate.schema.json",
+  "title": "Mate",
+  "description": "A 1:1 contact between two features with fit calculation",
+  "type": "object",
+  "required": ["id", "title", "feature_a", "feature_b", "mate_type", "status", "created", "author"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^MATE-[0-9A-Z]{26}$",
+      "description": "Unique identifier (MATE prefix + ULID)"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Short descriptive title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description"
+    },
+    "feature_a": {
+      "type": "string",
+      "pattern": "^FEAT-[0-9A-Z]{26}$",
+      "description": "First feature ID (typically hole/bore)"
+    },
+    "feature_b": {
+      "type": "string",
+      "pattern": "^FEAT-[0-9A-Z]{26}$",
+      "description": "Second feature ID (typically shaft/pin)"
+    },
+    "mate_type": {
+      "type": "string",
+      "enum": ["clearance_fit", "interference_fit", "transition_fit", "planar_contact", "thread_engagement"],
+      "description": "Mate type classification"
+    },
+    "fit_analysis": {
+      "type": "object",
+      "properties": {
+        "worst_case_min_clearance": {
+          "type": "number",
+          "description": "Minimum clearance (negative = interference)"
+        },
+        "worst_case_max_clearance": {
+          "type": "number",
+          "description": "Maximum clearance"
+        },
+        "fit_result": {
+          "type": "string",
+          "enum": ["clearance", "interference", "transition"],
+          "description": "Fit classification result"
+        }
+      },
+      "description": "Auto-calculated fit analysis"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"},
+      "description": "Tags for filtering and organization"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "review", "approved", "released", "obsolete"],
+      "default": "draft",
+      "description": "Current status"
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "used_in_stackups": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Stackup IDs using this mate"
+        },
+        "verifies": {
+          "type": "array",
+          "items": {"type": "string"},
+          "description": "Requirement IDs verified by this mate"
+        }
+      }
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name"
+    },
+    "entity_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Entity revision number"
+    }
+  },
+  "additionalProperties": false
+}

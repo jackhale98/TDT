@@ -4,12 +4,17 @@ use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
 
 use crate::cli::commands::{
+    asm::AsmCommands,
+    cmp::CmpCommands,
+    feat::FeatCommands,
     init::InitArgs,
     link::LinkCommands,
+    mate::MateCommands,
     req::ReqCommands,
     risk::RiskCommands,
     rslt::RsltCommands,
     test::TestCommands,
+    tol::TolCommands,
     trace::TraceCommands,
     validate::ValidateArgs,
 };
@@ -66,6 +71,26 @@ pub enum Commands {
     /// Test result management
     #[command(subcommand)]
     Rslt(RsltCommands),
+
+    /// Component management (BOM parts)
+    #[command(subcommand)]
+    Cmp(CmpCommands),
+
+    /// Assembly management (BOM assemblies)
+    #[command(subcommand)]
+    Asm(AsmCommands),
+
+    /// Feature management (dimensional features on components)
+    #[command(subcommand)]
+    Feat(FeatCommands),
+
+    /// Mate management (1:1 feature contacts with fit calculation)
+    #[command(subcommand)]
+    Mate(MateCommands),
+
+    /// Tolerance stackup analysis (worst-case, RSS, Monte Carlo)
+    #[command(subcommand)]
+    Tol(TolCommands),
 
     /// Validate project files against schemas
     Validate(ValidateArgs),

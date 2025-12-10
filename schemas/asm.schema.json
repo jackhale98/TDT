@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pdt.dev/schemas/assembly.schema.json",
+  "title": "Assembly",
+  "description": "A collection of components and sub-assemblies",
+  "type": "object",
+  "required": ["id", "part_number", "title", "status", "created", "author"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^ASM-[0-9A-Z]{26}$",
+      "description": "Unique identifier (ASM prefix + ULID)"
+    },
+    "part_number": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100,
+      "description": "Assembly part number"
+    },
+    "revision": {
+      "type": "string",
+      "maxLength": 20,
+      "description": "Assembly revision"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Short descriptive title"
+    },
+    "description": {
+      "type": "string",
+      "description": "Detailed description"
+    },
+    "bom": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["component_id", "quantity"],
+        "properties": {
+          "component_id": {
+            "type": "string",
+            "pattern": "^CMP-[0-9A-Z]{26}$",
+            "description": "Component ID reference"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Quantity of this component in the assembly"
+          },
+          "reference_designators": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Reference designators (e.g., R1, R2, U1)"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Assembly-specific notes for this item"
+          }
+        }
+      },
+      "description": "Bill of materials - component references with quantities"
+    },
+    "subassemblies": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^ASM-[0-9A-Z]{26}$"
+      },
+      "description": "Sub-assembly references"
+    },
+    "documents": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "path"],
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "Document type (drawing, specification, etc.)"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path to the document"
+          },
+          "revision": {
+            "type": "string",
+            "description": "Document revision"
+          }
+        }
+      },
+      "description": "Associated documents"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Tags for filtering and organization"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "review", "approved", "released", "obsolete"],
+      "default": "draft",
+      "description": "Current status"
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "related_to": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "IDs of related entities"
+        },
+        "parent": {
+          "type": "string",
+          "pattern": "^ASM-[0-9A-Z]{26}$",
+          "description": "Parent assembly ID if this is a sub-assembly"
+        }
+      }
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name"
+    },
+    "entity_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Entity revision number"
+    }
+  },
+  "additionalProperties": false
+}

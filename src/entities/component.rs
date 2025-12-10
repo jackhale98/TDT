@@ -1,0 +1,362 @@
+//! Component entity type - Individual parts (purchased or manufactured)
+
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+
+use crate::core::entity::{Entity, Status};
+use crate::core::identity::EntityId;
+
+/// Make or buy decision
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum MakeBuy {
+    Make,
+    Buy,
+}
+
+impl Default for MakeBuy {
+    fn default() -> Self {
+        MakeBuy::Buy
+    }
+}
+
+impl std::fmt::Display for MakeBuy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MakeBuy::Make => write!(f, "make"),
+            MakeBuy::Buy => write!(f, "buy"),
+        }
+    }
+}
+
+impl std::str::FromStr for MakeBuy {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "make" => Ok(MakeBuy::Make),
+            "buy" => Ok(MakeBuy::Buy),
+            _ => Err(format!("Invalid make_buy value: {}. Use 'make' or 'buy'", s)),
+        }
+    }
+}
+
+/// Component category
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ComponentCategory {
+    Mechanical,
+    Electrical,
+    Software,
+    Fastener,
+    Consumable,
+}
+
+impl Default for ComponentCategory {
+    fn default() -> Self {
+        ComponentCategory::Mechanical
+    }
+}
+
+impl std::fmt::Display for ComponentCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ComponentCategory::Mechanical => write!(f, "mechanical"),
+            ComponentCategory::Electrical => write!(f, "electrical"),
+            ComponentCategory::Software => write!(f, "software"),
+            ComponentCategory::Fastener => write!(f, "fastener"),
+            ComponentCategory::Consumable => write!(f, "consumable"),
+        }
+    }
+}
+
+impl std::str::FromStr for ComponentCategory {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "mechanical" => Ok(ComponentCategory::Mechanical),
+            "electrical" => Ok(ComponentCategory::Electrical),
+            "software" => Ok(ComponentCategory::Software),
+            "fastener" => Ok(ComponentCategory::Fastener),
+            "consumable" => Ok(ComponentCategory::Consumable),
+            _ => Err(format!(
+                "Invalid category: {}. Use mechanical, electrical, software, fastener, or consumable",
+                s
+            )),
+        }
+    }
+}
+
+/// Supplier information
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Supplier {
+    /// Supplier name
+    pub name: String,
+
+    /// Supplier's part number
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub supplier_pn: Option<String>,
+
+    /// Lead time in days
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lead_time_days: Option<u32>,
+
+    /// Minimum order quantity
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub moq: Option<u32>,
+
+    /// Unit cost from this supplier
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit_cost: Option<f64>,
+}
+
+/// Document reference
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct Document {
+    /// Document type (e.g., "drawing", "specification", "datasheet")
+    #[serde(rename = "type")]
+    pub doc_type: String,
+
+    /// Path to the document
+    pub path: String,
+
+    /// Document revision
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+}
+
+/// Links to other entities
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ComponentLinks {
+    /// Related entities (requirements, etc.)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub related_to: Vec<EntityId>,
+
+    /// Assemblies that use this component
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub used_in: Vec<EntityId>,
+}
+
+/// A Component entity - individual part (purchased or manufactured)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Component {
+    /// Unique identifier
+    pub id: EntityId,
+
+    /// Part number
+    pub part_number: String,
+
+    /// Part revision
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub revision: Option<String>,
+
+    /// Short title/description
+    pub title: String,
+
+    /// Detailed description
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+
+    /// Make or buy decision
+    #[serde(default)]
+    pub make_buy: MakeBuy,
+
+    /// Component category
+    #[serde(default)]
+    pub category: ComponentCategory,
+
+    /// Material specification
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub material: Option<String>,
+
+    /// Mass in kilograms
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mass_kg: Option<f64>,
+
+    /// Unit cost
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unit_cost: Option<f64>,
+
+    /// Supplier information
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub suppliers: Vec<Supplier>,
+
+    /// Associated documents
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub documents: Vec<Document>,
+
+    /// Tags for filtering
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+
+    /// Current status
+    #[serde(default)]
+    pub status: Status,
+
+    /// Links to other entities
+    #[serde(default)]
+    pub links: ComponentLinks,
+
+    /// Creation timestamp
+    pub created: DateTime<Utc>,
+
+    /// Author (who created this component)
+    pub author: String,
+
+    /// Entity revision number
+    #[serde(default = "default_revision")]
+    pub entity_revision: u32,
+}
+
+fn default_revision() -> u32 {
+    1
+}
+
+impl Entity for Component {
+    const PREFIX: &'static str = "CMP";
+
+    fn id(&self) -> &EntityId {
+        &self.id
+    }
+
+    fn title(&self) -> &str {
+        &self.title
+    }
+
+    fn status(&self) -> &str {
+        match self.status {
+            Status::Draft => "draft",
+            Status::Review => "review",
+            Status::Approved => "approved",
+            Status::Released => "released",
+            Status::Obsolete => "obsolete",
+        }
+    }
+
+    fn created(&self) -> DateTime<Utc> {
+        self.created
+    }
+
+    fn author(&self) -> &str {
+        &self.author
+    }
+}
+
+impl Component {
+    /// Create a new component with the given parameters
+    pub fn new(
+        part_number: String,
+        title: String,
+        make_buy: MakeBuy,
+        category: ComponentCategory,
+        author: String,
+    ) -> Self {
+        Self {
+            id: EntityId::new(crate::core::EntityPrefix::Cmp),
+            part_number,
+            revision: None,
+            title,
+            description: None,
+            make_buy,
+            category,
+            material: None,
+            mass_kg: None,
+            unit_cost: None,
+            suppliers: Vec::new(),
+            documents: Vec::new(),
+            tags: Vec::new(),
+            status: Status::default(),
+            links: ComponentLinks::default(),
+            created: Utc::now(),
+            author,
+            entity_revision: 1,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_component_creation() {
+        let cmp = Component::new(
+            "PN-001".to_string(),
+            "Test Widget".to_string(),
+            MakeBuy::Buy,
+            ComponentCategory::Mechanical,
+            "test".to_string(),
+        );
+
+        assert!(cmp.id.to_string().starts_with("CMP-"));
+        assert_eq!(cmp.part_number, "PN-001");
+        assert_eq!(cmp.title, "Test Widget");
+        assert_eq!(cmp.make_buy, MakeBuy::Buy);
+        assert_eq!(cmp.category, ComponentCategory::Mechanical);
+    }
+
+    #[test]
+    fn test_component_roundtrip() {
+        let cmp = Component::new(
+            "PN-002".to_string(),
+            "Another Widget".to_string(),
+            MakeBuy::Make,
+            ComponentCategory::Electrical,
+            "test".to_string(),
+        );
+
+        let yaml = serde_yml::to_string(&cmp).unwrap();
+        let parsed: Component = serde_yml::from_str(&yaml).unwrap();
+
+        assert_eq!(cmp.id, parsed.id);
+        assert_eq!(cmp.part_number, parsed.part_number);
+        assert_eq!(cmp.title, parsed.title);
+        assert_eq!(cmp.make_buy, parsed.make_buy);
+        assert_eq!(cmp.category, parsed.category);
+    }
+
+    #[test]
+    fn test_make_buy_serialization() {
+        let cmp = Component::new(
+            "PN-003".to_string(),
+            "Make Part".to_string(),
+            MakeBuy::Make,
+            ComponentCategory::Mechanical,
+            "test".to_string(),
+        );
+
+        let yaml = serde_yml::to_string(&cmp).unwrap();
+        assert!(yaml.contains("make_buy: make"));
+    }
+
+    #[test]
+    fn test_category_serialization() {
+        let cmp = Component::new(
+            "PN-004".to_string(),
+            "Fastener".to_string(),
+            MakeBuy::Buy,
+            ComponentCategory::Fastener,
+            "test".to_string(),
+        );
+
+        let yaml = serde_yml::to_string(&cmp).unwrap();
+        assert!(yaml.contains("category: fastener"));
+    }
+
+    #[test]
+    fn test_entity_trait_implementation() {
+        let cmp = Component::new(
+            "PN-005".to_string(),
+            "Entity Test".to_string(),
+            MakeBuy::Buy,
+            ComponentCategory::Mechanical,
+            "test_author".to_string(),
+        );
+
+        assert_eq!(Component::PREFIX, "CMP");
+        assert_eq!(cmp.title(), "Entity Test");
+        assert_eq!(cmp.status(), "draft");
+        assert_eq!(cmp.author(), "test_author");
+    }
+}
