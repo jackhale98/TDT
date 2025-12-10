@@ -79,7 +79,7 @@
     },
     "status": {
       "type": "string",
-      "enum": ["draft", "review", "approved", "obsolete"],
+      "enum": ["draft", "review", "approved", "released", "obsolete"],
       "default": "draft",
       "description": "Current status"
     },

@@ -1,9 +1,10 @@
 //! `pdt trace` command - Traceability matrix and queries
 
 use console::style;
-use miette::Result;
+use miette::{IntoDiagnostic, Result};
 use std::collections::{HashMap, HashSet};
 
+use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::entities::requirement::Requirement;
@@ -83,26 +84,67 @@ pub struct CoverageArgs {
     pub uncovered: bool,
 }
 
-pub fn run(cmd: TraceCommands) -> Result<()> {
+pub fn run(cmd: TraceCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        TraceCommands::Matrix(args) => run_matrix(args),
+        TraceCommands::Matrix(args) => run_matrix(args, global),
         TraceCommands::From(args) => run_from(args),
         TraceCommands::To(args) => run_to(args),
-        TraceCommands::Orphans(args) => run_orphans(args),
-        TraceCommands::Coverage(args) => run_coverage(args),
+        TraceCommands::Orphans(args) => run_orphans(args, global),
+        TraceCommands::Coverage(args) => run_coverage(args, global),
     }
 }
 
-fn run_matrix(args: MatrixArgs) -> Result<()> {
+fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Build the traceability data
     let reqs = load_all_requirements(&project)?;
 
-    println!("{}", style("Traceability Matrix").bold());
-    println!("{}", style("═".repeat(60)).dim());
+    // Determine format - prefer args.output, fallback to global
+    let use_dot = args.output == "dot";
+    let use_csv = args.output == "csv" || matches!(global.format, OutputFormat::Csv);
+    let use_json = matches!(global.format, OutputFormat::Json);
 
-    if args.output == "dot" {
+    if use_json {
+        // JSON format - structured link data
+        #[derive(serde::Serialize)]
+        struct Link {
+            source_id: String,
+            source_title: String,
+            link_type: String,
+            target_id: String,
+        }
+
+        let mut links = Vec::new();
+        for req in &reqs {
+            for target in &req.links.satisfied_by {
+                links.push(Link {
+                    source_id: req.id.to_string(),
+                    source_title: req.title.clone(),
+                    link_type: "satisfied_by".to_string(),
+                    target_id: target.to_string(),
+                });
+            }
+            for target in &req.links.verified_by {
+                links.push(Link {
+                    source_id: req.id.to_string(),
+                    source_title: req.title.clone(),
+                    link_type: "verified_by".to_string(),
+                    target_id: target.to_string(),
+                });
+            }
+        }
+        let json = serde_json::to_string_pretty(&links).into_diagnostic()?;
+        println!("{}", json);
+        return Ok(());
+    }
+
+    if !use_dot && !use_csv {
+        println!("{}", style("Traceability Matrix").bold());
+        println!("{}", style("═".repeat(60)).dim());
+    }
+
+    if use_dot {
         // GraphViz DOT format
         println!("digraph traceability {{");
         println!("  rankdir=LR;");
@@ -122,7 +164,7 @@ fn run_matrix(args: MatrixArgs) -> Result<()> {
             }
         }
         println!("}}");
-    } else if args.output == "csv" {
+    } else if use_csv {
         // CSV format
         println!("source_id,source_title,link_type,target_id");
         for req in &reqs {
@@ -321,7 +363,7 @@ fn run_to(args: ToArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_orphans(args: OrphansArgs) -> Result<()> {
+fn run_orphans(args: OrphansArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let reqs = load_all_requirements(&project)?;
 
@@ -336,10 +378,7 @@ fn run_orphans(args: OrphansArgs) -> Result<()> {
         }
     }
 
-    println!("{}", style("Orphaned Requirements").bold());
-    println!("{}", style("─".repeat(60)).dim());
-
-    let mut orphan_count = 0;
+    let mut orphans: Vec<(&Requirement, &str)> = Vec::new();
 
     for req in &reqs {
         let id_str = req.id.to_string();
@@ -357,7 +396,6 @@ fn run_orphans(args: OrphansArgs) -> Result<()> {
         };
 
         if is_orphan {
-            orphan_count += 1;
             let reason = if !has_outgoing && !has_inc {
                 "no links"
             } else if !has_outgoing {
@@ -365,34 +403,67 @@ fn run_orphans(args: OrphansArgs) -> Result<()> {
             } else {
                 "no incoming"
             };
-
-            println!(
-                "{} {} - {} ({})",
-                style("○").yellow(),
-                format_short_id(&req.id),
-                truncate(&req.title, 40),
-                style(reason).dim()
-            );
+            orphans.push((req, reason));
         }
     }
 
-    println!();
-    if orphan_count == 0 {
-        println!(
-            "{} No orphaned requirements found!",
-            style("✓").green().bold()
-        );
-    } else {
-        println!(
-            "Found {} orphaned requirement(s)",
-            style(orphan_count).yellow()
-        );
+    // Output based on format
+    match global.format {
+        OutputFormat::Json => {
+            #[derive(serde::Serialize)]
+            struct OrphanInfo {
+                id: String,
+                title: String,
+                reason: String,
+            }
+            let data: Vec<_> = orphans.iter()
+                .map(|(req, reason)| OrphanInfo {
+                    id: req.id.to_string(),
+                    title: req.title.clone(),
+                    reason: reason.to_string(),
+                })
+                .collect();
+            let json = serde_json::to_string_pretty(&data).into_diagnostic()?;
+            println!("{}", json);
+        }
+        OutputFormat::Id => {
+            for (req, _) in &orphans {
+                println!("{}", req.id);
+            }
+        }
+        _ => {
+            println!("{}", style("Orphaned Requirements").bold());
+            println!("{}", style("─".repeat(60)).dim());
+
+            for (req, reason) in &orphans {
+                println!(
+                    "{} {} - {} ({})",
+                    style("○").yellow(),
+                    format_short_id(&req.id),
+                    truncate(&req.title, 40),
+                    style(reason).dim()
+                );
+            }
+
+            println!();
+            if orphans.is_empty() {
+                println!(
+                    "{} No orphaned requirements found!",
+                    style("✓").green().bold()
+                );
+            } else {
+                println!(
+                    "Found {} orphaned requirement(s)",
+                    style(orphans.len()).yellow()
+                );
+            }
+        }
     }
 
     Ok(())
 }
 
-fn run_coverage(args: CoverageArgs) -> Result<()> {
+fn run_coverage(args: CoverageArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let reqs = load_all_requirements(&project)?;
 
@@ -416,7 +487,7 @@ fn run_coverage(args: CoverageArgs) -> Result<()> {
         if has_verification {
             covered += 1;
         } else {
-            uncovered_list.push(req);
+            uncovered_list.push(*req);
         }
     }
 
@@ -426,56 +497,80 @@ fn run_coverage(args: CoverageArgs) -> Result<()> {
         100.0
     };
 
-    println!("{}", style("Verification Coverage Report").bold());
-    println!("{}", style("═".repeat(60)).dim());
-    println!();
-    println!(
-        "Total requirements:     {}",
-        style(total).cyan()
-    );
-    println!(
-        "With verification:      {}",
-        style(covered).green()
-    );
-    println!(
-        "Without verification:   {}",
-        if uncovered_list.is_empty() {
-            style(uncovered_list.len()).green()
-        } else {
-            style(uncovered_list.len()).red()
+    // Output based on format
+    match global.format {
+        OutputFormat::Json => {
+            #[derive(serde::Serialize)]
+            struct CoverageReport {
+                total: usize,
+                covered: usize,
+                uncovered: usize,
+                coverage_percent: f64,
+                uncovered_ids: Vec<String>,
+            }
+            let report = CoverageReport {
+                total,
+                covered,
+                uncovered: uncovered_list.len(),
+                coverage_percent: coverage_pct,
+                uncovered_ids: uncovered_list.iter().map(|r| r.id.to_string()).collect(),
+            };
+            let json = serde_json::to_string_pretty(&report).into_diagnostic()?;
+            println!("{}", json);
         }
-    );
-    println!();
-    println!(
-        "Coverage: {:.1}%",
-        if coverage_pct >= 100.0 {
-            style(format!("{:.1}", coverage_pct)).green().bold()
-        } else if coverage_pct >= 80.0 {
-            style(format!("{:.1}", coverage_pct)).yellow()
-        } else {
-            style(format!("{:.1}", coverage_pct)).red()
+        OutputFormat::Id => {
+            // Just output uncovered IDs
+            for req in &uncovered_list {
+                println!("{}", req.id);
+            }
         }
-    );
-
-    if !uncovered_list.is_empty() && (args.uncovered || uncovered_list.len() <= 10) {
-        println!();
-        println!("{}", style("Uncovered Requirements:").bold());
-        println!("{}", style("─".repeat(60)).dim());
-
-        for req in &uncovered_list {
+        _ => {
+            println!("{}", style("Verification Coverage Report").bold());
+            println!("{}", style("═".repeat(60)).dim());
+            println!();
+            println!("Total requirements:     {}", style(total).cyan());
+            println!("With verification:      {}", style(covered).green());
             println!(
-                "  {} {} - {}",
-                style("○").red(),
-                format_short_id(&req.id),
-                truncate(&req.title, 45)
+                "Without verification:   {}",
+                if uncovered_list.is_empty() {
+                    style(uncovered_list.len()).green()
+                } else {
+                    style(uncovered_list.len()).red()
+                }
             );
+            println!();
+            println!(
+                "Coverage: {:.1}%",
+                if coverage_pct >= 100.0 {
+                    style(format!("{:.1}", coverage_pct)).green().bold()
+                } else if coverage_pct >= 80.0 {
+                    style(format!("{:.1}", coverage_pct)).yellow()
+                } else {
+                    style(format!("{:.1}", coverage_pct)).red()
+                }
+            );
+
+            if !uncovered_list.is_empty() && (args.uncovered || uncovered_list.len() <= 10) {
+                println!();
+                println!("{}", style("Uncovered Requirements:").bold());
+                println!("{}", style("─".repeat(60)).dim());
+
+                for req in &uncovered_list {
+                    println!(
+                        "  {} {} - {}",
+                        style("○").red(),
+                        format_short_id(&req.id),
+                        truncate(&req.title, 45)
+                    );
+                }
+            } else if !uncovered_list.is_empty() {
+                println!();
+                println!(
+                    "Use {} to see the full list",
+                    style("pdt trace coverage --uncovered").yellow()
+                );
+            }
         }
-    } else if !uncovered_list.is_empty() {
-        println!();
-        println!(
-            "Use {} to see the full list",
-            style("pdt trace coverage --uncovered").yellow()
-        );
     }
 
     Ok(())

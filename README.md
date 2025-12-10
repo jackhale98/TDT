@@ -87,11 +87,18 @@ manufacturing/
 | Prefix | Entity | Description |
 |--------|--------|-------------|
 | REQ | Requirement | Design inputs and outputs |
-| RISK | Risk | Design and process risks |
-| TEST | Test | Verification test cases |
-| CAPA | CAPA | Corrective and preventive actions |
-| DOC | Document | Controlled documents |
-| CHG | Change | Change requests |
+| RISK | Risk | Risk / FMEA item |
+| TEST | Test | Verification or validation protocol |
+| RSLT | Result | Test result / execution record |
+| TOL | Tolerance | Tolerance stackup |
+| MATE | Mate | Feature mate (for stackups) |
+| ASM | Assembly | Assembly definition |
+| CMP | Component | Component definition |
+| FEAT | Feature | Feature (on a component) |
+| PROC | Process | Manufacturing process |
+| CTRL | Control | Control plan item |
+| QUOT | Quote | Quote / cost record |
+| ACT | Action | Action item |
 
 ## Commands
 
@@ -195,15 +202,15 @@ error[pdt::schema::validation]: Schema validation failed
  8 | status: pending
    | ^^^^^^^^^^^^^^^ Invalid enum value
    |
-  help: Valid values: draft, review, approved, obsolete
+  help: Valid values: draft, review, approved, released, obsolete
 ```
 
 ## Status Workflow
 
 ```
-draft → review → approved
-                    ↓
-                 obsolete
+draft → review → approved → released
+                    ↓           ↓
+                 obsolete ← ← ← ┘
 ```
 
 | Status | Description |
@@ -211,6 +218,7 @@ draft → review → approved
 | draft | Initial creation, still being written |
 | review | Ready for stakeholder review |
 | approved | Signed off and baselined |
+| released | Released to production/manufacturing |
 | obsolete | No longer applicable |
 
 ## Priority Levels

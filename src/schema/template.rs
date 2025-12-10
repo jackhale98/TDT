@@ -21,6 +21,7 @@ pub struct TemplateContext {
     pub req_type: Option<String>,
     pub priority: Option<String>,
     pub category: Option<String>,
+    pub tags: Vec<String>,
 }
 
 impl TemplateContext {
@@ -33,6 +34,7 @@ impl TemplateContext {
             req_type: None,
             priority: None,
             category: None,
+            tags: Vec::new(),
         }
     }
 
@@ -53,6 +55,11 @@ impl TemplateContext {
 
     pub fn with_category(mut self, category: impl Into<String>) -> Self {
         self.category = Some(category.into());
+        self
+    }
+
+    pub fn with_tags(mut self, tags: Vec<String>) -> Self {
+        self.tags = tags;
         self
     }
 }
@@ -120,6 +127,11 @@ impl TemplateGenerator {
         let category = ctx.category.clone().unwrap_or_default();
         let created = ctx.created.to_rfc3339();
         let created_date = ctx.created.format("%Y-%m-%d");
+        let tags = if ctx.tags.is_empty() {
+            "[]".to_string()
+        } else {
+            format!("[{}]", ctx.tags.join(", "))
+        };
 
         format!(
             r#"# Requirement: {title}
@@ -136,7 +148,7 @@ source:
   date: {created_date}
 
 category: "{category}"
-tags: []
+tags: {tags}
 
 text: |
   # Enter requirement text here
@@ -156,7 +168,6 @@ links:
 
 # Auto-managed metadata
 created: {created}
-modified: {created}
 author: {author}
 revision: 1
 "#,
@@ -165,6 +176,7 @@ revision: 1
             req_type = req_type,
             priority = priority,
             category = category,
+            tags = tags,
             created = created,
             created_date = created_date,
             author = ctx.author,

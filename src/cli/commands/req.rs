@@ -2,16 +2,17 @@
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
-use dialoguer::{theme::ColorfulTheme, Input, Select};
 use miette::{IntoDiagnostic, Result};
 use std::fs;
 
+use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::entity::Priority;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::Config;
 use crate::entities::requirement::{Requirement, RequirementType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum ReqCommands {
@@ -224,16 +225,16 @@ pub struct EditArgs {
     pub id: String,
 }
 
-pub fn run(cmd: ReqCommands) -> Result<()> {
+pub fn run(cmd: ReqCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        ReqCommands::List(args) => run_list(args),
+        ReqCommands::List(args) => run_list(args, global),
         ReqCommands::New(args) => run_new(args),
-        ReqCommands::Show(args) => run_show(args),
+        ReqCommands::Show(args) => run_show(args, global),
         ReqCommands::Edit(args) => run_edit(args),
     }
 }
 
-fn run_list(_args: ListArgs) -> Result<()> {
+fn run_list(_args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Collect all requirement files
@@ -277,103 +278,157 @@ fn run_list(_args: ListArgs) -> Result<()> {
     }
 
     if reqs.is_empty() {
-        println!("No requirements found.");
-        println!();
-        println!(
-            "Create one with: {}",
-            style("pdt req new").yellow()
-        );
+        match global.format {
+            OutputFormat::Json => println!("[]"),
+            OutputFormat::Yaml => println!("[]"),
+            _ => {
+                println!("No requirements found.");
+                println!();
+                println!("Create one with: {}", style("pdt req new").yellow());
+            }
+        }
         return Ok(());
     }
 
     // Sort by created date (default)
     reqs.sort_by(|a, b| a.created.cmp(&b.created));
 
-    // Print header - column widths: ID(16), TYPE(8), TITLE(40), STATUS(10), PRIORITY(10)
-    println!(
-        "{:<16} {:<8} {:<40} {:<10} {:<10}",
-        style("ID").bold(),
-        style("TYPE").bold(),
-        style("TITLE").bold(),
-        style("STATUS").bold(),
-        style("PRIORITY").bold()
-    );
-    println!("{}", "-".repeat(86));
+    // Output based on format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv, // Default to TSV for list
+        f => f,
+    };
 
-    // Print requirements
-    for req in &reqs {
-        // Truncate ID for display (REQ-01KC32WB... = 15 chars)
-        let id_display = format_short_id(&req.id);
-        let title_truncated = truncate_str(&req.title, 38);
+    match format {
+        OutputFormat::Json => {
+            let json = serde_json::to_string_pretty(&reqs).into_diagnostic()?;
+            println!("{}", json);
+        }
+        OutputFormat::Yaml => {
+            let yaml = serde_yml::to_string(&reqs).into_diagnostic()?;
+            print!("{}", yaml);
+        }
+        OutputFormat::Csv => {
+            println!("id,type,title,status,priority,category,author,created");
+            for req in &reqs {
+                println!(
+                    "{},{},{},{},{},{},{},{}",
+                    req.id,
+                    req.req_type,
+                    escape_csv(&req.title),
+                    req.status,
+                    req.priority,
+                    req.category.as_deref().unwrap_or(""),
+                    req.author,
+                    req.created.format("%Y-%m-%dT%H:%M:%SZ")
+                );
+            }
+        }
+        OutputFormat::Tsv => {
+            // Print header
+            println!(
+                "{:<16} {:<8} {:<40} {:<10} {:<10}",
+                style("ID").bold(),
+                style("TYPE").bold(),
+                style("TITLE").bold(),
+                style("STATUS").bold(),
+                style("PRIORITY").bold()
+            );
+            println!("{}", "-".repeat(86));
 
-        println!(
-            "{:<16} {:<8} {:<40} {:<10} {:<10}",
-            id_display,
-            req.req_type,
-            title_truncated,
-            req.status,
-            req.priority
-        );
+            for req in &reqs {
+                let id_display = format_short_id(&req.id);
+                let title_truncated = truncate_str(&req.title, 38);
+                println!(
+                    "{:<16} {:<8} {:<40} {:<10} {:<10}",
+                    id_display, req.req_type, title_truncated, req.status, req.priority
+                );
+            }
+
+            println!();
+            println!("{} requirement(s) found", style(reqs.len()).cyan());
+        }
+        OutputFormat::Id => {
+            for req in &reqs {
+                println!("{}", req.id);
+            }
+        }
+        OutputFormat::Md => {
+            println!("| ID | Type | Title | Status | Priority |");
+            println!("|---|---|---|---|---|");
+            for req in &reqs {
+                println!(
+                    "| {} | {} | {} | {} | {} |",
+                    format_short_id(&req.id),
+                    req.req_type,
+                    req.title,
+                    req.status,
+                    req.priority
+                );
+            }
+        }
+        OutputFormat::Auto => unreachable!(), // Already handled above
     }
 
-    println!();
-    println!(
-        "{} requirement(s) found",
-        style(reqs.len()).cyan()
-    );
-
     Ok(())
+}
+
+/// Escape a string for CSV output
+fn escape_csv(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
 }
 
 fn run_new(args: NewArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let config = Config::load();
-    let theme = ColorfulTheme::default();
 
-    // Determine values - either from args or interactive wizard
-    let (req_type, title, priority, category) = if args.interactive {
-        // Interactive wizard mode
-        let types = &["input  - Design input (customer need, regulation)",
-                      "output - Design output (specification)"];
-        let type_selection = Select::with_theme(&theme)
-            .with_prompt("Requirement type")
-            .items(types)
-            .default(0)
-            .interact()
-            .into_diagnostic()?;
-        let req_type = if type_selection == 0 {
-            RequirementType::Input
-        } else {
-            RequirementType::Output
-        };
+    // Determine values - either from schema-driven wizard or args
+    let (req_type, title, priority, category, tags) = if args.interactive {
+        // Use the schema-driven wizard
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Req)?;
 
-        let title: String = Input::with_theme(&theme)
-            .with_prompt("Title")
-            .interact_text()
-            .into_diagnostic()?;
+        // Extract values from wizard result
+        let req_type = result
+            .get_string("type")
+            .map(|s| match s {
+                "output" => RequirementType::Output,
+                _ => RequirementType::Input,
+            })
+            .unwrap_or(RequirementType::Input);
 
-        let priorities = &["low", "medium", "high", "critical"];
-        let priority_selection = Select::with_theme(&theme)
-            .with_prompt("Priority")
-            .items(priorities)
-            .default(1)
-            .interact()
-            .into_diagnostic()?;
-        let priority = match priority_selection {
-            0 => Priority::Low,
-            1 => Priority::Medium,
-            2 => Priority::High,
-            3 => Priority::Critical,
-            _ => Priority::Medium,
-        };
+        let title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Requirement".to_string());
 
-        let category: String = Input::with_theme(&theme)
-            .with_prompt("Category (optional)")
-            .allow_empty(true)
-            .interact_text()
-            .into_diagnostic()?;
+        let priority = result
+            .get_string("priority")
+            .map(|s| match s {
+                "low" => Priority::Low,
+                "high" => Priority::High,
+                "critical" => Priority::Critical,
+                _ => Priority::Medium,
+            })
+            .unwrap_or(Priority::Medium);
 
-        (req_type, title, priority, category)
+        let category = result
+            .get_string("category")
+            .map(String::from)
+            .unwrap_or_default();
+
+        let tags: Vec<String> = result
+            .values
+            .get("tags")
+            .and_then(|v| v.as_array())
+            .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(String::from).collect())
+            .unwrap_or_default();
+
+        (req_type, title, priority, category, tags)
     } else {
         // Default mode - use args with defaults
         let req_type = match args.r#type.to_lowercase().as_str() {
@@ -403,8 +458,9 @@ fn run_new(args: NewArgs) -> Result<()> {
         };
 
         let category = args.category.unwrap_or_default();
+        let tags = args.tags;
 
-        (req_type, title, priority, category)
+        (req_type, title, priority, category, tags)
     };
 
     // Generate entity ID and create from template
@@ -412,11 +468,15 @@ fn run_new(args: NewArgs) -> Result<()> {
     let author = config.author();
 
     let generator = TemplateGenerator::new().map_err(|e| miette::miette!("{}", e))?;
-    let ctx = TemplateContext::new(id.clone(), author)
+    let mut ctx = TemplateContext::new(id.clone(), author)
         .with_title(&title)
         .with_req_type(req_type.to_string())
         .with_priority(priority.to_string())
         .with_category(&category);
+
+    if !tags.is_empty() {
+        ctx = ctx.with_tags(tags);
+    }
 
     let yaml_content = generator
         .generate_requirement(&ctx)
@@ -451,86 +511,91 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Find the requirement by ID prefix match
     let req = find_requirement(&project, &args.id)?;
 
-    // Display the requirement
-    println!("{}", style("─".repeat(60)).dim());
-    println!(
-        "{}: {}",
-        style("ID").bold(),
-        style(&req.id.to_string()).cyan()
-    );
-    println!(
-        "{}: {}",
-        style("Type").bold(),
-        req.req_type
-    );
-    println!(
-        "{}: {}",
-        style("Title").bold(),
-        style(&req.title).yellow()
-    );
-    println!(
-        "{}: {}",
-        style("Status").bold(),
-        req.status
-    );
-    println!(
-        "{}: {}",
-        style("Priority").bold(),
-        req.priority
-    );
-    if let Some(ref cat) = req.category {
-        if !cat.is_empty() {
-            println!("{}: {}", style("Category").bold(), cat);
-        }
-    }
-    if !req.tags.is_empty() {
-        println!(
-            "{}: {}",
-            style("Tags").bold(),
-            req.tags.join(", ")
-        );
-    }
-    println!("{}", style("─".repeat(60)).dim());
-    println!();
-    println!("{}", &req.text);
-    println!();
+    // Output based on format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Yaml, // Default to YAML for show
+        f => f,
+    };
 
-    if let Some(ref rationale) = req.rationale {
-        if !rationale.is_empty() {
-            println!("{}", style("Rationale:").bold());
-            println!("{}", rationale);
-            println!();
+    match format {
+        OutputFormat::Json => {
+            let json = serde_json::to_string_pretty(&req).into_diagnostic()?;
+            println!("{}", json);
         }
-    }
-
-    if !req.acceptance_criteria.is_empty()
-        && !req.acceptance_criteria.iter().all(|c| c.is_empty())
-    {
-        println!("{}", style("Acceptance Criteria:").bold());
-        for criterion in &req.acceptance_criteria {
-            if !criterion.is_empty() {
-                println!("  • {}", criterion);
+        OutputFormat::Yaml => {
+            let yaml = serde_yml::to_string(&req).into_diagnostic()?;
+            print!("{}", yaml);
+        }
+        OutputFormat::Id => {
+            println!("{}", req.id);
+        }
+        _ => {
+            // Human-readable format (default for terminal)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&req.id.to_string()).cyan()
+            );
+            println!("{}: {}", style("Type").bold(), req.req_type);
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&req.title).yellow()
+            );
+            println!("{}: {}", style("Status").bold(), req.status);
+            println!("{}: {}", style("Priority").bold(), req.priority);
+            if let Some(ref cat) = req.category {
+                if !cat.is_empty() {
+                    println!("{}: {}", style("Category").bold(), cat);
+                }
             }
-        }
-        println!();
-    }
+            if !req.tags.is_empty() {
+                println!("{}: {}", style("Tags").bold(), req.tags.join(", "));
+            }
+            println!("{}", style("─".repeat(60)).dim());
+            println!();
+            println!("{}", &req.text);
+            println!();
 
-    println!("{}", style("─".repeat(60)).dim());
-    println!(
-        "{}: {} | {}: {} | {}: {}",
-        style("Author").dim(),
-        req.author,
-        style("Created").dim(),
-        req.created.format("%Y-%m-%d %H:%M"),
-        style("Revision").dim(),
-        req.revision
-    );
+            if let Some(ref rationale) = req.rationale {
+                if !rationale.is_empty() {
+                    println!("{}", style("Rationale:").bold());
+                    println!("{}", rationale);
+                    println!();
+                }
+            }
+
+            if !req.acceptance_criteria.is_empty()
+                && !req.acceptance_criteria.iter().all(|c| c.is_empty())
+            {
+                println!("{}", style("Acceptance Criteria:").bold());
+                for criterion in &req.acceptance_criteria {
+                    if !criterion.is_empty() {
+                        println!("  • {}", criterion);
+                    }
+                }
+                println!();
+            }
+
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                req.author,
+                style("Created").dim(),
+                req.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                req.revision
+            );
+        }
+    }
 
     Ok(())
 }
