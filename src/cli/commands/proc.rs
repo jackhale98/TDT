@@ -1,4 +1,4 @@
-//! `pdt proc` command - Manufacturing process management
+//! `tdt proc` command - Manufacturing process management
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
@@ -416,7 +416,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         fs::create_dir_all(&output_dir).into_diagnostic()?;
     }
 
-    let file_path = output_dir.join(format!("{}.pdt.yaml", id));
+    let file_path = output_dir.join(format!("{}.tdt.yaml", id));
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
 
     // Add to short ID index

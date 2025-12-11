@@ -1,4 +1,4 @@
-//! `pdt link` command - Manage links between entities
+//! `tdt link` command - Manage links between entities
 
 use console::style;
 use miette::{IntoDiagnostic, Result};
@@ -261,7 +261,7 @@ fn run_check(args: CheckLinksArgs) -> Result<()> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 // Check satisfied_by links
@@ -314,7 +314,7 @@ fn run_check(args: CheckLinksArgs) -> Result<()> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 for target_id in &req.links.satisfied_by {
@@ -395,7 +395,7 @@ fn find_requirement(project: &Project, id_query: &str) -> Result<(Requirement, s
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 let id_str = req.id.to_string();
@@ -520,7 +520,7 @@ fn find_incoming_links(project: &Project, target_id: &EntityId) -> Result<Vec<(E
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 for link in &req.links.satisfied_by {
@@ -555,7 +555,7 @@ fn collect_all_entity_ids(project: &Project) -> Result<Vec<String>> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 ids.push(req.id.to_string());
@@ -683,7 +683,7 @@ fn find_entity_file(project: &Project, id: &EntityId) -> Result<PathBuf> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             let filename = entry.file_name().to_string_lossy();
             if filename.contains(&id_str) || filename.starts_with(&id_str) {

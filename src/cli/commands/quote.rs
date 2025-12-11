@@ -1,4 +1,4 @@
-//! `pdt quote` command - Supplier quotation management
+//! `tdt quote` command - Supplier quotation management
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
@@ -547,7 +547,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         }
         if !found {
             println!(
-                "{} Warning: Component '{}' not found. Create it first with: pdt cmp new",
+                "{} Warning: Component '{}' not found. Create it first with: tdt cmp new",
                 style("!").yellow(),
                 cmp
             );
@@ -572,7 +572,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         }
         if !found {
             println!(
-                "{} Warning: Assembly '{}' not found. Create it first with: pdt asm new",
+                "{} Warning: Assembly '{}' not found. Create it first with: tdt asm new",
                 style("!").yellow(),
                 asm
             );
@@ -616,7 +616,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         fs::create_dir_all(&output_dir).into_diagnostic()?;
     }
 
-    let file_path = output_dir.join(format!("{}.pdt.yaml", id));
+    let file_path = output_dir.join(format!("{}.tdt.yaml", id));
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
 
     // Add to short ID index

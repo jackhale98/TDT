@@ -1,6 +1,6 @@
-# PDT Supplier Entity (Approved Suppliers)
+# TDT Supplier Entity (Approved Suppliers)
 
-This document describes the Supplier entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Supplier entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Suppliers represent approved vendors for components and assemblies. They store c
 ## Entity Type
 
 - **Prefix**: `SUP`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `bom/suppliers/`
 
 ## Schema
@@ -96,7 +96,7 @@ Suppliers represent approved vendors for components and assemblies. They store c
 
 ```yaml
 # Supplier: Acme Manufacturing Corp
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: SUP-01HC2JB7SMQX7RS1Y0GFKBHPTA
 name: "Acme Manufacturing Corp"
@@ -169,82 +169,82 @@ entity_revision: 1
 
 ```bash
 # Create with name only
-pdt sup new --name "Acme Manufacturing Corp"
+tdt sup new --name "Acme Manufacturing Corp"
 
 # Create with additional details
-pdt sup new --name "Acme Manufacturing Corp" --short-name "Acme" --website "https://acme.com"
+tdt sup new --name "Acme Manufacturing Corp" --short-name "Acme" --website "https://acme.com"
 
 # Create with payment terms
-pdt sup new -n "Acme Corp" --payment-terms "Net 30"
+tdt sup new -n "Acme Corp" --payment-terms "Net 30"
 
 # Interactive mode (prompts for fields)
-pdt sup new -i
+tdt sup new -i
 
 # Create and open in editor
-pdt sup new -n "Acme Corp" --edit
+tdt sup new -n "Acme Corp" --edit
 
 # Create without opening editor
-pdt sup new -n "Acme Corp" --no-edit
+tdt sup new -n "Acme Corp" --no-edit
 ```
 
 ### List suppliers
 
 ```bash
 # List all suppliers
-pdt sup list
+tdt sup list
 
 # Filter by status
-pdt sup list -s draft
-pdt sup list -s approved
+tdt sup list -s draft
+tdt sup list -s approved
 
 # Filter by capability
-pdt sup list -c machining
-pdt sup list -c pcb_assembly
-pdt sup list --capability injection
+tdt sup list -c machining
+tdt sup list -c pcb_assembly
+tdt sup list --capability injection
 
 # Search in name and notes
-pdt sup list --search "acme"
+tdt sup list --search "acme"
 
 # Sort and limit
-pdt sup list --sort name
-pdt sup list --sort created
-pdt sup list --limit 10
-pdt sup list --reverse
+tdt sup list --sort name
+tdt sup list --sort created
+tdt sup list --limit 10
+tdt sup list --reverse
 
 # Count only
-pdt sup list --count
+tdt sup list --count
 
 # Output formats
-pdt sup list -o json
-pdt sup list -o csv
-pdt sup list -o md
-pdt sup list -o yaml
+tdt sup list -o json
+tdt sup list -o csv
+tdt sup list -o md
+tdt sup list -o yaml
 ```
 
 ### Show supplier details
 
 ```bash
 # Show by ID (partial match supported)
-pdt sup show SUP-01HC2
+tdt sup show SUP-01HC2
 
 # Show using short ID
-pdt sup show SUP@1
+tdt sup show SUP@1
 
 # Output as JSON
-pdt sup show SUP@1 -o json
+tdt sup show SUP@1 -o json
 
 # Output as YAML
-pdt sup show SUP@1 -o yaml
+tdt sup show SUP@1 -o yaml
 ```
 
 ### Edit a supplier
 
 ```bash
 # Open in editor
-pdt sup edit SUP-01HC2
+tdt sup edit SUP-01HC2
 
 # Using short ID
-pdt sup edit SUP@1
+tdt sup edit SUP@1
 ```
 
 ## Currency Support
@@ -281,11 +281,11 @@ Suppliers are referenced by Quote entities:
 
 ```bash
 # Create supplier
-pdt sup new -n "Acme Corp" --no-edit
+tdt sup new -n "Acme Corp" --no-edit
 # Output: Created supplier SUP@1
 
 # Create quote referencing supplier
-pdt quote new -c CMP@1 -s SUP@1 --title "Bracket Quote"
+tdt quote new -c CMP@1 -s SUP@1 --title "Bracket Quote"
 ```
 
 ## Related Entities
@@ -299,10 +299,10 @@ Suppliers are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate bom/suppliers/SUP-01HC2JB7SMQX7RS1Y0GFKBHPTA.pdt.yaml
+tdt validate bom/suppliers/SUP-01HC2JB7SMQX7RS1Y0GFKBHPTA.tdt.yaml
 ```
 
 ### Validation Rules
@@ -318,5 +318,5 @@ pdt validate bom/suppliers/SUP-01HC2JB7SMQX7RS1Y0GFKBHPTA.pdt.yaml
 The full JSON Schema for suppliers is available at:
 
 ```
-pdt/schemas/sup.schema.json
+tdt/schemas/sup.schema.json
 ```

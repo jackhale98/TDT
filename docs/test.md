@@ -1,15 +1,15 @@
-# PDT Test Entity
+# TDT Test Entity
 
-This document describes the Test entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Test entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
-Tests are verification and validation protocols that ensure your product meets its requirements. PDT supports both verification tests (did we build it right?) and validation tests (did we build the right thing?).
+Tests are verification and validation protocols that ensure your product meets its requirements. TDT supports both verification tests (did we build it right?) and validation tests (did we build the right thing?).
 
 ## Entity Type
 
 - **Prefix**: `TEST`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directories**:
   - `verification/protocols/` - Verification test protocols
   - `validation/protocols/` - Validation test protocols
@@ -118,7 +118,7 @@ Choose the appropriate verification method:
 
 ```yaml
 # Test: Temperature Cycling Test
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: TEST-01HC2JB7SMQX7RS1Y0GFKBHPTF
 type: verification
@@ -237,94 +237,94 @@ revision: 1
 
 ```bash
 # Create with default template
-pdt test new
+tdt test new
 
 # Create verification test with title
-pdt test new --title "Temperature Test" -t verification
+tdt test new --title "Temperature Test" -t verification
 
 # Create validation test at acceptance level
-pdt test new -t validation -l acceptance
+tdt test new -t validation -l acceptance
 
 # Create with specific method (IADT)
-pdt test new -t verification -m inspection
+tdt test new -t verification -m inspection
 
 # Create with interactive wizard
-pdt test new -i
+tdt test new -i
 
 # Create and immediately open in editor
-pdt test new --title "New Test" --edit
+tdt test new --title "New Test" --edit
 ```
 
 ### List tests
 
 ```bash
 # List all tests
-pdt test list
+tdt test list
 
 # Filter by type
-pdt test list --type verification
-pdt test list --type validation
+tdt test list --type verification
+tdt test list --type validation
 
 # Filter by test level
-pdt test list --level unit
-pdt test list --level system
+tdt test list --level unit
+tdt test list --level system
 
 # Filter by method
-pdt test list --method inspection
-pdt test list --method test
+tdt test list --method inspection
+tdt test list --method test
 
 # Filter by status
-pdt test list --status approved
-pdt test list --status active    # All except obsolete
+tdt test list --status approved
+tdt test list --status active    # All except obsolete
 
 # Filter by priority
-pdt test list --priority high
+tdt test list --priority high
 
 # Show orphaned tests (no linked requirements)
-pdt test list --orphans
+tdt test list --orphans
 
 # Show recently created
-pdt test list --recent 7  # Last 7 days
+tdt test list --recent 7  # Last 7 days
 
 # Search in title/objective
-pdt test list --search "temperature"
+tdt test list --search "temperature"
 
 # Sort and limit
-pdt test list --sort title
-pdt test list --sort created --reverse
-pdt test list --limit 10
+tdt test list --sort title
+tdt test list --sort created --reverse
+tdt test list --limit 10
 
 # Count only
-pdt test list --count
+tdt test list --count
 ```
 
 ### Show test details
 
 ```bash
 # Show by ID (partial match supported)
-pdt test show TEST-01HC2
+tdt test show TEST-01HC2
 
 # Show using short ID
-pdt test show TEST@1
+tdt test show TEST@1
 
 # Show by title search
-pdt test show "temperature"
+tdt test show "temperature"
 
 # Show with linked entities
-pdt test show TEST-01HC2 --with-links
+tdt test show TEST-01HC2 --with-links
 
 # Output as JSON
-pdt test show TEST-01HC2 -f json
+tdt test show TEST-01HC2 -f json
 ```
 
 ### Edit a test
 
 ```bash
 # Open in editor
-pdt test edit TEST-01HC2
+tdt test edit TEST-01HC2
 
 # Using short ID
-pdt test edit TEST@1
+tdt test edit TEST@1
 ```
 
 ## Validation
@@ -333,10 +333,10 @@ Tests are validated against a JSON Schema. Run validation with:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate verification/protocols/TEST-01HC2JB7SMQX7RS1Y0GFKBHPTF.pdt.yaml
+tdt validate verification/protocols/TEST-01HC2JB7SMQX7RS1Y0GFKBHPTF.tdt.yaml
 ```
 
 ### Validation Rules
@@ -354,16 +354,16 @@ pdt validate verification/protocols/TEST-01HC2JB7SMQX7RS1Y0GFKBHPTF.pdt.yaml
 
 ```bash
 # Show verification coverage
-pdt trace coverage
+tdt trace coverage
 
 # Show uncovered requirements
-pdt trace coverage --uncovered
+tdt trace coverage --uncovered
 
 # Trace what a test verifies
-pdt trace from TEST-01HC2
+tdt trace from TEST-01HC2
 
 # Find tests that verify a requirement
-pdt trace to REQ-01HC2
+tdt trace to REQ-01HC2
 ```
 
 ## Best Practices
@@ -404,8 +404,8 @@ pdt trace to REQ-01HC2
 
 ## JSON Schema
 
-The full JSON Schema for tests is embedded in PDT and available at:
+The full JSON Schema for tests is embedded in TDT and available at:
 
 ```
-pdt/schemas/test.schema.json
+tdt/schemas/test.schema.json
 ```

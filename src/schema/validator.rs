@@ -12,7 +12,7 @@ use crate::schema::registry::SchemaRegistry;
 /// Validation error with source location information
 #[derive(Debug, Error, Diagnostic)]
 #[error("Schema validation failed: {summary}")]
-#[diagnostic(code(pdt::schema::validation_error))]
+#[diagnostic(code(tdt::schema::validation_error))]
 pub struct ValidationError {
     summary: String,
 
@@ -507,7 +507,7 @@ author: Test
 revision: 1
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Req);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Req);
         assert!(result.is_ok(), "Valid requirement should pass: {:?}", result);
     }
 
@@ -522,7 +522,7 @@ type: input
 # missing: title, text, status, priority, etc.
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Req);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Req);
         assert!(result.is_err(), "Missing required fields should fail");
         let err = result.unwrap_err();
         assert!(err.violation_count() > 0);
@@ -545,7 +545,7 @@ modified: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Req);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Req);
         assert!(result.is_err(), "Invalid enum value should fail");
         let err = result.unwrap_err();
         assert!(
@@ -571,7 +571,7 @@ modified: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Req);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Req);
         assert!(result.is_err(), "Invalid ID pattern should fail");
     }
 
@@ -593,7 +593,7 @@ author: Test
 unknown_field: "This should not be here"
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Req);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Req);
         assert!(result.is_err(), "Unknown field should fail");
     }
 
@@ -624,7 +624,7 @@ author: Test
 revision: 1
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Risk);
         assert!(result.is_ok(), "Valid risk should pass: {:?}", result);
     }
 
@@ -639,7 +639,7 @@ type: design
 # missing: title, description, status, created, author
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Risk);
         assert!(result.is_err(), "Missing required fields should fail");
         let err = result.unwrap_err();
         assert!(err.violation_count() > 0);
@@ -660,7 +660,7 @@ created: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Risk);
         assert!(result.is_err(), "Invalid type value should fail");
     }
 
@@ -687,7 +687,7 @@ created: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Risk);
         assert!(result.is_ok(), "Risk with FMEA fields should pass: {:?}", result);
     }
 
@@ -707,7 +707,7 @@ created: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Risk);
         assert!(result.is_err(), "Severity > 10 should fail");
     }
 
@@ -734,7 +734,7 @@ created: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Risk);
         assert!(result.is_ok(), "Risk with mitigations should pass: {:?}", result);
     }
 
@@ -753,7 +753,7 @@ created: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Risk);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Risk);
         assert!(result.is_err(), "Invalid RISK ID pattern should fail");
     }
 
@@ -778,7 +778,7 @@ author: Test Engineer
 revision: 1
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Test);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Test);
         assert!(result.is_ok(), "Valid test should pass: {:?}", result);
     }
 
@@ -793,7 +793,7 @@ type: verification
 # missing: title, objective, status, created, author
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Test);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Test);
         assert!(result.is_err(), "Missing required fields should fail");
         let err = result.unwrap_err();
         assert!(err.violation_count() > 0);
@@ -814,7 +814,7 @@ created: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Test);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Test);
         assert!(result.is_err(), "Invalid type value should fail");
     }
 
@@ -854,7 +854,7 @@ created: 2024-01-01T00:00:00Z
 author: Test Engineer
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Test);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Test);
         assert!(result.is_ok(), "Test with procedure should pass: {:?}", result);
     }
 
@@ -878,7 +878,7 @@ created: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Test);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Test);
         assert!(result.is_ok(), "Test with links should pass: {:?}", result);
     }
 
@@ -897,7 +897,7 @@ created: 2024-01-01T00:00:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Test);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Test);
         assert!(result.is_err(), "Invalid TEST ID pattern should fail");
     }
 
@@ -922,7 +922,7 @@ author: Test Engineer
 revision: 1
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Rslt);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Rslt);
         assert!(result.is_ok(), "Valid result should pass: {:?}", result);
     }
 
@@ -936,7 +936,7 @@ id: RSLT-01HC2JB7SMQX7RS1Y0GFKBHPTD
 # missing: test_id, verdict, executed_date, executed_by, status, created, author
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Rslt);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Rslt);
         assert!(result.is_err(), "Missing required fields should fail");
         let err = result.unwrap_err();
         assert!(err.violation_count() > 0);
@@ -958,7 +958,7 @@ created: 2024-01-15T10:30:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Rslt);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Rslt);
         assert!(result.is_err(), "Invalid verdict value should fail");
     }
 
@@ -990,7 +990,7 @@ created: 2024-01-15T10:30:00Z
 author: Test Engineer
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Rslt);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Rslt);
         assert!(result.is_ok(), "Result with step results should pass: {:?}", result);
     }
 
@@ -1016,7 +1016,7 @@ created: 2024-01-15T10:30:00Z
 author: Test Engineer
 "#;
 
-        let result = validator.validate(yaml, "test.pdt.yaml", EntityPrefix::Rslt);
+        let result = validator.validate(yaml, "test.tdt.yaml", EntityPrefix::Rslt);
         assert!(result.is_ok(), "Result with failures should pass: {:?}", result);
     }
 
@@ -1036,7 +1036,7 @@ created: 2024-01-15T10:30:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Rslt);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Rslt);
         assert!(result.is_err(), "Invalid test_id pattern should fail");
     }
 
@@ -1056,7 +1056,7 @@ created: 2024-01-15T10:30:00Z
 author: Test
 "#;
 
-        let result = validator.iter_errors(yaml, "test.pdt.yaml", EntityPrefix::Rslt);
+        let result = validator.iter_errors(yaml, "test.tdt.yaml", EntityPrefix::Rslt);
         assert!(result.is_err(), "Invalid RSLT ID pattern should fail");
     }
 }

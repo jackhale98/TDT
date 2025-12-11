@@ -1,6 +1,6 @@
-# PDT Assembly Entity (BOM)
+# TDT Assembly Entity (BOM)
 
-This document describes the Assembly entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Assembly entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Assemblies represent collections of components and sub-assemblies in your Bill o
 ## Entity Type
 
 - **Prefix**: `ASM`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `bom/assemblies/`
 
 ## Schema
@@ -65,7 +65,7 @@ Assemblies represent collections of components and sub-assemblies in your Bill o
 
 ```yaml
 # Assembly: Main Assembly
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: ASM-01HC2JB7SMQX7RS1Y0GFKBHPTE
 part_number: "ASM-001"
@@ -122,81 +122,81 @@ entity_revision: 1
 
 ```bash
 # Create with default template
-pdt asm new
+tdt asm new
 
 # Create with title and part number
-pdt asm new --title "Main Assembly" --part-number "ASM-001"
+tdt asm new --title "Main Assembly" --part-number "ASM-001"
 
 # Create with interactive wizard
-pdt asm new -i
+tdt asm new -i
 
 # Create and immediately edit
-pdt asm new --title "New Assembly" --edit
+tdt asm new --title "New Assembly" --edit
 ```
 
 ### List assemblies
 
 ```bash
 # List all assemblies
-pdt asm list
+tdt asm list
 
 # Filter by status
-pdt asm list --status approved
-pdt asm list --status draft
+tdt asm list --status approved
+tdt asm list --status draft
 
 # Search in title/description
-pdt asm list --search "power"
+tdt asm list --search "power"
 
 # Sort and limit
-pdt asm list --sort title
-pdt asm list --limit 10
+tdt asm list --sort title
+tdt asm list --limit 10
 
 # Count only
-pdt asm list --count
+tdt asm list --count
 
 # Output formats
-pdt asm list -f json
-pdt asm list -f csv
-pdt asm list -f md
+tdt asm list -f json
+tdt asm list -f csv
+tdt asm list -f md
 ```
 
 ### Show assembly details
 
 ```bash
 # Show by ID (partial match supported)
-pdt asm show ASM-01HC2
+tdt asm show ASM-01HC2
 
 # Show using short ID
-pdt asm show ASM@1
+tdt asm show ASM@1
 
 # Output as JSON
-pdt asm show ASM@1 -f json
+tdt asm show ASM@1 -f json
 
 # Output as YAML
-pdt asm show ASM@1 -f yaml
+tdt asm show ASM@1 -f yaml
 ```
 
 ### Show flattened BOM
 
 ```bash
 # Show all components with quantities
-pdt asm bom ASM@1
+tdt asm bom ASM@1
 
 # Recursively expand sub-assemblies
-pdt asm bom ASM@1 --recursive
+tdt asm bom ASM@1 --recursive
 
 # Output as CSV for import
-pdt asm bom ASM@1 -f csv
+tdt asm bom ASM@1 -f csv
 ```
 
 ### Edit an assembly
 
 ```bash
 # Open in editor
-pdt asm edit ASM-01HC2
+tdt asm edit ASM-01HC2
 
 # Using short ID
-pdt asm edit ASM@1
+tdt asm edit ASM@1
 ```
 
 ## BOM Structure
@@ -283,10 +283,10 @@ Assemblies are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate bom/assemblies/ASM-01HC2JB7SMQX7RS1Y0GFKBHPTE.pdt.yaml
+tdt validate bom/assemblies/ASM-01HC2JB7SMQX7RS1Y0GFKBHPTE.tdt.yaml
 ```
 
 ### Validation Rules
@@ -302,5 +302,5 @@ pdt validate bom/assemblies/ASM-01HC2JB7SMQX7RS1Y0GFKBHPTE.pdt.yaml
 The full JSON Schema for assemblies is available at:
 
 ```
-pdt/schemas/asm.schema.json
+tdt/schemas/asm.schema.json
 ```

@@ -1,17 +1,17 @@
-# PDT Mate Entity (Tolerances)
+# TDT Mate Entity (Tolerances)
 
-This document describes the Mate entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Mate entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
-Mates represent 1:1 contact relationships between two features, such as a pin fitting into a hole. PDT automatically calculates worst-case fit analysis when you create or recalculate a mate, determining whether it's a clearance, interference, or transition fit.
+Mates represent 1:1 contact relationships between two features, such as a pin fitting into a hole. TDT automatically calculates worst-case fit analysis when you create or recalculate a mate, determining whether it's a clearance, interference, or transition fit.
 
-**Auto-detection**: PDT automatically determines which feature is the hole and which is the shaft based on their `internal` field - no need to remember which order to link them!
+**Auto-detection**: TDT automatically determines which feature is the hole and which is the shaft based on their `internal` field - no need to remember which order to link them!
 
 ## Entity Type
 
 - **Prefix**: `MATE`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `tolerances/mates/`
 
 ## Schema
@@ -28,7 +28,7 @@ Mates represent 1:1 contact relationships between two features, such as a pin fi
 | `created` | datetime | Creation timestamp (ISO 8601) |
 | `author` | string | Author name |
 
-**Note**: The order of `feature_a` and `feature_b` doesn't matter - PDT auto-detects which is the hole (internal) and which is the shaft (external) based on their `internal` field.
+**Note**: The order of `feature_a` and `feature_b` doesn't matter - TDT auto-detects which is the hole (internal) and which is the shaft (external) based on their `internal` field.
 
 ### Optional Fields
 
@@ -58,7 +58,7 @@ Mates represent 1:1 contact relationships between two features, such as a pin fi
 
 ## Fit Calculation
 
-PDT automatically calculates worst-case fit from the primary dimensions of both features. The `internal` field on each feature's dimension determines which is treated as the hole and which as the shaft:
+TDT automatically calculates worst-case fit from the primary dimensions of both features. The `internal` field on each feature's dimension determines which is treated as the hole and which as the shaft:
 
 - **Internal feature** (`internal: true`): Treated as the hole
 - **External feature** (`internal: false`): Treated as the shaft
@@ -87,13 +87,13 @@ Calculation:
     else: transition
 ```
 
-**Important**: A mate requires one internal feature (hole) and one external feature (shaft). PDT will report an error during validation if both features have the same `internal` value.
+**Important**: A mate requires one internal feature (hole) and one external feature (shaft). TDT will report an error during validation if both features have the same `internal` value.
 
 ## Example
 
 ```yaml
 # Mate: Pin-Hole Mate
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: MATE-01HC2JB7SMQX7RS1Y0GFKBHPTF
 title: "Pin-Hole Mate"
@@ -138,16 +138,16 @@ entity_revision: 1
 
 ```bash
 # Create mate (--feature-a and --feature-b are REQUIRED)
-pdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "Pin-Hole Fit"
+tdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "Pin-Hole Fit"
 
 # Specify mate type
-pdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --type clearance_fit
+tdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --type clearance_fit
 
 # Create with interactive wizard
-pdt mate new --feature-a FEAT@1 --feature-b FEAT@2 -i
+tdt mate new --feature-a FEAT@1 --feature-b FEAT@2 -i
 
 # Create and immediately edit
-pdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "New Mate" --edit
+tdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "New Mate" --edit
 ```
 
 **Note**: Both `--feature-a` and `--feature-b` are required.
@@ -156,49 +156,49 @@ pdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "New Mate" --edit
 
 ```bash
 # List all mates
-pdt mate list
+tdt mate list
 
 # Filter by mate type
-pdt mate list --type clearance_fit
-pdt mate list --type interference_fit
-pdt mate list --type transition_fit
+tdt mate list --type clearance_fit
+tdt mate list --type interference_fit
+tdt mate list --type transition_fit
 
 # Filter by status
-pdt mate list --status approved
+tdt mate list --status approved
 
 # Search in title/description
-pdt mate list --search "pin"
+tdt mate list --search "pin"
 
 # Sort and limit
-pdt mate list --sort title
-pdt mate list --limit 10
+tdt mate list --sort title
+tdt mate list --limit 10
 
 # Count only
-pdt mate list --count
+tdt mate list --count
 
 # Output formats
-pdt mate list -f json
-pdt mate list -f csv
+tdt mate list -f json
+tdt mate list -f csv
 ```
 
 ### Show mate details
 
 ```bash
 # Show by ID (partial match supported)
-pdt mate show MATE-01HC2
+tdt mate show MATE-01HC2
 
 # Show using short ID (includes fit calculation)
-pdt mate show MATE@1
+tdt mate show MATE@1
 
 # Output as JSON
-pdt mate show MATE@1 -f json
+tdt mate show MATE@1 -f json
 ```
 
 ### Recalculate fit
 
 ```bash
 # Recalculate fit if feature dimensions changed
-pdt mate recalc MATE@1
+tdt mate recalc MATE@1
 
 # Output shows updated fit analysis
 # ✓ Recalculated fit for mate MATE@1
@@ -209,10 +209,10 @@ pdt mate recalc MATE@1
 
 ```bash
 # Open in editor
-pdt mate edit MATE-01HC2
+tdt mate edit MATE-01HC2
 
 # Using short ID
-pdt mate edit MATE@1
+tdt mate edit MATE@1
 ```
 
 ## Fit Types
@@ -266,14 +266,14 @@ min_clearance < 0 AND max_clearance > 0
 ### Creating Mates
 
 1. **Set internal field** - Ensure each feature has the correct `internal` field (true for holes, false for shafts)
-2. **Feature order doesn't matter** - PDT auto-detects hole vs shaft from the `internal` field
+2. **Feature order doesn't matter** - TDT auto-detects hole vs shaft from the `internal` field
 3. **Complete features first** - Ensure both features have dimensions before creating mate
 4. **Verify fit type** - Check that calculated fit matches your intent
 5. **Document rationale** - Explain why this fit was chosen
 
 ### Managing Mates
 
-1. **Recalculate after changes** - Run `pdt mate recalc` after modifying features
+1. **Recalculate after changes** - Run `tdt mate recalc` after modifying features
 2. **Link to requirements** - Connect to requirements that specify fit
 3. **Use in stackups** - Reference mates in tolerance stackups
 4. **Track status** - Update status as design matures
@@ -295,10 +295,10 @@ Mates are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate tolerances/mates/MATE-01HC2JB7SMQX7RS1Y0GFKBHPTF.pdt.yaml
+tdt validate tolerances/mates/MATE-01HC2JB7SMQX7RS1Y0GFKBHPTF.tdt.yaml
 ```
 
 ### Validation Rules
@@ -320,10 +320,10 @@ If feature dimensions have changed, the `fit_analysis` may be out of sync:
 
 ```bash
 # Check for validation issues
-pdt validate
+tdt validate
 
 # Auto-fix fit_analysis values
-pdt validate --fix
+tdt validate --fix
 ```
 
 The `--fix` flag will recalculate and update the `fit_analysis` for any mates where the stored values don't match the calculated values from the current feature dimensions.
@@ -333,5 +333,5 @@ The `--fix` flag will recalculate and update the `fit_analysis` for any mates wh
 The full JSON Schema for mates is available at:
 
 ```
-pdt/schemas/mate.schema.json
+tdt/schemas/mate.schema.json
 ```

@@ -1,6 +1,6 @@
 use clap::Parser;
 use miette::Result;
-use pdt::cli::{Cli, Commands};
+use tdt::cli::{Cli, Commands};
 
 fn main() -> Result<()> {
     // Install miette's fancy error handler for beautiful diagnostics
@@ -19,25 +19,25 @@ fn main() -> Result<()> {
     let global = cli.global;
 
     match cli.command {
-        Commands::Init(args) => pdt::cli::commands::init::run(args),
-        Commands::Req(cmd) => pdt::cli::commands::req::run(cmd, &global),
-        Commands::Risk(cmd) => pdt::cli::commands::risk::run(cmd, &global),
-        Commands::Test(cmd) => pdt::cli::commands::test::run(cmd, &global),
-        Commands::Rslt(cmd) => pdt::cli::commands::rslt::run(cmd, &global),
-        Commands::Cmp(cmd) => pdt::cli::commands::cmp::run(cmd, &global),
-        Commands::Asm(cmd) => pdt::cli::commands::asm::run(cmd, &global),
-        Commands::Quote(cmd) => pdt::cli::commands::quote::run(cmd, &global),
-        Commands::Sup(cmd) => pdt::cli::commands::sup::run(cmd, &global),
-        Commands::Proc(cmd) => pdt::cli::commands::proc::run(cmd, &global),
-        Commands::Ctrl(cmd) => pdt::cli::commands::ctrl::run(cmd, &global),
-        Commands::Work(cmd) => pdt::cli::commands::work::run(cmd, &global),
-        Commands::Ncr(cmd) => pdt::cli::commands::ncr::run(cmd, &global),
-        Commands::Capa(cmd) => pdt::cli::commands::capa::run(cmd, &global),
-        Commands::Feat(cmd) => pdt::cli::commands::feat::run(cmd, &global),
-        Commands::Mate(cmd) => pdt::cli::commands::mate::run(cmd, &global),
-        Commands::Tol(cmd) => pdt::cli::commands::tol::run(cmd, &global),
-        Commands::Validate(args) => pdt::cli::commands::validate::run(args),
-        Commands::Link(cmd) => pdt::cli::commands::link::run(cmd),
-        Commands::Trace(cmd) => pdt::cli::commands::trace::run(cmd, &global),
+        Commands::Init(args) => tdt::cli::commands::init::run(args),
+        Commands::Req(cmd) => tdt::cli::commands::req::run(cmd, &global),
+        Commands::Risk(cmd) => tdt::cli::commands::risk::run(cmd, &global),
+        Commands::Test(cmd) => tdt::cli::commands::test::run(cmd, &global),
+        Commands::Rslt(cmd) => tdt::cli::commands::rslt::run(cmd, &global),
+        Commands::Cmp(cmd) => tdt::cli::commands::cmp::run(cmd, &global),
+        Commands::Asm(cmd) => tdt::cli::commands::asm::run(cmd, &global),
+        Commands::Quote(cmd) => tdt::cli::commands::quote::run(cmd, &global),
+        Commands::Sup(cmd) => tdt::cli::commands::sup::run(cmd, &global),
+        Commands::Proc(cmd) => tdt::cli::commands::proc::run(cmd, &global),
+        Commands::Ctrl(cmd) => tdt::cli::commands::ctrl::run(cmd, &global),
+        Commands::Work(cmd) => tdt::cli::commands::work::run(cmd, &global),
+        Commands::Ncr(cmd) => tdt::cli::commands::ncr::run(cmd, &global),
+        Commands::Capa(cmd) => tdt::cli::commands::capa::run(cmd, &global),
+        Commands::Feat(cmd) => tdt::cli::commands::feat::run(cmd, &global),
+        Commands::Mate(cmd) => tdt::cli::commands::mate::run(cmd, &global),
+        Commands::Tol(cmd) => tdt::cli::commands::tol::run(cmd, &global),
+        Commands::Validate(args) => tdt::cli::commands::validate::run(args),
+        Commands::Link(cmd) => tdt::cli::commands::link::run(cmd),
+        Commands::Trace(cmd) => tdt::cli::commands::trace::run(cmd, &global),
     }
 }

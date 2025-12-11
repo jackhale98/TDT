@@ -1,4 +1,4 @@
-//! `pdt trace` command - Traceability matrix and queries
+//! `tdt trace` command - Traceability matrix and queries
 
 use console::style;
 use miette::{IntoDiagnostic, Result};
@@ -646,7 +646,7 @@ fn run_coverage(args: CoverageArgs, global: &GlobalOpts) -> Result<()> {
                 println!();
                 println!(
                     "Use {} to see the full list",
-                    style("pdt trace coverage --uncovered").yellow()
+                    style("tdt trace coverage --uncovered").yellow()
                 );
             }
         }
@@ -672,7 +672,7 @@ fn load_all_requirements(project: &Project) -> Result<Vec<Requirement>> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 reqs.push(req);
@@ -711,7 +711,7 @@ fn load_all_entities(project: &Project) -> Result<Vec<GenericEntity>> {
                 .into_iter()
                 .filter_map(|e| e.ok())
                 .filter(|e| e.file_type().is_file())
-                .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+                .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
             {
                 if let Ok(entity) = load_generic_entity(&entry.path().to_path_buf(), prefix) {
                     // Avoid duplicates

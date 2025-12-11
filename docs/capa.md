@@ -1,6 +1,6 @@
-# PDT CAPA Entity (Corrective and Preventive Action)
+# TDT CAPA Entity (Corrective and Preventive Action)
 
-This document describes the CAPA entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the CAPA entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ CAPAs address root causes of quality issues and prevent recurrence. Corrective a
 ## Entity Type
 
 - **Prefix**: `CAPA`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `manufacturing/capas/`
 
 ## Schema
@@ -256,72 +256,72 @@ entity_revision: 3
 
 ```bash
 # Create with default template
-pdt capa new
+tdt capa new
 
 # Create with title and type
-pdt capa new --title "Tool Wear Fix" --type corrective
+tdt capa new --title "Tool Wear Fix" --type corrective
 
 # Create linked to an NCR
-pdt capa new --title "Address Bore NCR" --type corrective --ncr NCR@1
+tdt capa new --title "Address Bore NCR" --type corrective --ncr NCR@1
 
 # Interactive wizard
-pdt capa new -i
+tdt capa new -i
 
 # Create and immediately edit
-pdt capa new --title "New CAPA" --edit
+tdt capa new --title "New CAPA" --edit
 ```
 
 ### List CAPAs
 
 ```bash
 # List all CAPAs
-pdt capa list
+tdt capa list
 
 # Filter by type
-pdt capa list --type corrective
-pdt capa list --type preventive
+tdt capa list --type corrective
+tdt capa list --type preventive
 
 # Filter by CAPA status
-pdt capa list --capa-status open
-pdt capa list --capa-status implementation
-pdt capa list --capa-status closed
+tdt capa list --capa-status open
+tdt capa list --capa-status implementation
+tdt capa list --capa-status closed
 
 # Show overdue CAPAs
-pdt capa list --overdue
+tdt capa list --overdue
 
 # Search in title/description
-pdt capa list --search "tool"
+tdt capa list --search "tool"
 
 # Output formats
-pdt capa list -f json
-pdt capa list -f csv
-pdt capa list -f md
+tdt capa list -f json
+tdt capa list -f csv
+tdt capa list -f md
 ```
 
 ### Show CAPA details
 
 ```bash
 # Show by ID
-pdt capa show CAPA-01KC5
+tdt capa show CAPA-01KC5
 
 # Show using short ID
-pdt capa show CAPA@1
+tdt capa show CAPA@1
 
 # Output as JSON
-pdt capa show CAPA@1 -f json
+tdt capa show CAPA@1 -f json
 ```
 
 ### Edit a CAPA
 
 ```bash
 # Open in editor
-pdt capa edit CAPA-01KC5
+tdt capa edit CAPA-01KC5
 
 # Using short ID
-pdt capa edit CAPA@1
+tdt capa edit CAPA@1
 ```
 
-Note: To add action items, modify root cause analysis, or record effectiveness verification, use `pdt capa edit` to edit the YAML file directly.
+Note: To add action items, modify root cause analysis, or record effectiveness verification, use `tdt capa edit` to edit the YAML file directly.
 
 ## CAPA Workflow
 
@@ -424,8 +424,8 @@ Escalate CAPA when:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate manufacturing/capas/CAPA-01KC5B6P6PSHZ6TMCSDJQQ6HG3.pdt.yaml
+tdt validate manufacturing/capas/CAPA-01KC5B6P6PSHZ6TMCSDJQQ6HG3.tdt.yaml
 ```

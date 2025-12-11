@@ -1,4 +1,4 @@
-//! `pdt init` command - Initialize a new PDT project
+//! `tdt init` command - Initialize a new TDT project
 
 use console::style;
 use miette::{IntoDiagnostic, Result};
@@ -16,7 +16,7 @@ pub struct InitArgs {
     #[arg(long)]
     pub git: bool,
 
-    /// Force initialization even if .pdt/ already exists
+    /// Force initialization even if .tdt/ already exists
     #[arg(long)]
     pub force: bool,
 }
@@ -43,7 +43,7 @@ pub fn run(args: InitArgs) -> Result<()> {
         init_git(&path)?;
     }
 
-    // Initialize PDT project
+    // Initialize TDT project
     let project = if args.force {
         Project::init_force(&path)
     } else {
@@ -53,7 +53,7 @@ pub fn run(args: InitArgs) -> Result<()> {
     match project {
         Ok(project) => {
             println!(
-                "{} Initialized PDT project at {}",
+                "{} Initialized TDT project at {}",
                 style("✓").green(),
                 style(project.root().display()).cyan()
             );
@@ -64,28 +64,28 @@ pub fn run(args: InitArgs) -> Result<()> {
             println!("Next steps:");
             println!(
                 "  {} Create your first requirement",
-                style("pdt req new").yellow()
+                style("tdt req new").yellow()
             );
             println!(
                 "  {} List all requirements",
-                style("pdt req list").yellow()
+                style("tdt req list").yellow()
             );
             println!(
                 "  {} Validate project files",
-                style("pdt validate").yellow()
+                style("tdt validate").yellow()
             );
             Ok(())
         }
         Err(ProjectError::AlreadyExists(path)) => {
             println!(
-                "{} PDT project already exists at {}",
+                "{} TDT project already exists at {}",
                 style("!").yellow(),
                 style(path.display()).cyan()
             );
             println!();
             println!(
                 "Use {} to reinitialize",
-                style("pdt init --force").yellow()
+                style("tdt init --force").yellow()
             );
             Ok(())
         }
@@ -120,7 +120,7 @@ fn init_git(path: &Path) -> Result<()> {
         if !gitignore_path.exists() {
             std::fs::write(
                 &gitignore_path,
-                "# PDT generated files\n/docs/generated/\n\n# Editor backups\n*.swp\n*~\n",
+                "# TDT generated files\n/docs/generated/\n\n# Editor backups\n*.swp\n*~\n",
             )
             .into_diagnostic()?;
         }
@@ -133,8 +133,8 @@ fn init_git(path: &Path) -> Result<()> {
 
 fn print_structure(root: &Path) {
     let dirs = [
-        ".pdt/",
-        ".pdt/config.yaml",
+        ".tdt/",
+        ".tdt/config.yaml",
         "requirements/inputs/",
         "requirements/outputs/",
         "risks/design/",

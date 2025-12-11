@@ -5,10 +5,10 @@ use thiserror::Error;
 
 use crate::core::identity::{EntityId, EntityPrefix};
 
-/// Represents a PDT project
+/// Represents a TDT project
 #[derive(Debug)]
 pub struct Project {
-    /// Root directory of the project (parent of .pdt/)
+    /// Root directory of the project (parent of .tdt/)
     root: PathBuf,
 }
 
@@ -27,8 +27,8 @@ impl Project {
             .map_err(|e| ProjectError::IoError(e.to_string()))?;
 
         loop {
-            let pdt_dir = current.join(".pdt");
-            if pdt_dir.is_dir() {
+            let tdt_dir = current.join(".tdt");
+            if tdt_dir.is_dir() {
                 return Ok(Self { root: current });
             }
 
@@ -46,19 +46,19 @@ impl Project {
             .canonicalize()
             .unwrap_or_else(|_| path.to_path_buf());
 
-        let pdt_dir = root.join(".pdt");
-        if pdt_dir.exists() {
+        let tdt_dir = root.join(".tdt");
+        if tdt_dir.exists() {
             return Err(ProjectError::AlreadyExists(root.clone()));
         }
 
-        // Create .pdt directory structure
-        std::fs::create_dir_all(pdt_dir.join("schema"))
+        // Create .tdt directory structure
+        std::fs::create_dir_all(tdt_dir.join("schema"))
             .map_err(|e| ProjectError::IoError(e.to_string()))?;
-        std::fs::create_dir_all(pdt_dir.join("templates"))
+        std::fs::create_dir_all(tdt_dir.join("templates"))
             .map_err(|e| ProjectError::IoError(e.to_string()))?;
 
         // Create default config
-        let config_path = pdt_dir.join("config.yaml");
+        let config_path = tdt_dir.join("config.yaml");
         std::fs::write(&config_path, Self::default_config())
             .map_err(|e| ProjectError::IoError(e.to_string()))?;
 
@@ -68,22 +68,22 @@ impl Project {
         Ok(Self { root })
     }
 
-    /// Force initialization even if .pdt/ exists
+    /// Force initialization even if .tdt/ exists
     pub fn init_force(path: &Path) -> Result<Self, ProjectError> {
         let root = path
             .canonicalize()
             .unwrap_or_else(|_| path.to_path_buf());
 
-        let pdt_dir = root.join(".pdt");
+        let tdt_dir = root.join(".tdt");
 
-        // Create .pdt directory structure (overwrite if exists)
-        std::fs::create_dir_all(pdt_dir.join("schema"))
+        // Create .tdt directory structure (overwrite if exists)
+        std::fs::create_dir_all(tdt_dir.join("schema"))
             .map_err(|e| ProjectError::IoError(e.to_string()))?;
-        std::fs::create_dir_all(pdt_dir.join("templates"))
+        std::fs::create_dir_all(tdt_dir.join("templates"))
             .map_err(|e| ProjectError::IoError(e.to_string()))?;
 
         // Create default config
-        let config_path = pdt_dir.join("config.yaml");
+        let config_path = tdt_dir.join("config.yaml");
         std::fs::write(&config_path, Self::default_config())
             .map_err(|e| ProjectError::IoError(e.to_string()))?;
 
@@ -94,13 +94,13 @@ impl Project {
     }
 
     fn default_config() -> &'static str {
-        r#"# PDT Project Configuration
-# See https://pdt.dev/docs/config for all options
+        r#"# TDT Project Configuration
+# See https://tessera.dev/docs/config for all options
 
 # Default author for new entities (can be overridden by global config)
 # author: ""
 
-# Editor to use for `pdt edit` commands (default: $EDITOR)
+# Editor to use for `tdt edit` commands (default: $EDITOR)
 # editor: ""
 
 # Default output format (auto, yaml, tsv, json, csv, md, id)
@@ -145,9 +145,9 @@ impl Project {
         &self.root
     }
 
-    /// Get the .pdt configuration directory
-    pub fn pdt_dir(&self) -> PathBuf {
-        self.root.join(".pdt")
+    /// Get the .tdt configuration directory
+    pub fn tdt_dir(&self) -> PathBuf {
+        self.root.join(".tdt")
     }
 
     /// Get the path for a new entity file
@@ -155,7 +155,7 @@ impl Project {
         let subdir = Self::entity_directory(prefix);
         self.root
             .join(subdir)
-            .join(format!("{}.pdt.yaml", id))
+            .join(format!("{}.tdt.yaml", id))
     }
 
     /// Get the directory for a given entity prefix
@@ -227,7 +227,7 @@ impl Project {
             .filter(|e| {
                 e.path()
                     .to_string_lossy()
-                    .ends_with(".pdt.yaml")
+                    .ends_with(".tdt.yaml")
             })
             .map(|e| e.path().to_path_buf())
     }
@@ -236,10 +236,10 @@ impl Project {
 /// Errors that can occur during project operations
 #[derive(Debug, Error)]
 pub enum ProjectError {
-    #[error("not a PDT project (searched from {searched_from:?}). Run 'pdt init' to create one.")]
+    #[error("not a TDT project (searched from {searched_from:?}). Run 'tdt init' to create one.")]
     NotFound { searched_from: PathBuf },
 
-    #[error("PDT project already exists at {0:?}")]
+    #[error("TDT project already exists at {0:?}")]
     AlreadyExists(PathBuf),
 
     #[error("IO error: {0}")]
@@ -256,10 +256,10 @@ mod tests {
         let tmp = tempdir().unwrap();
         let project = Project::init(tmp.path()).unwrap();
 
-        assert!(project.pdt_dir().exists());
-        assert!(project.pdt_dir().join("config.yaml").exists());
-        assert!(project.pdt_dir().join("schema").is_dir());
-        assert!(project.pdt_dir().join("templates").is_dir());
+        assert!(project.tdt_dir().exists());
+        assert!(project.tdt_dir().join("config.yaml").exists());
+        assert!(project.tdt_dir().join("schema").is_dir());
+        assert!(project.tdt_dir().join("templates").is_dir());
         assert!(project.root().join("requirements/inputs").is_dir());
         assert!(project.root().join("requirements/outputs").is_dir());
         assert!(project.root().join("risks/design").is_dir());
@@ -275,7 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn test_project_discover_finds_pdt_dir() {
+    fn test_project_discover_finds_tdt_dir() {
         let tmp = tempdir().unwrap();
         Project::init(tmp.path()).unwrap();
 
@@ -292,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn test_project_discover_fails_without_pdt_dir() {
+    fn test_project_discover_fails_without_tdt_dir() {
         let tmp = tempdir().unwrap();
         let err = Project::discover_from(tmp.path()).unwrap_err();
         assert!(matches!(err, ProjectError::NotFound { .. }));

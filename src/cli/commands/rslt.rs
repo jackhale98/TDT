@@ -1,4 +1,4 @@
-//! `pdt rslt` command - Test result management
+//! `tdt rslt` command - Test result management
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
@@ -225,7 +225,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             match crate::yaml::parse_yaml_file::<TestResult>(entry.path()) {
                 Ok(result) => results.push(result),
@@ -248,7 +248,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             match crate::yaml::parse_yaml_file::<TestResult>(entry.path()) {
                 Ok(result) => results.push(result),
@@ -345,7 +345,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             _ => {
                 println!("No results found.");
                 println!();
-                println!("Create one with: {}", style("pdt rslt new").yellow());
+                println!("Create one with: {}", style("tdt rslt new").yellow());
             }
         }
         return Ok(());
@@ -622,7 +622,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         fs::create_dir_all(&output_dir).into_diagnostic()?;
     }
 
-    let file_path = output_dir.join(format!("{}.pdt.yaml", id));
+    let file_path = output_dir.join(format!("{}.tdt.yaml", id));
 
     // Write file
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
@@ -664,7 +664,7 @@ fn determine_test_type(project: &Project, test_id: &EntityId) -> Result<String> 
     // Check verification protocols
     let verification_path = project
         .root()
-        .join(format!("verification/protocols/{}.pdt.yaml", test_id));
+        .join(format!("verification/protocols/{}.tdt.yaml", test_id));
     if verification_path.exists() {
         return Ok("verification".to_string());
     }
@@ -672,7 +672,7 @@ fn determine_test_type(project: &Project, test_id: &EntityId) -> Result<String> 
     // Check validation protocols
     let validation_path = project
         .root()
-        .join(format!("validation/protocols/{}.pdt.yaml", test_id));
+        .join(format!("validation/protocols/{}.tdt.yaml", test_id));
     if validation_path.exists() {
         return Ok("validation".to_string());
     }
@@ -843,7 +843,7 @@ fn run_edit(args: EditArgs) -> Result<()> {
 
     let file_path = project
         .root()
-        .join(format!("{}/results/{}.pdt.yaml", test_type, result.id));
+        .join(format!("{}/results/{}.tdt.yaml", test_type, result.id));
 
     if !file_path.exists() {
         return Err(miette::miette!(
@@ -882,7 +882,7 @@ fn find_result(project: &Project, id_query: &str) -> Result<TestResult> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(result) = crate::yaml::parse_yaml_file::<TestResult>(entry.path()) {
                 // Check if ID matches (prefix or full)

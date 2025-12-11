@@ -1,6 +1,6 @@
 //! Entity type definitions
 //!
-//! PDT supports the following entity types:
+//! TDT supports the following entity types:
 //!
 //! **Product Development:**
 //! - [`Requirement`] - Input/output requirements with traceability

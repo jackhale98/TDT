@@ -6,7 +6,7 @@ use thiserror::Error;
 /// YAML syntax error with source location
 #[derive(Debug, Error, Diagnostic)]
 #[error("YAML syntax error")]
-#[diagnostic(code(pdt::yaml::syntax))]
+#[diagnostic(code(tdt::yaml::syntax))]
 pub struct YamlSyntaxError {
     #[source_code]
     src: NamedSource<String>,

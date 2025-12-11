@@ -1,6 +1,6 @@
-# PDT Process Entity (Manufacturing)
+# TDT Process Entity (Manufacturing)
 
-This document describes the Process entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Process entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Processes define manufacturing operations - the engineering specification of *wh
 ## Entity Type
 
 - **Prefix**: `PROC`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `manufacturing/processes/`
 
 ## Schema
@@ -189,75 +189,75 @@ entity_revision: 1
 
 ```bash
 # Create with default template
-pdt proc new
+tdt proc new
 
 # Create with title and type
-pdt proc new --title "CNC Milling" --type machining
+tdt proc new --title "CNC Milling" --type machining
 
 # Create with operation number
-pdt proc new --title "Final Assembly" --type assembly --op-number "OP-020"
+tdt proc new --title "Final Assembly" --type assembly --op-number "OP-020"
 
 # Create with cycle/setup times
-pdt proc new --title "Inspection" --type inspection --cycle-time 5 --setup-time 10
+tdt proc new --title "Inspection" --type inspection --cycle-time 5 --setup-time 10
 
 # Create with interactive wizard
-pdt proc new -i
+tdt proc new -i
 
 # Create and immediately edit
-pdt proc new --title "New Process" --edit
+tdt proc new --title "New Process" --edit
 ```
 
 ### List processes
 
 ```bash
 # List all processes
-pdt proc list
+tdt proc list
 
 # Filter by type
-pdt proc list --type machining
-pdt proc list --type assembly
+tdt proc list --type machining
+tdt proc list --type assembly
 
 # Filter by status
-pdt proc list --status approved
-pdt proc list --status draft
+tdt proc list --status approved
+tdt proc list --status draft
 
 # Search in title/description
-pdt proc list --search "milling"
+tdt proc list --search "milling"
 
 # Sort and limit
-pdt proc list --sort title
-pdt proc list --limit 10
+tdt proc list --sort title
+tdt proc list --limit 10
 
 # Count only
-pdt proc list --count
+tdt proc list --count
 
 # Output formats
-pdt proc list -f json
-pdt proc list -f csv
-pdt proc list -f md
+tdt proc list -f json
+tdt proc list -f csv
+tdt proc list -f md
 ```
 
 ### Show process details
 
 ```bash
 # Show by ID (partial match supported)
-pdt proc show PROC-01KC5
+tdt proc show PROC-01KC5
 
 # Show using short ID
-pdt proc show PROC@1
+tdt proc show PROC@1
 
 # Output as JSON
-pdt proc show PROC@1 -f json
+tdt proc show PROC@1 -f json
 ```
 
 ### Edit a process
 
 ```bash
 # Open in editor
-pdt proc edit PROC-01KC5
+tdt proc edit PROC-01KC5
 
 # Using short ID
-pdt proc edit PROC@1
+tdt proc edit PROC@1
 ```
 
 ## Process vs Work Instruction
@@ -297,10 +297,10 @@ Processes are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate manufacturing/processes/PROC-01KC5B2GDDQ0JAXFVXYYZ9DWDZ.pdt.yaml
+tdt validate manufacturing/processes/PROC-01KC5B2GDDQ0JAXFVXYYZ9DWDZ.tdt.yaml
 ```
 
 ### Validation Rules

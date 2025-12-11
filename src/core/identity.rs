@@ -94,7 +94,7 @@ impl EntityPrefix {
     }
 
     /// Try to determine entity prefix from a filename
-    /// Looks for patterns like "REQ-xxx.pdt.yaml" or "req.schema.json"
+    /// Looks for patterns like "REQ-xxx.tdt.yaml" or "req.schema.json"
     pub fn from_filename(filename: &str) -> Option<Self> {
         let upper = filename.to_uppercase();
         for prefix in Self::all() {

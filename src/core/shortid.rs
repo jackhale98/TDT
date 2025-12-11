@@ -13,7 +13,7 @@ use crate::core::identity::EntityId;
 use crate::core::project::Project;
 
 /// Index file location within a project
-const INDEX_FILE: &str = ".pdt/shortids.json";
+const INDEX_FILE: &str = ".tdt/shortids.json";
 
 /// A mapping of prefixed short IDs to full entity IDs
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]

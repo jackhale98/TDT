@@ -1,4 +1,4 @@
-//! `pdt req` command - Requirement management
+//! `tdt req` command - Requirement management
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
@@ -262,7 +262,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             match crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 Ok(req) => reqs.push(req),
@@ -368,7 +368,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             _ => {
                 println!("No requirements found matching filters.");
                 println!();
-                println!("Create one with: {}", style("pdt req new").yellow());
+                println!("Create one with: {}", style("tdt req new").yellow());
             }
         }
         return Ok(());
@@ -619,7 +619,7 @@ fn run_new(args: NewArgs) -> Result<()> {
 
     // Determine output directory based on type
     let output_dir = project.requirement_directory(&req_type.to_string());
-    let file_path = output_dir.join(format!("{}.pdt.yaml", id));
+    let file_path = output_dir.join(format!("{}.tdt.yaml", id));
 
     // Write file
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
@@ -750,7 +750,7 @@ fn run_edit(args: EditArgs) -> Result<()> {
     };
     let file_path = project
         .root()
-        .join(format!("requirements/{}/{}.pdt.yaml", req_type, req.id));
+        .join(format!("requirements/{}/{}.tdt.yaml", req_type, req.id));
 
     if !file_path.exists() {
         return Err(miette::miette!(
@@ -789,7 +789,7 @@ fn find_requirement(project: &Project, id_query: &str) -> Result<Requirement> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
                 // Check if ID matches (prefix or full)

@@ -215,6 +215,7 @@ nav .container {
   max-width: 100%;
   flex-wrap: wrap;
   justify-content: center;
+  box-sizing: border-box;
 }
 
 .hero-badge::before {
@@ -501,11 +502,16 @@ nav .container {
   padding: 20px;
   text-align: center;
   transition: all 0.2s;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  cursor: pointer;
 }
 
 .entity-card:hover {
   border-color: var(--accent);
   background: var(--bg-elevated);
+  transform: translateY(-2px);
 }
 
 .entity-prefix {
@@ -774,6 +780,8 @@ footer {
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.2s;
+  position: relative;
+  z-index: 101;
 }
 
 .mobile-menu-btn:hover {
@@ -785,6 +793,7 @@ footer {
   width: 20px;
   height: 20px;
   display: block;
+  pointer-events: none;
 }
 
 /* Mobile Menu Overlay */
@@ -851,11 +860,18 @@ footer {
 
   .container {
     padding: 0 16px;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .hero {
     padding-top: 100px;
     min-height: auto;
+  }
+
+  .hero-content {
+    max-width: 100%;
+    width: 100%;
   }
 
   .hero h1 {
@@ -878,21 +894,25 @@ footer {
 
   .hero-code {
     margin-top: 40px;
+    border-radius: 8px;
+    max-width: 100%;
+    width: 100%;
+    overflow: hidden;
   }
 
   .hero-code pre {
-    font-size: 12px;
+    font-size: 11px;
     padding: 16px;
-  }
-
-  .hero-code {
-    margin-top: 40px;
-    border-radius: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
   }
 
   .hero-badge {
-    font-size: 12px;
-    padding: 5px 12px;
+    font-size: 11px;
+    padding: 5px 10px;
+    max-width: calc(100% - 32px);
+    text-align: center;
   }
 
   .marquee-section {
@@ -1057,7 +1077,7 @@ footer {
         <a href="#entities">Entities</a>
         <a href="#install">Install</a>
         <a href="#demo">Demo</a>
-        <a href="https://github.com/yourorg/tdt" class="nav-btn">
+        <a href="https://github.com/jackhale98/TDT" class="nav-btn">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
           GitHub
         </a>
@@ -1079,7 +1099,7 @@ footer {
     <a href="#entities" onclick="closeMobileMenu()">Entities</a>
     <a href="#install" onclick="closeMobileMenu()">Install</a>
     <a href="#demo" onclick="closeMobileMenu()">Demo</a>
-    <a href="https://github.com/yourorg/tdt" onclick="closeMobileMenu()">GitHub</a>
+    <a href="https://github.com/jackhale98/TDT" onclick="closeMobileMenu()">GitHub</a>
   </div>
 
   <!-- Hero -->
@@ -1095,7 +1115,7 @@ footer {
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Install Now
           </a>
-          <a href="https://github.com/yourorg/tdt" class="btn btn-secondary">
+          <a href="https://github.com/jackhale98/TDT" class="btn btn-secondary">
             View Documentation
           </a>
         </div>
@@ -1223,71 +1243,69 @@ footer {
         <p class="section-desc">Every artifact type you need for professional product development.</p>
       </div>
 
-```
-  <div class="entities-grid">
-    <div class="entity-card">
-      <div class="entity-prefix">REQ</div>
-      <div class="entity-name">Requirement</div>
-      <div class="entity-desc">Design inputs & outputs</div>
+      <div class="entities-grid">
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/requirements.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">REQ</div>
+          <div class="entity-name">Requirement</div>
+          <div class="entity-desc">Design inputs & outputs</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/risk.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">RISK</div>
+          <div class="entity-name">Risk</div>
+          <div class="entity-desc">FMEA items</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/test.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">TEST</div>
+          <div class="entity-name">Test</div>
+          <div class="entity-desc">Verification protocols</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/result.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">RSLT</div>
+          <div class="entity-name">Result</div>
+          <div class="entity-desc">Test execution records</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/assembly.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">ASM</div>
+          <div class="entity-name">Assembly</div>
+          <div class="entity-desc">Assembly definitions</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/component.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">CMP</div>
+          <div class="entity-name">Component</div>
+          <div class="entity-desc">Part definitions</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/feature.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">FEAT</div>
+          <div class="entity-name">Feature</div>
+          <div class="entity-desc">Dimensional features</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/stackup.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">TOL</div>
+          <div class="entity-name">Tolerance</div>
+          <div class="entity-desc">Stackup analysis</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/process.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">PROC</div>
+          <div class="entity-name">Process</div>
+          <div class="entity-desc">Manufacturing processes</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/control.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">CTRL</div>
+          <div class="entity-name">Control</div>
+          <div class="entity-desc">SPC & inspection</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/ncr.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">NCR</div>
+          <div class="entity-name">NCR</div>
+          <div class="entity-desc">Non-conformance reports</div>
+        </a>
+        <a href="https://github.com/jackhale98/TDT/blob/main/docs/capa.md" class="entity-card" target="_blank" rel="noopener">
+          <div class="entity-prefix">CAPA</div>
+          <div class="entity-name">CAPA</div>
+          <div class="entity-desc">Corrective actions</div>
+        </a>
+      </div>
     </div>
-    <div class="entity-card">
-      <div class="entity-prefix">RISK</div>
-      <div class="entity-name">Risk</div>
-      <div class="entity-desc">FMEA items</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">TEST</div>
-      <div class="entity-name">Test</div>
-      <div class="entity-desc">Verification protocols</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">RSLT</div>
-      <div class="entity-name">Result</div>
-      <div class="entity-desc">Test execution records</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">ASM</div>
-      <div class="entity-name">Assembly</div>
-      <div class="entity-desc">Assembly definitions</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">CMP</div>
-      <div class="entity-name">Component</div>
-      <div class="entity-desc">Part definitions</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">FEAT</div>
-      <div class="entity-name">Feature</div>
-      <div class="entity-desc">Dimensional features</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">TOL</div>
-      <div class="entity-name">Tolerance</div>
-      <div class="entity-desc">Stackup analysis</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">PROC</div>
-      <div class="entity-name">Process</div>
-      <div class="entity-desc">Manufacturing processes</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">CTRL</div>
-      <div class="entity-name">Control</div>
-      <div class="entity-desc">SPC & inspection</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">NCR</div>
-      <div class="entity-name">NCR</div>
-      <div class="entity-desc">Non-conformance reports</div>
-    </div>
-    <div class="entity-card">
-      <div class="entity-prefix">CAPA</div>
-      <div class="entity-name">CAPA</div>
-      <div class="entity-desc">Corrective actions</div>
-    </div>
-  </div>
-</div>
-```
 
   </section>
 
@@ -1338,7 +1356,7 @@ footer {
 <span style="color: var(--accent)">$</span> cargo install tdt
 
 <span style="color: var(--text-muted)"># Or build from source</span>
-<span style="color: var(--accent)">$</span> git clone https://github.com/yourorg/tdt.git
+<span style="color: var(--accent)">$</span> git clone https://github.com/jackhale98/TDT.git
 <span style="color: var(--accent)">$</span> cd tdt && cargo build –release
 
 <span style="color: var(--text-muted)"># Initialize your project</span>
@@ -1453,10 +1471,10 @@ footer {
           <span class="footer-text">TDT -- Tessera Development Toolkit</span>
         </div>
         <div class="footer-links">
-          <a href="https://github.com/yourorg/tdt">GitHub</a>
-          <a href="https://github.com/yourorg/tdt/blob/main/README.md">Documentation</a>
-          <a href="https://github.com/yourorg/tdt/issues">Issues</a>
-          <a href="https://github.com/yourorg/tdt/blob/main/LICENSE">MIT License</a>
+          <a href="https://github.com/jackhale98/TDT">GitHub</a>
+          <a href="https://github.com/jackhale98/TDT/blob/main/README.md">Documentation</a>
+          <a href="https://github.com/jackhale98/TDT/issues">Issues</a>
+          <a href="https://github.com/jackhale98/TDT/blob/main/LICENSE">MIT License</a>
         </div>
       </div>
     </div>

@@ -27,9 +27,9 @@ use crate::cli::commands::{
 };
 
 #[derive(Parser)]
-#[command(name = "pdt")]
-#[command(author, version, about = "Plain-text Product Development Toolkit")]
-#[command(long_about = "A Unix-style toolkit for managing product development artifacts as plain text files under git version control.")]
+#[command(name = "tdt")]
+#[command(author, version, about = "Tessera Engineering Toolkit")]
+#[command(long_about = "A Unix-style toolkit for managing engineering artifacts as plain text files under git version control.")]
 #[command(propagate_version = true)]
 pub struct Cli {
     #[command(subcommand)]
@@ -53,14 +53,14 @@ pub struct GlobalOpts {
     #[arg(long, short = 'v', global = true)]
     pub verbose: bool,
 
-    /// Project root (default: auto-detect by finding .pdt/)
+    /// Project root (default: auto-detect by finding .tdt/)
     #[arg(long, global = true)]
     pub project: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Initialize a new PDT project
+    /// Initialize a new TDT project
     Init(InitArgs),
 
     /// Requirement management

@@ -1,6 +1,6 @@
-//! PDT: Plain-text Product Development Toolkit
+//! TDT: Tessera Engineering Toolkit
 //!
-//! A Unix-style toolkit for managing product development artifacts as plain text
+//! A Unix-style toolkit for managing engineering artifacts as plain text
 //! files under git version control.
 
 pub mod cli;

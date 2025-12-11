@@ -1,6 +1,6 @@
-# PDT Control Entity (Control Plan Items)
+# TDT Control Entity (Control Plan Items)
 
-This document describes the Control entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Control entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Controls define control plan items - how to monitor and control manufacturing pr
 ## Entity Type
 
 - **Prefix**: `CTRL`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `manufacturing/controls/`
 
 ## Schema
@@ -164,80 +164,80 @@ entity_revision: 1
 
 ```bash
 # Create with default template
-pdt ctrl new
+tdt ctrl new
 
 # Create with title and type
-pdt ctrl new --title "Bore Diameter SPC" --type spc
+tdt ctrl new --title "Bore Diameter SPC" --type spc
 
 # Create linked to a process
-pdt ctrl new --title "Bore SPC" --type spc --process PROC@1
+tdt ctrl new --title "Bore SPC" --type spc --process PROC@1
 
 # Create linked to a feature
-pdt ctrl new --title "Bore SPC" --type spc --process PROC@1 --feature FEAT@1
+tdt ctrl new --title "Bore SPC" --type spc --process PROC@1 --feature FEAT@1
 
 # Mark as critical (CTQ)
-pdt ctrl new --title "Critical Dimension" --type inspection --critical
+tdt ctrl new --title "Critical Dimension" --type inspection --critical
 
 # Specify characteristic name
-pdt ctrl new --title "Length Check" --type inspection --characteristic "Overall Length"
+tdt ctrl new --title "Length Check" --type inspection --characteristic "Overall Length"
 
 # Interactive wizard
-pdt ctrl new -i
+tdt ctrl new -i
 
 # Create and immediately edit
-pdt ctrl new --title "New Control" --edit
+tdt ctrl new --title "New Control" --edit
 ```
 
 ### List controls
 
 ```bash
 # List all controls
-pdt ctrl list
+tdt ctrl list
 
 # Filter by control type
-pdt ctrl list --type spc
-pdt ctrl list --type inspection
-pdt ctrl list --type visual
+tdt ctrl list --type spc
+tdt ctrl list --type inspection
+tdt ctrl list --type visual
 
 # Filter by process
-pdt ctrl list --process PROC@1
+tdt ctrl list --process PROC@1
 
 # Show only critical (CTQ) controls
-pdt ctrl list --critical
+tdt ctrl list --critical
 
 # Filter by status
-pdt ctrl list --status approved
+tdt ctrl list --status approved
 
 # Search in title/description
-pdt ctrl list --search "bore"
+tdt ctrl list --search "bore"
 
 # Output formats
-pdt ctrl list -f json
-pdt ctrl list -f csv
-pdt ctrl list -f md
+tdt ctrl list -f json
+tdt ctrl list -f csv
+tdt ctrl list -f md
 ```
 
 ### Show control details
 
 ```bash
 # Show by ID
-pdt ctrl show CTRL-01KC5
+tdt ctrl show CTRL-01KC5
 
 # Show using short ID
-pdt ctrl show CTRL@1
+tdt ctrl show CTRL@1
 
 # Output as JSON
-pdt ctrl show CTRL@1 -f json
+tdt ctrl show CTRL@1 -f json
 ```
 
 ### Edit a control
 
 ```bash
 # Open in editor
-pdt ctrl edit CTRL-01KC5
+tdt ctrl edit CTRL-01KC5
 
 # Using short ID
-pdt ctrl edit CTRL@1
+tdt ctrl edit CTRL@1
 ```
 
 ## Control Types in Detail
@@ -309,8 +309,8 @@ Controls are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate manufacturing/controls/CTRL-01KC5B5M87QMYVJT048X27TJ5S.pdt.yaml
+tdt validate manufacturing/controls/CTRL-01KC5B5M87QMYVJT048X27TJ5S.tdt.yaml
 ```

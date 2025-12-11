@@ -590,7 +590,7 @@ impl TemplateGenerator {
 
         format!(
             r#"# Assembly: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 part_number: "{part_number}"
@@ -673,7 +673,7 @@ entity_revision: 1
 
         format!(
             r#"# Feature: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 component: {component_id}
@@ -757,7 +757,7 @@ entity_revision: 1
 
         format!(
             r#"# Mate: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 title: "{title}"
@@ -773,7 +773,7 @@ feature_b: {feature_b}   # Typically shaft/pin
 mate_type: {mate_type}
 
 # Fit analysis (auto-calculated when features have dimensions)
-# Run 'pdt mate recalc MATE@N' to update
+# Run 'tdt mate recalc MATE@N' to update
 fit_analysis: null
 
 notes: |
@@ -832,7 +832,7 @@ entity_revision: 1
 
         format!(
             r#"# Stackup: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 title: "{title}"
@@ -863,7 +863,7 @@ contributors:
     source: "DWG-001 Rev A"
 
 # Analysis results (auto-calculated)
-# Run 'pdt tol analyze TOL@N' to calculate
+# Run 'tdt tol analyze TOL@N' to calculate
 analysis_results:
   worst_case: null
   rss: null
@@ -905,7 +905,7 @@ entity_revision: 1
 
         format!(
             r#"# Component: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 part_number: "{part_number}"
@@ -975,7 +975,7 @@ entity_revision: 1
 
         format!(
             r#"# Risk: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 type: {risk_type}
@@ -1052,7 +1052,7 @@ revision: 1
 
         format!(
             r#"# Requirement: {title}
-# Created by PDT
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 type: {req_type}
@@ -1112,7 +1112,7 @@ revision: 1
 
         format!(
             r#"# Test: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 type: {test_type}
@@ -1198,7 +1198,7 @@ revision: 1
 
         format!(
             r#"# Result: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 test_id: {test_id}
@@ -1307,7 +1307,7 @@ revision: 1
 
         format!(
             r#"# Quote: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 title: "{title}"
@@ -1414,7 +1414,7 @@ entity_revision: 1
 
         format!(
             r#"# Supplier: {name}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 name: "{name}"
@@ -1508,7 +1508,7 @@ entity_revision: 1
 
         format!(
             r#"# Process: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 title: "{title}"
@@ -1604,7 +1604,7 @@ entity_revision: 1
 
         format!(
             r#"# Control: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 title: "{title}"
@@ -1699,7 +1699,7 @@ entity_revision: 1
 
         format!(
             r#"# Work Instruction: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 title: "{title}"
@@ -1784,7 +1784,7 @@ entity_revision: 1
 
         format!(
             r#"# NCR: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 title: "{title}"
@@ -1886,7 +1886,7 @@ entity_revision: 1
 
         format!(
             r#"# CAPA: {title}
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: {id}
 title: "{title}"

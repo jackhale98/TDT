@@ -1,4 +1,4 @@
-//! `pdt risk` command - Risk/FMEA management
+//! `tdt risk` command - Risk/FMEA management
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
@@ -243,7 +243,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             match crate::yaml::parse_yaml_file::<Risk>(entry.path()) {
                 Ok(risk) => risks.push(risk),
@@ -266,7 +266,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             match crate::yaml::parse_yaml_file::<Risk>(entry.path()) {
                 Ok(risk) => risks.push(risk),
@@ -358,7 +358,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             _ => {
                 println!("No risks found.");
                 println!();
-                println!("Create one with: {}", style("pdt risk new").yellow());
+                println!("Create one with: {}", style("tdt risk new").yellow());
             }
         }
         return Ok(());
@@ -633,7 +633,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         fs::create_dir_all(&output_dir).into_diagnostic()?;
     }
 
-    let file_path = output_dir.join(format!("{}.pdt.yaml", id));
+    let file_path = output_dir.join(format!("{}.tdt.yaml", id));
 
     // Write file
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
@@ -811,7 +811,7 @@ fn run_edit(args: EditArgs) -> Result<()> {
     };
     let file_path = project
         .root()
-        .join(format!("risks/{}/{}.pdt.yaml", risk_type, risk.id));
+        .join(format!("risks/{}/{}.tdt.yaml", risk_type, risk.id));
 
     if !file_path.exists() {
         return Err(miette::miette!(
@@ -850,7 +850,7 @@ fn find_risk(project: &Project, id_query: &str) -> Result<Risk> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         {
             if let Ok(risk) = crate::yaml::parse_yaml_file::<Risk>(entry.path()) {
                 // Check if ID matches (prefix or full)

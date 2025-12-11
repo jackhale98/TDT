@@ -1,6 +1,6 @@
-# PDT Work Instruction Entity
+# TDT Work Instruction Entity
 
-This document describes the Work Instruction entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Work Instruction entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Work Instructions provide step-by-step procedures for operators. While processes
 ## Entity Type
 
 - **Prefix**: `WORK`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `manufacturing/work_instructions/`
 
 ## Schema
@@ -218,70 +218,70 @@ entity_revision: 2
 
 ```bash
 # Create with default template
-pdt work new
+tdt work new
 
 # Create with title
-pdt work new --title "CNC Mill Setup"
+tdt work new --title "CNC Mill Setup"
 
 # Create with document number
-pdt work new --title "CNC Mill Setup" --doc-number "WI-MACH-015"
+tdt work new --title "CNC Mill Setup" --doc-number "WI-MACH-015"
 
 # Create linked to a process
-pdt work new --title "Mill Setup" --process PROC@1
+tdt work new --title "Mill Setup" --process PROC@1
 
 # Interactive wizard
-pdt work new -i
+tdt work new -i
 
 # Create and immediately edit
-pdt work new --title "New Work Instruction" --edit
+tdt work new --title "New Work Instruction" --edit
 ```
 
 ### List work instructions
 
 ```bash
 # List all work instructions
-pdt work list
+tdt work list
 
 # Filter by process
-pdt work list --process PROC@1
+tdt work list --process PROC@1
 
 # Filter by status
-pdt work list --status released
+tdt work list --status released
 
 # Search in title/description
-pdt work list --search "setup"
+tdt work list --search "setup"
 
 # Sort options
-pdt work list --sort title
-pdt work list --sort doc-number
+tdt work list --sort title
+tdt work list --sort doc-number
 
 # Output formats
-pdt work list -f json
-pdt work list -f csv
-pdt work list -f md
+tdt work list -f json
+tdt work list -f csv
+tdt work list -f md
 ```
 
 ### Show work instruction details
 
 ```bash
 # Show by ID
-pdt work show WORK-01KC5
+tdt work show WORK-01KC5
 
 # Show using short ID
-pdt work show WORK@1
+tdt work show WORK@1
 
 # Output as JSON
-pdt work show WORK@1 -f json
+tdt work show WORK@1 -f json
 ```
 
 ### Edit a work instruction
 
 ```bash
 # Open in editor
-pdt work edit WORK-01KC5
+tdt work edit WORK-01KC5
 
 # Using short ID
-pdt work edit WORK@1
+tdt work edit WORK@1
 ```
 
 ## Best Practices
@@ -317,8 +317,8 @@ Use consistent language:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate manufacturing/work_instructions/WORK-01KC5B5XKGWKFTTA9YWTGJB9GE.pdt.yaml
+tdt validate manufacturing/work_instructions/WORK-01KC5B5XKGWKFTTA9YWTGJB9GE.tdt.yaml
 ```

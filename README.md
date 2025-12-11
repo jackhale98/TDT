@@ -1,6 +1,6 @@
-# PDT - Plain-text Product Development Toolkit
+# TDT - Tessera Engineering Toolkit
 
-A CLI tool for managing product development artifacts as plain-text YAML files. PDT provides structured tracking of requirements, risks, tests, and other entities with full traceability and validation.
+A CLI tool for managing engineering artifacts as plain-text YAML files. TDT provides structured tracking of requirements, risks, tests, and other entities with full traceability and validation.
 
 ## Features
 
@@ -17,14 +17,14 @@ A CLI tool for managing product development artifacts as plain-text YAML files. 
 ## Installation
 
 ```bash
-cargo install pdt
+cargo install tdt
 ```
 
 Or build from source:
 
 ```bash
-git clone https://github.com/yourorg/pdt.git
-cd pdt
+git clone https://github.com/yourorg/tdt.git
+cd tdt
 cargo build --release
 ```
 
@@ -32,46 +32,46 @@ cargo build --release
 
 ```bash
 # Initialize a new project
-pdt init
+tdt init
 
 # Create a requirement
-pdt req new --title "Operating Temperature Range" --type input
+tdt req new --title "Operating Temperature Range" --type input
 
 # List all requirements (shows REQ@N short IDs)
-pdt req list
+tdt req list
 
 # Show a specific requirement using short ID
-pdt req show REQ@1                 # Use prefixed short ID from list
-pdt req show REQ-01HC2             # Or partial ID match
+tdt req show REQ@1                 # Use prefixed short ID from list
+tdt req show REQ-01HC2             # Or partial ID match
 
 # Create a risk
-pdt risk new --title "Battery Overheating" -t design
+tdt risk new --title "Battery Overheating" -t design
 
 # Validate all project files
-pdt validate
+tdt validate
 ```
 
 ## Short IDs
 
-After running `list` commands, PDT assigns entity-prefixed short IDs (`REQ@1`, `RISK@1`, etc.) to entities:
+After running `list` commands, TDT assigns entity-prefixed short IDs (`REQ@1`, `RISK@1`, etc.) to entities:
 
 ```bash
-$ pdt req list
+$ tdt req list
 @       ID               TYPE     TITLE                                STATUS     PRIORITY
 --------------------------------------------------------------------------------------------
 REQ@1   REQ-01HC2JB7...  input    Operating Temperature Range          approved   high
 REQ@2   REQ-01HC2JB8...  output   Thermal Management Specification     draft      high
 
-$ pdt risk list
+$ tdt risk list
 @        ID                TYPE      TITLE                            STATUS     LEVEL    RPN
 ----------------------------------------------------------------------------------------------
 RISK@1   RISK-01HC2JB7...  design    Battery Overheating              review     medium   108
 
 # Use prefixed short IDs instead of full IDs
-pdt req show REQ@1
-pdt risk show RISK@1
-pdt link add REQ@1 --type verified_by TEST@1
-pdt trace from REQ@1
+tdt req show REQ@1
+tdt risk show RISK@1
+tdt link add REQ@1 --type verified_by TEST@1
+tdt trace from REQ@1
 ```
 
 Short IDs are persistent per entity type - the same entity keeps its short ID across list commands.
@@ -79,10 +79,10 @@ This enables cross-entity linking (e.g., linking `REQ@1` to `TEST@1`).
 
 ## Project Structure
 
-After `pdt init`, your project will have:
+After `tdt init`, your project will have:
 
 ```
-.pdt/
+.tdt/
 └── config.yaml              # Project configuration
 
 requirements/
@@ -145,15 +145,15 @@ manufacturing/
 Use `-f/--format` to control output format:
 
 ```bash
-pdt req list -f json        # JSON output (for scripting)
-pdt req list -f yaml        # YAML output
-pdt req list -f csv         # CSV output (for spreadsheets)
-pdt req list -f tsv         # Tab-separated (default for lists)
-pdt req list -f md          # Markdown table
-pdt req list -f id          # Just IDs, one per line
+tdt req list -f json        # JSON output (for scripting)
+tdt req list -f yaml        # YAML output
+tdt req list -f csv         # CSV output (for spreadsheets)
+tdt req list -f tsv         # Tab-separated (default for lists)
+tdt req list -f md          # Markdown table
+tdt req list -f id          # Just IDs, one per line
 
-pdt req show REQ-01 -f json # Full entity as JSON
-pdt req show REQ-01 -f yaml # Full entity as YAML
+tdt req show REQ-01 -f json # Full entity as JSON
+tdt req show REQ-01 -f yaml # Full entity as YAML
 ```
 
 ## Commands
@@ -161,180 +161,180 @@ pdt req show REQ-01 -f yaml # Full entity as YAML
 ### Project Management
 
 ```bash
-pdt init                    # Initialize a new project
-pdt init --git              # Initialize with git repository
-pdt validate                # Validate all project files
-pdt validate --keep-going   # Continue after errors
-pdt validate --summary      # Show summary only
-pdt validate --fix          # Auto-fix calculated values (RPN, risk level)
-pdt validate --strict       # Treat warnings as errors
+tdt init                    # Initialize a new project
+tdt init --git              # Initialize with git repository
+tdt validate                # Validate all project files
+tdt validate --keep-going   # Continue after errors
+tdt validate --summary      # Show summary only
+tdt validate --fix          # Auto-fix calculated values (RPN, risk level)
+tdt validate --strict       # Treat warnings as errors
 ```
 
 ### Requirements
 
 ```bash
-pdt req new                           # Create with template
-pdt req new --title "Title" -t input  # Create with options
-pdt req new -i                        # Interactive wizard (schema-driven)
-pdt req list                          # List all
-pdt req list --status draft           # Filter by status
-pdt req list --priority high          # Filter by priority
-pdt req list --type input             # Filter by type
-pdt req list --search "temperature"   # Search in title/text
-pdt req list --orphans                # Show unlinked requirements
-pdt req show REQ-01HC2                # Show details (partial ID match)
-pdt req edit REQ-01HC2                # Open in editor
+tdt req new                           # Create with template
+tdt req new --title "Title" -t input  # Create with options
+tdt req new -i                        # Interactive wizard (schema-driven)
+tdt req list                          # List all
+tdt req list --status draft           # Filter by status
+tdt req list --priority high          # Filter by priority
+tdt req list --type input             # Filter by type
+tdt req list --search "temperature"   # Search in title/text
+tdt req list --orphans                # Show unlinked requirements
+tdt req show REQ-01HC2                # Show details (partial ID match)
+tdt req edit REQ-01HC2                # Open in editor
 ```
 
 ### Risks (FMEA)
 
 ```bash
-pdt risk new                           # Create with template
-pdt risk new --title "Overheating"     # Create with title
-pdt risk new -t process                # Create process risk
-pdt risk new --severity 8 --occurrence 5 --detection 3  # Set FMEA ratings
-pdt risk new -i                        # Interactive wizard
-pdt risk list                          # List all risks
-pdt risk list --level high             # Filter by risk level
-pdt risk list --by-rpn                 # Sort by RPN (highest first)
-pdt risk list --min-rpn 100            # Filter by minimum RPN
-pdt risk list --unmitigated            # Show risks without mitigations
-pdt risk show RISK-01HC2               # Show details
-pdt risk edit RISK-01HC2               # Open in editor
+tdt risk new                           # Create with template
+tdt risk new --title "Overheating"     # Create with title
+tdt risk new -t process                # Create process risk
+tdt risk new --severity 8 --occurrence 5 --detection 3  # Set FMEA ratings
+tdt risk new -i                        # Interactive wizard
+tdt risk list                          # List all risks
+tdt risk list --level high             # Filter by risk level
+tdt risk list --by-rpn                 # Sort by RPN (highest first)
+tdt risk list --min-rpn 100            # Filter by minimum RPN
+tdt risk list --unmitigated            # Show risks without mitigations
+tdt risk show RISK-01HC2               # Show details
+tdt risk edit RISK-01HC2               # Open in editor
 ```
 
 ### Tests (Verification/Validation)
 
 ```bash
-pdt test new                                  # Create with template
-pdt test new --title "Temperature Test"       # Create with title
-pdt test new -t verification -l system        # Create verification test at system level
-pdt test new -m analysis                      # Create with analysis method (IADT)
-pdt test new -i                               # Interactive wizard
-pdt test list                                 # List all tests
-pdt test list --type verification             # Filter by test type
-pdt test list --level unit                    # Filter by test level
-pdt test list --method inspection             # Filter by IADT method
-pdt test list --orphans                       # Show tests without linked requirements
-pdt test show TEST-01HC2                      # Show details
-pdt test edit TEST-01HC2                      # Open in editor
+tdt test new                                  # Create with template
+tdt test new --title "Temperature Test"       # Create with title
+tdt test new -t verification -l system        # Create verification test at system level
+tdt test new -m analysis                      # Create with analysis method (IADT)
+tdt test new -i                               # Interactive wizard
+tdt test list                                 # List all tests
+tdt test list --type verification             # Filter by test type
+tdt test list --level unit                    # Filter by test level
+tdt test list --method inspection             # Filter by IADT method
+tdt test list --orphans                       # Show tests without linked requirements
+tdt test show TEST-01HC2                      # Show details
+tdt test edit TEST-01HC2                      # Open in editor
 ```
 
 ### Test Results
 
 ```bash
-pdt rslt new --test TEST-01HC2                # Create result for a test
-pdt rslt new --test @1 --verdict pass         # Use short ID, set verdict
-pdt rslt new -i                               # Interactive wizard
-pdt rslt list                                 # List all results
-pdt rslt list --verdict fail                  # Filter by verdict
-pdt rslt list --verdict issues                # Show fail/conditional/incomplete
-pdt rslt list --test TEST-01HC2               # Show results for a specific test
-pdt rslt list --with-failures                 # Show only results with failures
-pdt rslt list --recent 7                      # Show results from last 7 days
-pdt rslt show RSLT-01HC2                      # Show details
-pdt rslt edit RSLT-01HC2                      # Open in editor
+tdt rslt new --test TEST-01HC2                # Create result for a test
+tdt rslt new --test @1 --verdict pass         # Use short ID, set verdict
+tdt rslt new -i                               # Interactive wizard
+tdt rslt list                                 # List all results
+tdt rslt list --verdict fail                  # Filter by verdict
+tdt rslt list --verdict issues                # Show fail/conditional/incomplete
+tdt rslt list --test TEST-01HC2               # Show results for a specific test
+tdt rslt list --with-failures                 # Show only results with failures
+tdt rslt list --recent 7                      # Show results from last 7 days
+tdt rslt show RSLT-01HC2                      # Show details
+tdt rslt edit RSLT-01HC2                      # Open in editor
 ```
 
 ### Components (BOM)
 
 ```bash
-pdt cmp new                                   # Create with template
-pdt cmp new --title "Motor Assembly" --part-number "PN-001"
-pdt cmp new --make-buy buy --category mechanical
-pdt cmp list                                  # List all components
-pdt cmp list --make-buy buy                   # Filter by make/buy
-pdt cmp list --category electrical            # Filter by category
-pdt cmp show CMP@1                            # Show details
-pdt cmp edit CMP@1                            # Open in editor
+tdt cmp new                                   # Create with template
+tdt cmp new --title "Motor Assembly" --part-number "PN-001"
+tdt cmp new --make-buy buy --category mechanical
+tdt cmp list                                  # List all components
+tdt cmp list --make-buy buy                   # Filter by make/buy
+tdt cmp list --category electrical            # Filter by category
+tdt cmp show CMP@1                            # Show details
+tdt cmp edit CMP@1                            # Open in editor
 ```
 
 ### Assemblies (BOM)
 
 ```bash
-pdt asm new                                   # Create with template
-pdt asm new --title "Main Assembly" --part-number "ASM-001"
-pdt asm list                                  # List all assemblies
-pdt asm show ASM@1                            # Show details
-pdt asm bom ASM@1                             # Show flattened BOM
-pdt asm edit ASM@1                            # Open in editor
+tdt asm new                                   # Create with template
+tdt asm new --title "Main Assembly" --part-number "ASM-001"
+tdt asm list                                  # List all assemblies
+tdt asm show ASM@1                            # Show details
+tdt asm bom ASM@1                             # Show flattened BOM
+tdt asm edit ASM@1                            # Open in editor
 ```
 
 ### Suppliers (Approved Vendors)
 
 ```bash
-pdt sup new --name "Acme Manufacturing Corp"  # Create supplier
-pdt sup new -n "Acme Corp" --short-name "Acme" --website "https://acme.com"
-pdt sup new -i                                # Interactive mode
-pdt sup list                                  # List all suppliers
-pdt sup list -c machining                     # Filter by capability
-pdt sup list --search "acme"                  # Search in name
-pdt sup show SUP@1                            # Show details
-pdt sup edit SUP@1                            # Open in editor
+tdt sup new --name "Acme Manufacturing Corp"  # Create supplier
+tdt sup new -n "Acme Corp" --short-name "Acme" --website "https://acme.com"
+tdt sup new -i                                # Interactive mode
+tdt sup list                                  # List all suppliers
+tdt sup list -c machining                     # Filter by capability
+tdt sup list --search "acme"                  # Search in name
+tdt sup show SUP@1                            # Show details
+tdt sup edit SUP@1                            # Open in editor
 ```
 
 ### Quotes (Supplier Quotations)
 
 ```bash
-pdt quote new --component CMP@1 --supplier SUP@1        # Quote for component
-pdt quote new --assembly ASM@1 --supplier SUP@1         # Quote for assembly
-pdt quote new -c CMP@1 -s SUP@1 --price 12.50 --lead-time 14
-pdt quote new -i                              # Interactive mode
-pdt quote list                                # List all quotes
-pdt quote list -Q pending                     # Filter by quote status
-pdt quote list --component CMP@1              # Filter by component
-pdt quote list --supplier SUP@1               # Filter by supplier
-pdt quote show QUOT@1                         # Show details
-pdt quote compare CMP@1                       # Compare quotes for item
-pdt quote edit QUOT@1                         # Open in editor
+tdt quote new --component CMP@1 --supplier SUP@1        # Quote for component
+tdt quote new --assembly ASM@1 --supplier SUP@1         # Quote for assembly
+tdt quote new -c CMP@1 -s SUP@1 --price 12.50 --lead-time 14
+tdt quote new -i                              # Interactive mode
+tdt quote list                                # List all quotes
+tdt quote list -Q pending                     # Filter by quote status
+tdt quote list --component CMP@1              # Filter by component
+tdt quote list --supplier SUP@1               # Filter by supplier
+tdt quote show QUOT@1                         # Show details
+tdt quote compare CMP@1                       # Compare quotes for item
+tdt quote edit QUOT@1                         # Open in editor
 ```
 
 ### Features (Tolerances)
 
 ```bash
-pdt feat new --component CMP@1 --type hole --title "Mounting Hole"
-pdt feat new --component CMP@1 --type shaft   # Feature requires parent component
-pdt feat list                                 # List all features
-pdt feat list --component CMP@1               # Filter by component
-pdt feat list --type hole                     # Filter by type
-pdt feat show FEAT@1                          # Show details
-pdt feat edit FEAT@1                          # Open in editor
+tdt feat new --component CMP@1 --type hole --title "Mounting Hole"
+tdt feat new --component CMP@1 --type shaft   # Feature requires parent component
+tdt feat list                                 # List all features
+tdt feat list --component CMP@1               # Filter by component
+tdt feat list --type hole                     # Filter by type
+tdt feat show FEAT@1                          # Show details
+tdt feat edit FEAT@1                          # Open in editor
 ```
 
 ### Mates (Tolerances)
 
 ```bash
-pdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "Pin-Hole Fit"
-pdt mate list                                 # List all mates
-pdt mate list --type clearance_fit            # Filter by mate type
-pdt mate show MATE@1                          # Show details with fit calculation
-pdt mate recalc MATE@1                        # Recalculate fit from features
-pdt mate edit MATE@1                          # Open in editor
+tdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "Pin-Hole Fit"
+tdt mate list                                 # List all mates
+tdt mate list --type clearance_fit            # Filter by mate type
+tdt mate show MATE@1                          # Show details with fit calculation
+tdt mate recalc MATE@1                        # Recalculate fit from features
+tdt mate edit MATE@1                          # Open in editor
 ```
 
 ### Stackups (Tolerance Analysis)
 
 ```bash
-pdt tol new --title "Gap Analysis" --target-nominal 1.0 --target-upper 1.5 --target-lower 0.5
-pdt tol list                                  # List all stackups
-pdt tol list --result pass                    # Filter by worst-case result
-pdt tol list --critical                       # Show only critical stackups
-pdt tol show TOL@1                            # Show details with analysis
-pdt tol analyze TOL@1                         # Run worst-case, RSS, Monte Carlo
-pdt tol analyze TOL@1 --iterations 50000      # Custom Monte Carlo iterations
-pdt tol edit TOL@1                            # Open in editor
+tdt tol new --title "Gap Analysis" --target-nominal 1.0 --target-upper 1.5 --target-lower 0.5
+tdt tol list                                  # List all stackups
+tdt tol list --result pass                    # Filter by worst-case result
+tdt tol list --critical                       # Show only critical stackups
+tdt tol show TOL@1                            # Show details with analysis
+tdt tol analyze TOL@1                         # Run worst-case, RSS, Monte Carlo
+tdt tol analyze TOL@1 --iterations 50000      # Custom Monte Carlo iterations
+tdt tol edit TOL@1                            # Open in editor
 ```
 
 ### Manufacturing Processes
 
 ```bash
-pdt proc new --title "CNC Milling" --type machining
-pdt proc new --title "Final Assembly" --type assembly --op-number "OP-020"
-pdt proc list                                 # List all processes
-pdt proc list --type machining                # Filter by process type
-pdt proc list --status approved               # Filter by status
-pdt proc show PROC@1                          # Show details
-pdt proc edit PROC@1                          # Open in editor
+tdt proc new --title "CNC Milling" --type machining
+tdt proc new --title "Final Assembly" --type assembly --op-number "OP-020"
+tdt proc list                                 # List all processes
+tdt proc list --type machining                # Filter by process type
+tdt proc list --status approved               # Filter by status
+tdt proc show PROC@1                          # Show details
+tdt proc edit PROC@1                          # Open in editor
 ```
 
 Process types: `machining`, `assembly`, `inspection`, `test`, `finishing`, `packaging`, `handling`, `heat_treat`, `welding`, `coating`
@@ -342,14 +342,14 @@ Process types: `machining`, `assembly`, `inspection`, `test`, `finishing`, `pack
 ### Control Plan Items (SPC, Inspection)
 
 ```bash
-pdt ctrl new --title "Bore Diameter SPC" --type spc --process PROC@1
-pdt ctrl new --title "Visual Check" --type visual --critical
-pdt ctrl list                                 # List all controls
-pdt ctrl list --type spc                      # Filter by control type
-pdt ctrl list --process PROC@1                # Filter by process
-pdt ctrl list --critical                      # Show only CTQ controls
-pdt ctrl show CTRL@1                          # Show details
-pdt ctrl edit CTRL@1                          # Open in editor
+tdt ctrl new --title "Bore Diameter SPC" --type spc --process PROC@1
+tdt ctrl new --title "Visual Check" --type visual --critical
+tdt ctrl list                                 # List all controls
+tdt ctrl list --type spc                      # Filter by control type
+tdt ctrl list --process PROC@1                # Filter by process
+tdt ctrl list --critical                      # Show only CTQ controls
+tdt ctrl show CTRL@1                          # Show details
+tdt ctrl edit CTRL@1                          # Open in editor
 ```
 
 Control types: `spc`, `inspection`, `poka_yoke`, `visual`, `functional_test`, `attribute`
@@ -357,25 +357,25 @@ Control types: `spc`, `inspection`, `poka_yoke`, `visual`, `functional_test`, `a
 ### Work Instructions
 
 ```bash
-pdt work new --title "CNC Mill Setup" --process PROC@1 --doc-number "WI-MACH-001"
-pdt work list                                 # List all work instructions
-pdt work list --process PROC@1                # Filter by process
-pdt work list --search "setup"                # Search in title
-pdt work show WORK@1                          # Show details
-pdt work edit WORK@1                          # Open in editor
+tdt work new --title "CNC Mill Setup" --process PROC@1 --doc-number "WI-MACH-001"
+tdt work list                                 # List all work instructions
+tdt work list --process PROC@1                # Filter by process
+tdt work list --search "setup"                # Search in title
+tdt work show WORK@1                          # Show details
+tdt work edit WORK@1                          # Open in editor
 ```
 
 ### Non-Conformance Reports (NCRs)
 
 ```bash
-pdt ncr new --title "Bore Diameter Out of Tolerance" --type internal --severity major
-pdt ncr new --title "Supplier Material Issue" --type supplier --severity critical --category material
-pdt ncr list                                  # List all NCRs
-pdt ncr list --type internal                  # Filter by NCR type
-pdt ncr list --severity critical              # Filter by severity
-pdt ncr list --ncr-status open                # Filter by workflow status
-pdt ncr show NCR@1                            # Show details
-pdt ncr edit NCR@1                            # Open in editor
+tdt ncr new --title "Bore Diameter Out of Tolerance" --type internal --severity major
+tdt ncr new --title "Supplier Material Issue" --type supplier --severity critical --category material
+tdt ncr list                                  # List all NCRs
+tdt ncr list --type internal                  # Filter by NCR type
+tdt ncr list --severity critical              # Filter by severity
+tdt ncr list --ncr-status open                # Filter by workflow status
+tdt ncr show NCR@1                            # Show details
+tdt ncr edit NCR@1                            # Open in editor
 ```
 
 NCR types: `internal`, `supplier`, `customer`
@@ -385,14 +385,14 @@ Categories: `dimensional`, `cosmetic`, `material`, `functional`, `documentation`
 ### Corrective/Preventive Actions (CAPAs)
 
 ```bash
-pdt capa new --title "Tool Wear Detection" --type corrective --ncr NCR@1
-pdt capa new --title "Process Improvement" --type preventive --source trend_analysis
-pdt capa list                                 # List all CAPAs
-pdt capa list --type corrective               # Filter by CAPA type
-pdt capa list --capa-status implementation    # Filter by workflow status
-pdt capa list --overdue                       # Show overdue CAPAs
-pdt capa show CAPA@1                          # Show details
-pdt capa edit CAPA@1                          # Open in editor
+tdt capa new --title "Tool Wear Detection" --type corrective --ncr NCR@1
+tdt capa new --title "Process Improvement" --type preventive --source trend_analysis
+tdt capa list                                 # List all CAPAs
+tdt capa list --type corrective               # Filter by CAPA type
+tdt capa list --capa-status implementation    # Filter by workflow status
+tdt capa list --overdue                       # Show overdue CAPAs
+tdt capa show CAPA@1                          # Show details
+tdt capa edit CAPA@1                          # Open in editor
 ```
 
 CAPA types: `corrective`, `preventive`
@@ -401,23 +401,23 @@ Source types: `ncr`, `audit`, `customer_complaint`, `trend_analysis`, `risk`
 ### Link Management
 
 ```bash
-pdt link add REQ-01 --type satisfied_by REQ-02    # Add link
-pdt link remove REQ-01 --type satisfied_by REQ-02 # Remove link
-pdt link show REQ-01                               # Show all links
-pdt link check                                     # Check for broken links
+tdt link add REQ-01 --type satisfied_by REQ-02    # Add link
+tdt link remove REQ-01 --type satisfied_by REQ-02 # Remove link
+tdt link show REQ-01                               # Show all links
+tdt link check                                     # Check for broken links
 ```
 
 ### Traceability
 
 ```bash
-pdt trace matrix                  # Show traceability matrix
-pdt trace matrix --output csv     # Export as CSV
-pdt trace matrix --output dot     # Export as GraphViz DOT
-pdt trace from REQ-01             # What depends on this?
-pdt trace to REQ-01               # What does this depend on?
-pdt trace orphans                 # Find unlinked entities
-pdt trace coverage                # Verification coverage report
-pdt trace coverage --uncovered    # Show uncovered requirements
+tdt trace matrix                  # Show traceability matrix
+tdt trace matrix --output csv     # Export as CSV
+tdt trace matrix --output dot     # Export as GraphViz DOT
+tdt trace from REQ-01             # What depends on this?
+tdt trace to REQ-01               # What does this depend on?
+tdt trace orphans                 # Find unlinked entities
+tdt trace coverage                # Verification coverage report
+tdt trace coverage --uncovered    # Show uncovered requirements
 ```
 
 ## Requirement Example
@@ -750,7 +750,7 @@ entity_revision: 1
 id: QUOT-01HC2JB7SMQX7RS1Y0GFKBHPTD
 title: "Acme Corp Quote"
 
-# Link to supplier entity (create supplier first with pdt sup new)
+# Link to supplier entity (create supplier first with tdt sup new)
 supplier: SUP-01HC2JB7SMQX7RS1Y0GFKBHPTA
 
 # Quotes link to either component OR assembly (not both)
@@ -896,7 +896,7 @@ contributors:
     distribution: normal
     source: "DWG-002 Rev A"
 
-# Auto-calculated by 'pdt tol analyze'
+# Auto-calculated by 'tdt tol analyze'
 analysis_results:
   worst_case:
     min: 0.87
@@ -1187,7 +1187,7 @@ entity_revision: 3
 
 ## Manufacturing Quality Loop
 
-PDT supports the complete manufacturing quality loop:
+TDT supports the complete manufacturing quality loop:
 
 ```
 ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
@@ -1216,7 +1216,7 @@ PDT supports the complete manufacturing quality loop:
 
 ## Tolerance Format
 
-PDT uses `plus_tol` and `minus_tol` fields instead of the `±` symbol (which is hard to type):
+TDT uses `plus_tol` and `minus_tol` fields instead of the `±` symbol (which is hard to type):
 
 ```yaml
 # Correct: 10.0 +0.1/-0.05
@@ -1233,11 +1233,11 @@ Both values are stored as **positive numbers**. The actual tolerance range is:
 
 ## Validation
 
-PDT validates files against JSON Schema with detailed error messages:
+TDT validates files against JSON Schema with detailed error messages:
 
 ```
-error[pdt::schema::validation]: Schema validation failed
-  --> requirements/inputs/REQ-01HC2.pdt.yaml:8:1
+error[tdt::schema::validation]: Schema validation failed
+  --> requirements/inputs/REQ-01HC2.tdt.yaml:8:1
    |
  8 | status: pending
    | ^^^^^^^^^^^^^^^ Invalid enum value
@@ -1272,7 +1272,7 @@ draft → review → approved → released
 
 ## Risk Assessment (FMEA)
 
-PDT uses FMEA (Failure Mode and Effects Analysis) methodology:
+TDT uses FMEA (Failure Mode and Effects Analysis) methodology:
 
 ### FMEA Ratings (1-10 scale)
 
@@ -1331,7 +1331,7 @@ Tests can use different verification methods (Inspection, Analysis, Demonstratio
 
 ## Tolerance Analysis
 
-PDT supports three analysis methods for tolerance stackups:
+TDT supports three analysis methods for tolerance stackups:
 
 ### Worst-Case Analysis
 
@@ -1367,10 +1367,10 @@ Runs thousands of random samples:
 
 ```bash
 # Run analysis with default iterations
-pdt tol analyze TOL@1
+tdt tol analyze TOL@1
 
 # Run with more iterations for higher confidence
-pdt tol analyze TOL@1 --iterations 100000
+tdt tol analyze TOL@1 --iterations 100000
 ```
 
 ### Test Verdicts

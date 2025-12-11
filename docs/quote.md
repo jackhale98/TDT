@@ -1,17 +1,17 @@
-# PDT Quote Entity (Supplier Quotations)
+# TDT Quote Entity (Supplier Quotations)
 
-This document describes the Quote entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Quote entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
 Quotes represent supplier quotations for components or assemblies. They track pricing information including quantity-based price breaks, lead times, NRE (non-recurring engineering) costs, and link to Supplier entities for contact details. Quotes enable comparison shopping and procurement planning.
 
-**Note**: Quotes reference Supplier entities by ID. Create suppliers first using `pdt sup new`, then link quotes to them.
+**Note**: Quotes reference Supplier entities by ID. Create suppliers first using `tdt sup new`, then link quotes to them.
 
 ## Entity Type
 
 - **Prefix**: `QUOT`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `bom/quotes/`
 
 ## Schema
@@ -82,7 +82,7 @@ Quotes must reference either a component OR an assembly (not both):
 
 ```yaml
 # Quote: Acme Corp Quote for Widget Bracket
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: QUOT-01HC2JB7SMQX7RS1Y0GFKBHPTD
 title: "Acme Corp Quote"
@@ -140,7 +140,7 @@ entity_revision: 1
 
 ```yaml
 # Quote: Contract Manufacturing Quote for Main Assembly
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: QUOT-01HC2JB7SMQX7RS1Y0GFKBHPTE
 title: "Contract Mfg Quote - Main Assembly"
@@ -192,97 +192,97 @@ entity_revision: 1
 
 ```bash
 # First create a supplier
-pdt sup new --name "Acme Corp" --no-edit
+tdt sup new --name "Acme Corp" --no-edit
 
 # Create quote for a component
-pdt quote new --component CMP@1 --supplier SUP@1 --title "Bracket Quote"
+tdt quote new --component CMP@1 --supplier SUP@1 --title "Bracket Quote"
 
 # Create quote for an assembly
-pdt quote new --assembly ASM@1 --supplier SUP@1 --title "Assembly Quote"
+tdt quote new --assembly ASM@1 --supplier SUP@1 --title "Assembly Quote"
 
 # With price and lead time
-pdt quote new -c CMP@1 -s SUP@1 --price 12.50 --lead-time 14
+tdt quote new -c CMP@1 -s SUP@1 --price 12.50 --lead-time 14
 
 # Interactive mode (prompts for all fields)
-pdt quote new -i
+tdt quote new -i
 
 # Create and open in editor
-pdt quote new -c CMP@1 -s SUP@1 --edit
+tdt quote new -c CMP@1 -s SUP@1 --edit
 
 # Create without opening editor
-pdt quote new -c CMP@1 -s SUP@1 --no-edit
+tdt quote new -c CMP@1 -s SUP@1 --no-edit
 ```
 
 ### List quotes
 
 ```bash
 # List all quotes
-pdt quote list
+tdt quote list
 
 # Filter by quote status (use -Q for quote status)
-pdt quote list -Q pending
-pdt quote list -Q received
-pdt quote list -Q accepted
+tdt quote list -Q pending
+tdt quote list -Q received
+tdt quote list -Q accepted
 
 # Filter by entity status
-pdt quote list -s draft
-pdt quote list -s approved
+tdt quote list -s draft
+tdt quote list -s approved
 
 # Filter by component
-pdt quote list --component CMP@1
-pdt quote list -c CMP@1
+tdt quote list --component CMP@1
+tdt quote list -c CMP@1
 
 # Filter by assembly
-pdt quote list --assembly ASM@1
-pdt quote list -a ASM@1
+tdt quote list --assembly ASM@1
+tdt quote list -a ASM@1
 
 # Filter by supplier
-pdt quote list --supplier SUP@1
-pdt quote list -S SUP@1
+tdt quote list --supplier SUP@1
+tdt quote list -S SUP@1
 
 # Search in title
-pdt quote list --search "bracket"
+tdt quote list --search "bracket"
 
 # Sort and limit
-pdt quote list --sort supplier
-pdt quote list --sort title
-pdt quote list --limit 10
-pdt quote list --reverse
+tdt quote list --sort supplier
+tdt quote list --sort title
+tdt quote list --limit 10
+tdt quote list --reverse
 
 # Count only
-pdt quote list --count
+tdt quote list --count
 
 # Output formats
-pdt quote list -o json
-pdt quote list -o csv
-pdt quote list -o md
-pdt quote list -o yaml
+tdt quote list -o json
+tdt quote list -o csv
+tdt quote list -o md
+tdt quote list -o yaml
 ```
 
 ### Show quote details
 
 ```bash
 # Show by ID (partial match supported)
-pdt quote show QUOT-01HC2
+tdt quote show QUOT-01HC2
 
 # Show using short ID
-pdt quote show QUOT@1
+tdt quote show QUOT@1
 
 # Output as JSON
-pdt quote show QUOT@1 -o json
+tdt quote show QUOT@1 -o json
 
 # Output as YAML
-pdt quote show QUOT@1 -o yaml
+tdt quote show QUOT@1 -o yaml
 ```
 
 ### Edit a quote
 
 ```bash
 # Open in editor
-pdt quote edit QUOT-01HC2
+tdt quote edit QUOT-01HC2
 
 # Using short ID
-pdt quote edit QUOT@1
+tdt quote edit QUOT@1
 ```
 
 ### Compare quotes
@@ -291,16 +291,16 @@ Compare all quotes for a specific component or assembly:
 
 ```bash
 # Compare quotes for a component
-pdt quote compare CMP@1
+tdt quote compare CMP@1
 
 # Compare quotes for an assembly
-pdt quote compare ASM@1
+tdt quote compare ASM@1
 
 # Output as JSON
-pdt quote compare CMP@1 -o json
+tdt quote compare CMP@1 -o json
 
 # Output as YAML
-pdt quote compare CMP@1 -o yaml
+tdt quote compare CMP@1 -o yaml
 ```
 
 The compare command sorts quotes by unit price (lowest first) and shows a summary highlighting the best price.
@@ -329,7 +329,7 @@ The compare command sorts quotes by unit price (lowest first) and shows a summar
 
 ### Quote Management
 
-1. **Create suppliers first** - Use `pdt sup new` before creating quotes
+1. **Create suppliers first** - Use `tdt sup new` before creating quotes
 2. **Get multiple quotes** - Always get at least 2-3 quotes for comparison
 3. **Track expiration** - Set `valid_until` and review before expiry
 4. **Use price breaks** - Document all quantity tiers offered
@@ -345,10 +345,10 @@ The compare command sorts quotes by unit price (lowest first) and shows a summar
 
 ### Workflow
 
-1. Create supplier if not exists (`pdt sup new`)
+1. Create supplier if not exists (`tdt sup new`)
 2. Create quotes when RFQs are sent (`pending`)
 3. Update to `received` when quote arrives
-4. Review and compare quotes (`pdt quote compare`)
+4. Review and compare quotes (`tdt quote compare`)
 5. Mark winning quote as `accepted`
 6. Mark others as `rejected` or let expire
 
@@ -364,10 +364,10 @@ Quotes are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate bom/quotes/QUOT-01HC2JB7SMQX7RS1Y0GFKBHPTD.pdt.yaml
+tdt validate bom/quotes/QUOT-01HC2JB7SMQX7RS1Y0GFKBHPTD.tdt.yaml
 ```
 
 ### Validation Rules
@@ -385,5 +385,5 @@ pdt validate bom/quotes/QUOT-01HC2JB7SMQX7RS1Y0GFKBHPTD.pdt.yaml
 The full JSON Schema for quotes is available at:
 
 ```
-pdt/schemas/quot.schema.json
+tdt/schemas/quot.schema.json
 ```

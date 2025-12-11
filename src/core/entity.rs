@@ -5,7 +5,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::core::identity::EntityId;
 
-/// Common trait for all PDT entities
+/// Common trait for all TDT entities
 pub trait Entity: Serialize + DeserializeOwned {
     /// The entity type prefix (e.g., "REQ", "RISK")
     const PREFIX: &'static str;

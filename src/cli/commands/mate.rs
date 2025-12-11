@@ -1,4 +1,4 @@
-//! `pdt mate` command - Mate management (1:1 feature contacts with fit calculation)
+//! `tdt mate` command - Mate management (1:1 feature contacts with fit calculation)
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
@@ -360,13 +360,13 @@ fn run_new(args: NewArgs) -> Result<()> {
 
     if feat_a.is_none() {
         return Err(miette::miette!(
-            "Feature A '{}' not found. Create it first with: pdt feat new",
+            "Feature A '{}' not found. Create it first with: tdt feat new",
             args.feature_a
         ));
     }
     if feat_b.is_none() {
         return Err(miette::miette!(
-            "Feature B '{}' not found. Create it first with: pdt feat new",
+            "Feature B '{}' not found. Create it first with: tdt feat new",
             args.feature_b
         ));
     }
@@ -420,7 +420,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         fs::create_dir_all(&output_dir).into_diagnostic()?;
     }
 
-    let file_path = output_dir.join(format!("{}.pdt.yaml", id));
+    let file_path = output_dir.join(format!("{}.tdt.yaml", id));
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
 
     // Add to short ID index

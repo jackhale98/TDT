@@ -1,15 +1,15 @@
-# PDT Requirements Entity
+# TDT Requirements Entity
 
-This document describes the Requirements entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Requirements entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
-Requirements are the foundation of product development in PDT. They capture design inputs (customer needs, regulations, standards) and design outputs (specifications, derived requirements).
+Requirements are the foundation of product development in TDT. They capture design inputs (customer needs, regulations, standards) and design outputs (specifications, derived requirements).
 
 ## Entity Type
 
 - **Prefix**: `REQ`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directories**:
   - `requirements/inputs/` - Design inputs (customer requirements, regulations)
   - `requirements/outputs/` - Design outputs (specifications, derived requirements)
@@ -55,7 +55,7 @@ Requirements are the foundation of product development in PDT. They capture desi
 
 ```yaml
 # Requirement: Operating Temperature Range
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD
 type: input
@@ -104,70 +104,70 @@ revision: 3
 
 ```bash
 # Create with default template
-pdt req new
+tdtreq new
 
 # Create with title and type
-pdt req new --title "Operating Temperature Range" --type input
+tdtreq new --title "Operating Temperature Range" --type input
 
 # Create with interactive wizard
-pdt req new -i
+tdtreq new -i
 
 # Create output requirement with high priority
-pdt req new --type output --priority high --title "Thermal Management Spec"
+tdtreq new --type output --priority high --title "Thermal Management Spec"
 ```
 
 ### List requirements
 
 ```bash
 # List all requirements
-pdt req list
+tdtreq list
 
 # Filter by type
-pdt req list --type input
-pdt req list --type output
+tdtreq list --type input
+tdtreq list --type output
 
 # Filter by status
-pdt req list --status draft
-pdt req list --status approved
+tdtreq list --status draft
+tdtreq list --status approved
 
 # Filter by priority
-pdt req list --priority high
-pdt req list --priority urgent  # high + critical
+tdtreq list --priority high
+tdtreq list --priority urgent  # high + critical
 
 # Show orphaned requirements (no links)
-pdt req list --orphans
+tdtreq list --orphans
 
 # Show requirements needing review
-pdt req list --needs-review
+tdtreq list --needs-review
 
 # Show recently created
-pdt req list --recent 7  # last 7 days
+tdtreq list --recent 7  # last 7 days
 
 # Search in title/text
-pdt req list --search "temperature"
+tdtreq list --search "temperature"
 
 # Custom columns
-pdt req list --columns id,title,status
+tdtreq list --columns id,title,status
 ```
 
 ### Show requirement details
 
 ```bash
 # Show by ID (partial match supported)
-pdt req show REQ-01HC2
+tdtreq show REQ-01HC2
 
 # Show by title search
-pdt req show "temperature"
+tdtreq show "temperature"
 
 # Show with linked entities
-pdt req show REQ-01HC2 --with-links
+tdtreq show REQ-01HC2 --with-links
 ```
 
 ### Edit a requirement
 
 ```bash
 # Open in editor
-pdt req edit REQ-01HC2
+tdtreq edit REQ-01HC2
 ```
 
 ## Validation
@@ -176,16 +176,16 @@ Requirements are validated against a JSON Schema. Run validation with:
 
 ```bash
 # Validate all project files
-pdt validate
+tdtvalidate
 
 # Validate specific file
-pdt validate requirements/inputs/REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD.pdt.yaml
+tdtvalidate requirements/inputs/REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD.tdt.yaml
 
 # Validate only requirements
-pdt validate --entity-type req
+tdtvalidate --entity-type req
 
 # Continue after first error
-pdt validate --keep-going
+tdtvalidate --keep-going
 ```
 
 ### Validation Rules
@@ -202,44 +202,44 @@ pdt validate --keep-going
 
 ```bash
 # Add a link
-pdt link add REQ-01HC2 --type satisfied_by REQ-01HC3
+tdtlink add REQ-01HC2 --type satisfied_by REQ-01HC3
 
 # Remove a link
-pdt link remove REQ-01HC2 --type satisfied_by REQ-01HC3
+tdtlink remove REQ-01HC2 --type satisfied_by REQ-01HC3
 
 # Show all links for a requirement
-pdt link show REQ-01HC2
+tdtlink show REQ-01HC2
 
 # Check for broken links
-pdt link check
+tdtlink check
 ```
 
 ## Traceability
 
 ```bash
 # Show traceability matrix
-pdt trace matrix
+tdttrace matrix
 
 # Export as GraphViz DOT
-pdt trace matrix --output dot > trace.dot
+tdttrace matrix --output dot > trace.dot
 
 # Export as CSV
-pdt trace matrix --output csv > trace.csv
+tdttrace matrix --output csv > trace.csv
 
 # Trace what depends on a requirement
-pdt trace from REQ-01HC2
+tdttrace from REQ-01HC2
 
 # Trace what a requirement depends on
-pdt trace to REQ-01HC2
+tdttrace to REQ-01HC2
 
 # Find orphaned requirements
-pdt trace orphans
+tdttrace orphans
 
 # Verification coverage report
-pdt trace coverage
+tdttrace coverage
 
 # Show uncovered requirements
-pdt trace coverage --uncovered
+tdttrace coverage --uncovered
 ```
 
 ## Best Practices
@@ -282,10 +282,10 @@ draft → review → approved → released
 
 ## JSON Schema
 
-The full JSON Schema for requirements is embedded in PDT and available at:
+The full JSON Schema for requirements is embedded in TDT and available at:
 
 ```
-pdt/schemas/req.schema.json
+tdt/schemas/req.schema.json
 ```
 
 Key schema properties:

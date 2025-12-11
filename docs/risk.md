@@ -1,6 +1,6 @@
-# PDT Risk Entity (FMEA)
+# TDT Risk Entity (FMEA)
 
-This document describes the Risk entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Risk entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Risks capture potential failure modes and their analysis using FMEA (Failure Mod
 ## Entity Type
 
 - **Prefix**: `RISK`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directories**:
   - `risks/design/` - Design risks (product/component failures)
   - `risks/process/` - Process risks (manufacturing/operational failures)
@@ -73,7 +73,7 @@ Risks capture potential failure modes and their analysis using FMEA (Failure Mod
 
 ```yaml
 # Risk: Battery Thermal Runaway
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
 type: design
@@ -150,95 +150,95 @@ revision: 2
 
 ```bash
 # Create with default template
-pdt risk new
+tdt risk new
 
 # Create with title and type
-pdt risk new --title "Battery Overheating" --type design
+tdt risk new --title "Battery Overheating" --type design
 
 # Create with FMEA ratings
-pdt risk new --title "Motor Failure" --severity 7 --occurrence 4 --detection 5
+tdt risk new --title "Motor Failure" --severity 7 --occurrence 4 --detection 5
 
 # Create process risk
-pdt risk new --title "Assembly Error" --type process
+tdt risk new --title "Assembly Error" --type process
 
 # Create with interactive wizard
-pdt risk new -i
+tdt risk new -i
 
 # Create and open in editor
-pdt risk new --title "New Risk" --edit
+tdt risk new --title "New Risk" --edit
 ```
 
 ### List risks
 
 ```bash
 # List all risks
-pdt risk list
+tdt risk list
 
 # Filter by type
-pdt risk list --type design
-pdt risk list --type process
+tdt risk list --type design
+tdt risk list --type process
 
 # Filter by status
-pdt risk list --status draft
-pdt risk list --status approved
+tdt risk list --status draft
+tdt risk list --status approved
 
 # Filter by risk level
-pdt risk list --level high
-pdt risk list --level critical
+tdt risk list --level high
+tdt risk list --level critical
 
 # Filter by urgency (high + critical)
-pdt risk list --level urgent
+tdt risk list --level urgent
 
 # Filter by RPN range
-pdt risk list --min-rpn 100
-pdt risk list --max-rpn 200
-pdt risk list --min-rpn 100 --max-rpn 300
+tdt risk list --min-rpn 100
+tdt risk list --max-rpn 200
+tdt risk list --min-rpn 100 --max-rpn 300
 
 # Sort by RPN (highest first)
-pdt risk list --by-rpn
+tdt risk list --by-rpn
 
 # Show unmitigated risks
-pdt risk list --unmitigated
+tdt risk list --unmitigated
 
 # Search in title/description
-pdt risk list --search "thermal"
+tdt risk list --search "thermal"
 
 # Combine filters
-pdt risk list --type design --level high --by-rpn
+tdt risk list --type design --level high --by-rpn
 
 # Output formats
-pdt risk list -f json
-pdt risk list -f csv
-pdt risk list -f md
+tdt risk list -f json
+tdt risk list -f csv
+tdt risk list -f md
 ```
 
 ### Show risk details
 
 ```bash
 # Show by ID (partial match supported)
-pdt risk show RISK-01HC2
+tdt risk show RISK-01HC2
 
 # Show by short ID (after running list)
-pdt risk show RISK@1
+tdt risk show RISK@1
 
 # Show by title search
-pdt risk show "thermal"
+tdt risk show "thermal"
 
 # Output as JSON
-pdt risk show RISK@1 -f json
+tdt risk show RISK@1 -f json
 
 # Output as YAML
-pdt risk show RISK@1 -f yaml
+tdt risk show RISK@1 -f yaml
 ```
 
 ### Edit a risk
 
 ```bash
 # Open in editor by ID
-pdt risk edit RISK-01HC2
+tdt risk edit RISK-01HC2
 
 # Open by short ID
-pdt risk edit RISK@1
+tdt risk edit RISK@1
 ```
 
 ## FMEA Methodology
@@ -318,35 +318,35 @@ proposed → in_progress → completed → verified
 
 ```bash
 # Link risk to a requirement
-pdt link add RISK-01HC2 --type related_to REQ-01HC3
+tdt link add RISK-01HC2 --type related_to REQ-01HC3
 
 # Link risk to mitigation design output
-pdt link add RISK-01HC2 --type mitigated_by REQ-01HC4
+tdt link add RISK-01HC2 --type mitigated_by REQ-01HC4
 
 # Link risk to verification test
-pdt link add RISK-01HC2 --type verified_by TEST-01HC5
+tdt link add RISK-01HC2 --type verified_by TEST-01HC5
 
 # Show all links for a risk
-pdt link show RISK-01HC2
+tdt link show RISK-01HC2
 
 # Check for broken links
-pdt link check
+tdt link check
 ```
 
 ## Traceability
 
 ```bash
 # Show what depends on a risk
-pdt trace from RISK-01HC2
+tdt trace from RISK-01HC2
 
 # Show what a risk depends on
-pdt trace to RISK-01HC2
+tdt trace to RISK-01HC2
 
 # Find unlinked risks
-pdt trace orphans --type risk
+tdt trace orphans --type risk
 
 # Risk coverage report
-pdt trace coverage --type risk
+tdt trace coverage --type risk
 ```
 
 ## Validation
@@ -355,24 +355,24 @@ Risks are validated against a JSON Schema. Run validation with:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate risks/design/RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD.pdt.yaml
+tdt validate risks/design/RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD.tdt.yaml
 
 # Validate only risks
-pdt validate --entity-type risk
+tdt validate --entity-type risk
 
 # Check for RPN/risk_level calculation mismatches (shown as warnings)
-pdt validate --strict    # Treat calculation warnings as errors
+tdt validate --strict    # Treat calculation warnings as errors
 
 # Auto-fix calculated values (RPN, risk_level)
-pdt validate --fix
+tdt validate --fix
 ```
 
 ### Calculated Value Validation
 
-PDT validates that calculated values (RPN and risk_level) are consistent:
+TDT validates that calculated values (RPN and risk_level) are consistent:
 
 - **RPN**: Must equal `severity × occurrence × detection`
 - **risk_level**: Must match the expected level based on RPN:
@@ -381,10 +381,10 @@ PDT validates that calculated values (RPN and risk_level) are consistent:
   - 151-400: high
   - 401+: critical
 
-If these values are incorrect, PDT shows warnings:
+If these values are incorrect, TDT shows warnings:
 
 ```
-! risks/design/RISK-01HC2.pdt.yaml - 2 calculation warning(s)
+! risks/design/RISK-01HC2.tdt.yaml - 2 calculation warning(s)
     RPN mismatch: stored 999 but calculated 125 (5×5×5)
     risk_level mismatch: stored 'low' but calculated 'medium'
 ```
@@ -392,7 +392,7 @@ If these values are incorrect, PDT shows warnings:
 Use `--fix` to automatically correct these values:
 
 ```bash
-pdt validate --fix
+tdt validate --fix
 # Files fixed:    1
 ```
 
@@ -445,10 +445,10 @@ Priority: Focus on high-severity risks first, then high-RPN risks.
 
 ## JSON Schema
 
-The full JSON Schema for risks is embedded in PDT and available at:
+The full JSON Schema for risks is embedded in TDT and available at:
 
 ```
-pdt/schemas/risk.schema.json
+tdt/schemas/risk.schema.json
 ```
 
 Key schema properties:

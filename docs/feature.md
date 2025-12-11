@@ -1,6 +1,6 @@
-# PDT Feature Entity (Tolerances)
+# TDT Feature Entity (Tolerances)
 
-This document describes the Feature entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Feature entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Features represent dimensional characteristics on components that have tolerance
 ## Entity Type
 
 - **Prefix**: `FEAT`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `tolerances/features/`
 
 ## Schema
@@ -58,7 +58,7 @@ The `internal` field determines how MMC (Maximum Material Condition) and LMC (Le
 | **Internal** (holes, slots, pockets) | `true` | Smallest size (`nominal - minus_tol`) | Largest size (`nominal + plus_tol`) |
 | **External** (shafts, bosses) | `false` | Largest size (`nominal + plus_tol`) | Smallest size (`nominal - minus_tol`) |
 
-This is critical for mate calculations - when validating mates, PDT uses the `internal` flag to auto-detect which feature is the hole and which is the shaft.
+This is critical for mate calculations - when validating mates, TDT uses the `internal` flag to auto-detect which feature is the hole and which is the shaft.
 
 ### GdtControl Object
 
@@ -87,7 +87,7 @@ This is critical for mate calculations - when validating mates, PDT uses the `in
 
 ## Tolerance Format
 
-PDT uses `plus_tol` and `minus_tol` fields instead of the `±` symbol:
+TDT uses `plus_tol` and `minus_tol` fields instead of the `±` symbol:
 
 ```yaml
 # Represents: 10.0 +0.1/-0.05 for a hole (internal feature)
@@ -109,7 +109,7 @@ The `distribution` field specifies the statistical distribution used when this f
 
 ```yaml
 # Feature: Mounting Hole A
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE
 component: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
@@ -174,16 +174,16 @@ entity_revision: 1
 
 ```bash
 # Create feature (--component is REQUIRED)
-pdt feat new --component CMP@1 --type hole --title "Mounting Hole A"
+tdt feat new --component CMP@1 --type hole --title "Mounting Hole A"
 
 # Create shaft feature
-pdt feat new --component CMP@1 --type shaft --title "Locating Pin"
+tdt feat new --component CMP@1 --type shaft --title "Locating Pin"
 
 # Create with interactive wizard
-pdt feat new --component CMP@1 -i
+tdt feat new --component CMP@1 -i
 
 # Create and immediately edit
-pdt feat new --component CMP@1 --title "New Feature" --edit
+tdt feat new --component CMP@1 --title "New Feature" --edit
 ```
 
 **Note**: The `--component` flag is required. Features cannot exist without a parent component.
@@ -192,54 +192,54 @@ pdt feat new --component CMP@1 --title "New Feature" --edit
 
 ```bash
 # List all features
-pdt feat list
+tdt feat list
 
 # Filter by component
-pdt feat list --component CMP@1
+tdt feat list --component CMP@1
 
 # Filter by type
-pdt feat list --type hole
-pdt feat list --type shaft
+tdt feat list --type hole
+tdt feat list --type shaft
 
 # Filter by status
-pdt feat list --status approved
+tdt feat list --status approved
 
 # Search in title/description
-pdt feat list --search "mounting"
+tdt feat list --search "mounting"
 
 # Sort and limit
-pdt feat list --sort title
-pdt feat list --limit 10
+tdt feat list --sort title
+tdt feat list --limit 10
 
 # Count only
-pdt feat list --count
+tdt feat list --count
 
 # Output formats
-pdt feat list -f json
-pdt feat list -f csv
+tdt feat list -f json
+tdt feat list -f csv
 ```
 
 ### Show feature details
 
 ```bash
 # Show by ID (partial match supported)
-pdt feat show FEAT-01HC2
+tdt feat show FEAT-01HC2
 
 # Show using short ID
-pdt feat show FEAT@1
+tdt feat show FEAT@1
 
 # Output as JSON
-pdt feat show FEAT@1 -f json
+tdt feat show FEAT@1 -f json
 ```
 
 ### Edit a feature
 
 ```bash
 # Open in editor
-pdt feat edit FEAT-01HC2
+tdt feat edit FEAT-01HC2
 
 # Using short ID
-pdt feat edit FEAT@1
+tdt feat edit FEAT@1
 ```
 
 ## Feature Types
@@ -257,7 +257,7 @@ pdt feat edit FEAT@1
 | **pocket** | Recessed area | Internal | width, length, depth |
 | **edge** | Edge feature | External | length, radius |
 
-**Note**: When creating a feature, PDT automatically sets `internal: true` for holes, slots, pockets, counterbores, and countersinks. For shafts, bosses, and edges, it defaults to `internal: false`.
+**Note**: When creating a feature, TDT automatically sets `internal: true` for holes, slots, pockets, counterbores, and countersinks. For shafts, bosses, and edges, it defaults to `internal: false`.
 
 ## GD&T Symbols
 
@@ -309,10 +309,10 @@ Features are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate tolerances/features/FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE.pdt.yaml
+tdt validate tolerances/features/FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE.tdt.yaml
 ```
 
 ### Validation Rules
@@ -330,5 +330,5 @@ pdt validate tolerances/features/FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE.pdt.yaml
 The full JSON Schema for features is available at:
 
 ```
-pdt/schemas/feat.schema.json
+tdt/schemas/feat.schema.json
 ```

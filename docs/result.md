@@ -1,6 +1,6 @@
-# PDT Result Entity
+# TDT Result Entity
 
-This document describes the Result entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Result entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Results are execution records of test protocols. They capture the outcome of run
 ## Entity Type
 
 - **Prefix**: `RSLT`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directories**:
   - `verification/results/` - Results of verification tests
   - `validation/results/` - Results of validation tests
@@ -127,7 +127,7 @@ Results are execution records of test protocols. They capture the outcome of run
 
 ```yaml
 # Result: Temperature Cycling Test - Run 1
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: RSLT-01HC2JB7SMQX7RS1Y0GFKBHPTG
 test_id: TEST-01HC2JB7SMQX7RS1Y0GFKBHPTF
@@ -319,93 +319,93 @@ revision: 1
 
 ```bash
 # Create result for a specific test
-pdt rslt new --test TEST-01HC2
+tdt rslt new --test TEST-01HC2
 
 # Create using short ID
-pdt rslt new --test TEST@1 --verdict pass
+tdt rslt new --test TEST@1 --verdict pass
 
 # Create with verdict
-pdt rslt new --test TEST-01HC2 --verdict fail
+tdt rslt new --test TEST-01HC2 --verdict fail
 
 # Specify executor
-pdt rslt new --test TEST-01HC2 -e "John Smith"
+tdt rslt new --test TEST-01HC2 -e "John Smith"
 
 # Create with interactive wizard
-pdt rslt new -i
+tdt rslt new -i
 
 # Create and immediately edit
-pdt rslt new --test TEST-01HC2 --edit
+tdt rslt new --test TEST-01HC2 --edit
 ```
 
 ### List results
 
 ```bash
 # List all results
-pdt rslt list
+tdt rslt list
 
 # Filter by verdict
-pdt rslt list --verdict pass
-pdt rslt list --verdict fail
-pdt rslt list --verdict issues   # fail + conditional + incomplete
+tdt rslt list --verdict pass
+tdt rslt list --verdict fail
+tdt rslt list --verdict issues   # fail + conditional + incomplete
 
 # Filter by test
-pdt rslt list --test TEST-01HC2
+tdt rslt list --test TEST-01HC2
 
 # Filter by status
-pdt rslt list --status approved
-pdt rslt list --status active
+tdt rslt list --status approved
+tdt rslt list --status active
 
 # Filter by executor
-pdt rslt list --executed-by "John"
+tdt rslt list --executed-by "John"
 
 # Show results with failures
-pdt rslt list --with-failures
+tdt rslt list --with-failures
 
 # Show results with deviations
-pdt rslt list --with-deviations
+tdt rslt list --with-deviations
 
 # Show recent results
-pdt rslt list --recent 7  # Last 7 days
+tdt rslt list --recent 7  # Last 7 days
 
 # Search in title/notes
-pdt rslt list --search "temperature"
+tdt rslt list --search "temperature"
 
 # Sort and limit
-pdt rslt list --sort verdict
-pdt rslt list --sort executed-date --reverse
-pdt rslt list --limit 10
+tdt rslt list --sort verdict
+tdt rslt list --sort executed-date --reverse
+tdt rslt list --limit 10
 
 # Count only
-pdt rslt list --count
+tdt rslt list --count
 ```
 
 ### Show result details
 
 ```bash
 # Show by ID (partial match supported)
-pdt rslt show RSLT-01HC2
+tdt rslt show RSLT-01HC2
 
 # Show using short ID
-pdt rslt show RSLT@1
+tdt rslt show RSLT@1
 
 # Show with test protocol details
-pdt rslt show RSLT-01HC2 --with-test
+tdt rslt show RSLT-01HC2 --with-test
 
 # Output as JSON
-pdt rslt show RSLT-01HC2 -f json
+tdt rslt show RSLT-01HC2 -f json
 
 # Output as YAML
-pdt rslt show RSLT-01HC2 -f yaml
+tdt rslt show RSLT-01HC2 -f yaml
 ```
 
 ### Edit a result
 
 ```bash
 # Open in editor
-pdt rslt edit RSLT-01HC2
+tdt rslt edit RSLT-01HC2
 
 # Using short ID
-pdt rslt edit RSLT@1
+tdt rslt edit RSLT@1
 ```
 
 ## Validation
@@ -414,10 +414,10 @@ Results are validated against a JSON Schema. Run validation with:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate verification/results/RSLT-01HC2JB7SMQX7RS1Y0GFKBHPTG.pdt.yaml
+tdt validate verification/results/RSLT-01HC2JB7SMQX7RS1Y0GFKBHPTG.tdt.yaml
 ```
 
 ### Validation Rules
@@ -435,7 +435,7 @@ pdt validate verification/results/RSLT-01HC2JB7SMQX7RS1Y0GFKBHPTG.pdt.yaml
 ### Typical Result Workflow
 
 1. **Execute Test** - Run the test per the protocol
-2. **Create Result** - `pdt rslt new --test TEST-xxx`
+2. **Create Result** - `tdt rslt new --test TEST-xxx`
 3. **Document** - Edit result to add step results, observations
 4. **Review** - Submit for peer review (status: review)
 5. **Approve** - Sign off on results (status: approved)
@@ -489,24 +489,24 @@ When a test passes with deviations:
 
 ## Metrics
 
-Use PDT to generate testing metrics:
+Use TDT to generate testing metrics:
 
 ```bash
 # Overall pass rate
-pdt rslt list --verdict pass --count
-pdt rslt list --count
+tdt rslt list --verdict pass --count
+tdt rslt list --count
 
 # Failure rate by test
-pdt rslt list --test TEST-01HC2 --verdict fail --count
+tdt rslt list --test TEST-01HC2 --verdict fail --count
 
 # Recent failures
-pdt rslt list --verdict fail --recent 30
+tdt rslt list --verdict fail --recent 30
 ```
 
 ## JSON Schema
 
-The full JSON Schema for results is embedded in PDT and available at:
+The full JSON Schema for results is embedded in TDT and available at:
 
 ```
-pdt/schemas/rslt.schema.json
+tdt/schemas/rslt.schema.json
 ```

@@ -1,6 +1,6 @@
-# PDT Component Entity (BOM)
+# TDT Component Entity (BOM)
 
-This document describes the Component entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Component entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ Components represent individual parts in your Bill of Materials (BOM). They can 
 ## Entity Type
 
 - **Prefix**: `CMP`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `bom/components/`
 
 ## Schema
@@ -70,7 +70,7 @@ Components represent individual parts in your Bill of Materials (BOM). They can 
 
 ```yaml
 # Component: Widget Bracket
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
 part_number: "PN-001"
@@ -127,82 +127,82 @@ entity_revision: 1
 
 ```bash
 # Create with default template
-pdt cmp new
+tdt cmp new
 
 # Create with title and part number
-pdt cmp new --title "Widget Bracket" --part-number "PN-001"
+tdt cmp new --title "Widget Bracket" --part-number "PN-001"
 
 # Create buy part with category
-pdt cmp new --title "Resistor 10K" --make-buy buy --category electrical
+tdt cmp new --title "Resistor 10K" --make-buy buy --category electrical
 
 # Create make part
-pdt cmp new --title "Custom Housing" --make-buy make --category mechanical
+tdt cmp new --title "Custom Housing" --make-buy make --category mechanical
 
 # Create with interactive wizard
-pdt cmp new -i
+tdt cmp new -i
 
 # Create and immediately edit
-pdt cmp new --title "New Part" --edit
+tdt cmp new --title "New Part" --edit
 ```
 
 ### List components
 
 ```bash
 # List all components
-pdt cmp list
+tdt cmp list
 
 # Filter by make/buy
-pdt cmp list --make-buy buy
-pdt cmp list --make-buy make
+tdt cmp list --make-buy buy
+tdt cmp list --make-buy make
 
 # Filter by category
-pdt cmp list --category mechanical
-pdt cmp list --category electrical
+tdt cmp list --category mechanical
+tdt cmp list --category electrical
 
 # Filter by status
-pdt cmp list --status approved
-pdt cmp list --status draft
+tdt cmp list --status approved
+tdt cmp list --status draft
 
 # Search in title/description
-pdt cmp list --search "bracket"
+tdt cmp list --search "bracket"
 
 # Sort and limit
-pdt cmp list --sort title
-pdt cmp list --limit 10
+tdt cmp list --sort title
+tdt cmp list --limit 10
 
 # Count only
-pdt cmp list --count
+tdt cmp list --count
 
 # Output formats
-pdt cmp list -f json
-pdt cmp list -f csv
-pdt cmp list -f md
+tdt cmp list -f json
+tdt cmp list -f csv
+tdt cmp list -f md
 ```
 
 ### Show component details
 
 ```bash
 # Show by ID (partial match supported)
-pdt cmp show CMP-01HC2
+tdt cmp show CMP-01HC2
 
 # Show using short ID
-pdt cmp show CMP@1
+tdt cmp show CMP@1
 
 # Output as JSON
-pdt cmp show CMP@1 -f json
+tdt cmp show CMP@1 -f json
 
 # Output as YAML
-pdt cmp show CMP@1 -f yaml
+tdt cmp show CMP@1 -f yaml
 ```
 
 ### Edit a component
 
 ```bash
 # Open in editor
-pdt cmp edit CMP-01HC2
+tdt cmp edit CMP-01HC2
 
 # Using short ID
-pdt cmp edit CMP@1
+tdt cmp edit CMP@1
 ```
 
 ## Make vs Buy Classification
@@ -250,10 +250,10 @@ Components are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate bom/components/CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD.pdt.yaml
+tdt validate bom/components/CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD.tdt.yaml
 ```
 
 ### Validation Rules
@@ -270,5 +270,5 @@ pdt validate bom/components/CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD.pdt.yaml
 The full JSON Schema for components is available at:
 
 ```
-pdt/schemas/cmp.schema.json
+tdt/schemas/cmp.schema.json
 ```

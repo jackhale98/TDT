@@ -1,15 +1,15 @@
-# PDT Stackup Entity (Tolerance Analysis)
+# TDT Stackup Entity (Tolerance Analysis)
 
-This document describes the Stackup entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the Stackup entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
-Stackups represent tolerance chain analyses with multiple dimensional contributors. They calculate whether a target dimension (like a gap or clearance) will meet specification limits given the tolerances of all contributing features. PDT supports three analysis methods: worst-case, RSS (statistical), and Monte Carlo simulation.
+Stackups represent tolerance chain analyses with multiple dimensional contributors. They calculate whether a target dimension (like a gap or clearance) will meet specification limits given the tolerances of all contributing features. TDT supports three analysis methods: worst-case, RSS (statistical), and Monte Carlo simulation.
 
 ## Entity Type
 
 - **Prefix**: `TOL`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `tolerances/stackups/`
 
 ## Schema
@@ -60,7 +60,7 @@ Stackups represent tolerance chain analyses with multiple dimensional contributo
 | `distribution` | enum | `normal`, `uniform`, `triangular` |
 | `source` | string | Source reference (drawing, etc.) |
 
-**Feature Linking**: When a contributor has a `feature_id`, its `nominal`, `plus_tol`, and `minus_tol` values should match the linked feature's primary dimension. PDT validates this and can automatically sync values when they drift out of sync.
+**Feature Linking**: When a contributor has a `feature_id`, its `nominal`, `plus_tol`, and `minus_tol` values should match the linked feature's primary dimension. TDT validates this and can automatically sync values when they drift out of sync.
 
 ### AnalysisResults Object (Auto-calculated)
 
@@ -97,7 +97,7 @@ contributors:
 
 ```yaml
 # Stackup: Gap Analysis
-# Created by PDT - Plain-text Product Development Toolkit
+# Created by TDT - Plain-text Product Development Toolkit
 
 id: TOL-01HC2JB7SMQX7RS1Y0GFKBHPTH
 title: "Gap Analysis"
@@ -149,7 +149,7 @@ contributors:
     distribution: normal
     source: "DWG-003 Rev A"
 
-# Auto-calculated by 'pdt tol analyze'
+# Auto-calculated by 'tdt tol analyze'
 analysis_results:
   worst_case:
     min: 0.62
@@ -193,83 +193,83 @@ entity_revision: 1
 
 ```bash
 # Create with target specification
-pdt tol new --title "Gap Analysis" --target-nominal 1.0 --target-upper 1.5 --target-lower 0.5
+tdt tol new --title "Gap Analysis" --target-nominal 1.0 --target-upper 1.5 --target-lower 0.5
 
 # Specify target name
-pdt tol new --title "Gap Analysis" --target-name "Gap" \
+tdt tol new --title "Gap Analysis" --target-name "Gap" \
     --target-nominal 1.0 --target-upper 1.5 --target-lower 0.5
 
 # Mark as critical
-pdt tol new --title "Critical Gap" --target-nominal 1.0 \
+tdt tol new --title "Critical Gap" --target-nominal 1.0 \
     --target-upper 1.5 --target-lower 0.5 --critical
 
 # Create with interactive wizard
-pdt tol new -i
+tdt tol new -i
 
 # Create and immediately edit
-pdt tol new --title "New Stackup" --edit
+tdt tol new --title "New Stackup" --edit
 ```
 
 ### List stackups
 
 ```bash
 # List all stackups
-pdt tol list
+tdt tol list
 
 # Filter by worst-case result
-pdt tol list --result pass
-pdt tol list --result fail
-pdt tol list --result marginal
+tdt tol list --result pass
+tdt tol list --result fail
+tdt tol list --result marginal
 
 # Filter by disposition
-pdt tol list --disposition approved
-pdt tol list --disposition rejected
+tdt tol list --disposition approved
+tdt tol list --disposition rejected
 
 # Show only critical stackups
-pdt tol list --critical
+tdt tol list --critical
 
 # Filter by status
-pdt tol list --status approved
+tdt tol list --status approved
 
 # Search in title/description
-pdt tol list --search "gap"
+tdt tol list --search "gap"
 
 # Sort and limit
-pdt tol list --sort title
-pdt tol list --limit 10
+tdt tol list --sort title
+tdt tol list --limit 10
 
 # Count only
-pdt tol list --count
+tdt tol list --count
 
 # Output formats
-pdt tol list -f json
-pdt tol list -f csv
+tdt tol list -f json
+tdt tol list -f csv
 ```
 
 ### Show stackup details
 
 ```bash
 # Show by ID (includes analysis results)
-pdt tol show TOL-01HC2
+tdt tol show TOL-01HC2
 
 # Show using short ID
-pdt tol show TOL@1
+tdt tol show TOL@1
 
 # Output as JSON
-pdt tol show TOL@1 -f json
+tdt tol show TOL@1 -f json
 ```
 
 ### Run analysis
 
 ```bash
 # Run all analyses (worst-case, RSS, Monte Carlo)
-pdt tol analyze TOL@1
+tdt tol analyze TOL@1
 
 # Custom Monte Carlo iterations
-pdt tol analyze TOL@1 --iterations 50000
+tdt tol analyze TOL@1 --iterations 50000
 
 # Verbose output
-pdt tol analyze TOL@1 --verbose
+tdt tol analyze TOL@1 --verbose
 ```
 
 ### Add features as contributors
@@ -278,33 +278,33 @@ pdt tol analyze TOL@1 --verbose
 # Add features with direction prefix
 # Use + for positive direction, ~ for negative
 # Distribution is pulled from the feature's dimension
-pdt tol add TOL@1 +FEAT@1 ~FEAT@2 +FEAT@3
+tdt tol add TOL@1 +FEAT@1 ~FEAT@2 +FEAT@3
 
 # Specify which dimension to use (default: first dimension)
-pdt tol add TOL@1 --dimension length +FEAT@1
+tdt tol add TOL@1 --dimension length +FEAT@1
 
 # Run analysis after adding
-pdt tol add TOL@1 --analyze +FEAT@1 ~FEAT@2
+tdt tol add TOL@1 --analyze +FEAT@1 ~FEAT@2
 ```
 
 ### Remove contributors
 
 ```bash
 # Remove contributor(s) by feature ID
-pdt tol rm TOL@1 FEAT@1
+tdt tol rm TOL@1 FEAT@1
 
 # Remove multiple contributors
-pdt tol rm TOL@1 FEAT@1 FEAT@2
+tdt tol rm TOL@1 FEAT@1 FEAT@2
 ```
 
 ### Edit a stackup
 
 ```bash
 # Open in editor
-pdt tol edit TOL-01HC2
+tdt tol edit TOL-01HC2
 
 # Using short ID
-pdt tol edit TOL@1
+tdt tol edit TOL@1
 ```
 
 ## Analysis Methods
@@ -416,7 +416,7 @@ Calculate statistics:
 ### Managing Stackups
 
 1. **Run analysis after changes** - Recalculate when contributors change
-2. **Sync from features** - Use `pdt validate --fix` to sync contributors with linked features
+2. **Sync from features** - Use `tdt validate --fix` to sync contributors with linked features
 3. **Track disposition** - Document approval/rejection decisions
 4. **Link to requirements** - Connect to requirements being verified
 5. **Mark critical dimensions** - Flag safety/function-critical stackups
@@ -427,10 +427,10 @@ Stackups are validated against a JSON Schema:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate tolerances/stackups/TOL-01HC2JB7SMQX7RS1Y0GFKBHPTH.pdt.yaml
+tdt validate tolerances/stackups/TOL-01HC2JB7SMQX7RS1Y0GFKBHPTH.tdt.yaml
 ```
 
 ### Validation Rules
@@ -452,7 +452,7 @@ When feature dimensions change, contributors linked via `feature_id` may become 
 
 ```bash
 # Check for out-of-sync contributors
-pdt validate
+tdt validate
 
 # Example warning:
 # ! TOL-01HC2... - 1 calculation warning(s)
@@ -460,15 +460,15 @@ pdt validate
 #     stored (50.0000 +0.1000/-0.1000) vs feature (50.0000 +0.1500/-0.1000)
 
 # Auto-sync contributor values from features
-pdt validate --fix
+tdt validate --fix
 ```
 
-The `--fix` flag will update contributor values (`nominal`, `plus_tol`, `minus_tol`) to match their linked features. Note that this does NOT automatically re-run the analysis - use `pdt tol analyze` after fixing to recalculate results.
+The `--fix` flag will update contributor values (`nominal`, `plus_tol`, `minus_tol`) to match their linked features. Note that this does NOT automatically re-run the analysis - use `tdt tol analyze` after fixing to recalculate results.
 
 ## JSON Schema
 
 The full JSON Schema for stackups is available at:
 
 ```
-pdt/schemas/tol.schema.json
+tdt/schemas/tol.schema.json
 ```

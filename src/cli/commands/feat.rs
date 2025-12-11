@@ -1,4 +1,4 @@
-//! `pdt feat` command - Feature management (dimensional features on components)
+//! `tdt feat` command - Feature management (dimensional features on components)
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
@@ -358,7 +358,7 @@ fn run_new(args: NewArgs) -> Result<()> {
 
     if !component_found {
         return Err(miette::miette!(
-            "Component '{}' not found. Create it first with: pdt cmp new",
+            "Component '{}' not found. Create it first with: tdt cmp new",
             args.component
         ));
     }
@@ -405,7 +405,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         fs::create_dir_all(&output_dir).into_diagnostic()?;
     }
 
-    let file_path = output_dir.join(format!("{}.pdt.yaml", id));
+    let file_path = output_dir.join(format!("{}.tdt.yaml", id));
     fs::write(&file_path, &yaml_content).into_diagnostic()?;
 
     // Add to short ID index

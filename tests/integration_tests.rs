@@ -1,4 +1,4 @@
-//! Integration tests for PDT CLI
+//! Integration tests for TDT CLI
 //!
 //! These tests exercise the CLI commands end-to-end using assert_cmd.
 
@@ -7,15 +7,15 @@ use predicates::prelude::*;
 use std::fs;
 use tempfile::TempDir;
 
-/// Helper to get a pdt command
-fn pdt() -> Command {
-    Command::cargo_bin("pdt").unwrap()
+/// Helper to get a tdt command
+fn tdt() -> Command {
+    Command::cargo_bin("tdt").unwrap()
 }
 
 /// Helper to create a test project in a temp directory
 fn setup_test_project() -> TempDir {
     let tmp = TempDir::new().unwrap();
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .arg("init")
         .assert()
@@ -25,7 +25,7 @@ fn setup_test_project() -> TempDir {
 
 /// Helper to create a test requirement
 fn create_test_requirement(tmp: &TempDir, title: &str, req_type: &str) -> String {
-    let output = pdt()
+    let output = tdt()
         .current_dir(tmp.path())
         .args(["req", "new", "--title", title, "--type", req_type, "--no-edit"])
         .output()
@@ -44,7 +44,7 @@ fn create_test_requirement(tmp: &TempDir, title: &str, req_type: &str) -> String
 
 /// Helper to create a test risk
 fn create_test_risk(tmp: &TempDir, title: &str, risk_type: &str) -> String {
-    let output = pdt()
+    let output = tdt()
         .current_dir(tmp.path())
         .args(["risk", "new", "--title", title, "--type", risk_type, "--no-edit"])
         .output()
@@ -65,25 +65,25 @@ fn create_test_risk(tmp: &TempDir, title: &str, risk_type: &str) -> String {
 
 #[test]
 fn test_help_displays() {
-    pdt()
+    tdt()
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("product development artifacts"));
+        .stdout(predicate::str::contains("engineering artifacts"));
 }
 
 #[test]
 fn test_version_displays() {
-    pdt()
+    tdt()
         .arg("--version")
         .assert()
         .success()
-        .stdout(predicate::str::contains("pdt"));
+        .stdout(predicate::str::contains("tdt"));
 }
 
 #[test]
 fn test_unknown_command_fails() {
-    pdt()
+    tdt()
         .arg("unknown-command")
         .assert()
         .failure()
@@ -98,7 +98,7 @@ fn test_unknown_command_fails() {
 fn test_init_creates_project_structure() {
     let tmp = TempDir::new().unwrap();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .arg("init")
         .assert()
@@ -106,8 +106,8 @@ fn test_init_creates_project_structure() {
         .stdout(predicate::str::contains("Initialized"));
 
     // Verify structure
-    assert!(tmp.path().join(".pdt").exists());
-    assert!(tmp.path().join(".pdt/config.yaml").exists());
+    assert!(tmp.path().join(".tdt").exists());
+    assert!(tmp.path().join(".tdt/config.yaml").exists());
     assert!(tmp.path().join("requirements/inputs").is_dir());
     assert!(tmp.path().join("requirements/outputs").is_dir());
     assert!(tmp.path().join("risks/design").is_dir());
@@ -121,7 +121,7 @@ fn test_init_fails_if_project_exists() {
     let tmp = setup_test_project();
 
     // Init without --force should warn but not fail (it prints to stdout)
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .arg("init")
         .assert()
@@ -133,7 +133,7 @@ fn test_init_fails_if_project_exists() {
 fn test_init_force_overwrites() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["init", "--force"])
         .assert()
@@ -148,7 +148,7 @@ fn test_init_force_overwrites() {
 fn test_req_new_creates_file() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "new", "--title", "Test Requirement", "--type", "input", "--no-edit"])
         .assert()
@@ -159,7 +159,7 @@ fn test_req_new_creates_file() {
     let files: Vec<_> = fs::read_dir(tmp.path().join("requirements/inputs"))
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+        .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         .collect();
     assert_eq!(files.len(), 1, "Expected exactly one requirement file");
 
@@ -173,7 +173,7 @@ fn test_req_new_creates_file() {
 fn test_req_new_output_creates_in_outputs_dir() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "new", "--title", "Output Spec", "--type", "output", "--no-edit"])
         .assert()
@@ -182,7 +182,7 @@ fn test_req_new_output_creates_in_outputs_dir() {
     let files: Vec<_> = fs::read_dir(tmp.path().join("requirements/outputs"))
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+        .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         .collect();
     assert_eq!(files.len(), 1);
 }
@@ -191,7 +191,7 @@ fn test_req_new_output_creates_in_outputs_dir() {
 fn test_req_list_empty_project() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list"])
         .assert()
@@ -205,7 +205,7 @@ fn test_req_list_shows_requirements() {
     create_test_requirement(&tmp, "First Requirement", "input");
     create_test_requirement(&tmp, "Second Requirement", "output");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list"])
         .assert()
@@ -220,7 +220,7 @@ fn test_req_list_shows_short_ids() {
     let tmp = setup_test_project();
     create_test_requirement(&tmp, "Test Req", "input");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list"])
         .assert()
@@ -233,7 +233,7 @@ fn test_req_show_by_partial_id() {
     let tmp = setup_test_project();
     create_test_requirement(&tmp, "Temperature Range", "input");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "show", "REQ-"])
         .assert()
@@ -247,14 +247,14 @@ fn test_req_show_by_short_id() {
     create_test_requirement(&tmp, "Test Req", "input");
 
     // First list to generate short IDs
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list"])
         .assert()
         .success();
 
     // Then show by prefixed short ID (REQ@1 format)
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "show", "REQ@1"])
         .assert()
@@ -266,7 +266,7 @@ fn test_req_show_by_short_id() {
 fn test_req_show_not_found() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "show", "REQ-NONEXISTENT"])
         .assert()
@@ -279,7 +279,7 @@ fn test_req_list_json_format() {
     let tmp = setup_test_project();
     create_test_requirement(&tmp, "JSON Test", "input");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "-f", "json"])
         .assert()
@@ -294,7 +294,7 @@ fn test_req_list_csv_format() {
     let tmp = setup_test_project();
     create_test_requirement(&tmp, "CSV Test", "input");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "-f", "csv"])
         .assert()
@@ -314,7 +314,7 @@ fn test_req_list_filter_by_type() {
     create_test_requirement(&tmp, "Output Req", "output");
 
     // Filter by input type
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "--type", "input"])
         .assert()
@@ -323,7 +323,7 @@ fn test_req_list_filter_by_type() {
         .stdout(predicate::str::contains("1 requirement(s) found"));
 
     // Filter by output type
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "--type", "output"])
         .assert()
@@ -338,7 +338,7 @@ fn test_req_list_search_filter() {
     create_test_requirement(&tmp, "Temperature Range", "input");
     create_test_requirement(&tmp, "Power Supply", "input");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "--search", "temperature"])
         .assert()
@@ -354,7 +354,7 @@ fn test_req_list_limit() {
     create_test_requirement(&tmp, "Req Two", "input");
     create_test_requirement(&tmp, "Req Three", "input");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "-n", "2"])
         .assert()
@@ -368,7 +368,7 @@ fn test_req_list_count_only() {
     create_test_requirement(&tmp, "Req One", "input");
     create_test_requirement(&tmp, "Req Two", "input");
 
-    let output = pdt()
+    let output = tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "--count"])
         .assert()
@@ -387,7 +387,7 @@ fn test_req_list_orphans_filter() {
     // Create requirements without any links (orphans)
     create_test_requirement(&tmp, "Orphan Req", "input");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "--orphans"])
         .assert()
@@ -401,7 +401,7 @@ fn test_req_list_sort_by_title() {
     create_test_requirement(&tmp, "Zebra Requirement", "input");
     create_test_requirement(&tmp, "Apple Requirement", "input");
 
-    let output = pdt()
+    let output = tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "--sort", "title"])
         .assert()
@@ -422,7 +422,7 @@ fn test_req_list_sort_reverse() {
     create_test_requirement(&tmp, "Zebra Requirement", "input");
     create_test_requirement(&tmp, "Apple Requirement", "input");
 
-    let output = pdt()
+    let output = tdt()
         .current_dir(tmp.path())
         .args(["req", "list", "--sort", "title", "--reverse"])
         .assert()
@@ -445,7 +445,7 @@ fn test_req_list_sort_reverse() {
 fn test_risk_new_creates_file() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["risk", "new", "--title", "Test Risk", "--type", "design", "--no-edit"])
         .assert()
@@ -455,7 +455,7 @@ fn test_risk_new_creates_file() {
     let files: Vec<_> = fs::read_dir(tmp.path().join("risks/design"))
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| e.path().to_string_lossy().ends_with(".pdt.yaml"))
+        .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
         .collect();
     assert_eq!(files.len(), 1);
 }
@@ -464,7 +464,7 @@ fn test_risk_new_creates_file() {
 fn test_risk_new_with_fmea_ratings() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args([
             "risk", "new",
@@ -483,7 +483,7 @@ fn test_risk_new_with_fmea_ratings() {
 fn test_risk_list_empty_project() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["risk", "list"])
         .assert()
@@ -497,7 +497,7 @@ fn test_risk_list_shows_risks() {
     create_test_risk(&tmp, "Design Risk", "design");
     create_test_risk(&tmp, "Process Risk", "process");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["risk", "list"])
         .assert()
@@ -513,14 +513,14 @@ fn test_risk_show_by_short_id() {
     create_test_risk(&tmp, "Thermal Risk", "design");
 
     // Generate short IDs
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["risk", "list"])
         .assert()
         .success();
 
     // Show by prefixed short ID (RISK@1 format)
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["risk", "show", "RISK@1"])
         .assert()
@@ -536,7 +536,7 @@ fn test_risk_show_by_short_id() {
 fn test_validate_empty_project() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .arg("validate")
         .assert()
@@ -548,7 +548,7 @@ fn test_validate_valid_requirement() {
     let tmp = setup_test_project();
     create_test_requirement(&tmp, "Valid Req", "input");
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .arg("validate")
         .assert()
@@ -561,10 +561,10 @@ fn test_validate_invalid_yaml_syntax() {
     let tmp = setup_test_project();
 
     // Create a file with invalid YAML
-    let invalid_path = tmp.path().join("requirements/inputs/REQ-INVALID.pdt.yaml");
+    let invalid_path = tmp.path().join("requirements/inputs/REQ-INVALID.tdt.yaml");
     fs::write(&invalid_path, "id: REQ-123\n  bad indent: true").unwrap();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .arg("validate")
         .assert()
@@ -576,7 +576,7 @@ fn test_validate_invalid_schema() {
     let tmp = setup_test_project();
 
     // Create a file with valid YAML but invalid schema
-    let invalid_path = tmp.path().join("requirements/inputs/REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD.pdt.yaml");
+    let invalid_path = tmp.path().join("requirements/inputs/REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD.tdt.yaml");
     fs::write(&invalid_path, r#"
 id: REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD
 type: input
@@ -589,7 +589,7 @@ author: test
 "#).unwrap();
 
     // Error details go to stdout in our validation output
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .arg("validate")
         .assert()
@@ -605,7 +605,7 @@ author: test
 fn test_link_check_empty_project() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["link", "check"])
         .assert()
@@ -620,7 +620,7 @@ fn test_link_check_empty_project() {
 fn test_trace_coverage_empty_project() {
     let tmp = setup_test_project();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["trace", "coverage"])
         .assert()
@@ -636,28 +636,28 @@ fn test_full_workflow() {
     let tmp = setup_test_project();
 
     // Create input requirement
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "new", "--title", "Temperature Range", "--type", "input", "--no-edit"])
         .assert()
         .success();
 
     // Create output requirement
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "new", "--title", "Thermal Design", "--type", "output", "--no-edit"])
         .assert()
         .success();
 
     // Create risk
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["risk", "new", "--title", "Overheating", "--no-edit"])
         .assert()
         .success();
 
     // List all
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list"])
         .assert()
@@ -665,7 +665,7 @@ fn test_full_workflow() {
         .stdout(predicate::str::contains("2 requirement(s)"));
 
     // Validate
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .arg("validate")
         .assert()
@@ -676,10 +676,10 @@ fn test_full_workflow() {
 fn test_not_in_project_fails() {
     let tmp = TempDir::new().unwrap();
 
-    pdt()
+    tdt()
         .current_dir(tmp.path())
         .args(["req", "list"])
         .assert()
         .failure()
-        .stderr(predicate::str::contains("not a PDT project"));
+        .stderr(predicate::str::contains("not a TDT project"));
 }

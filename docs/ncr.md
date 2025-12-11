@@ -1,6 +1,6 @@
-# PDT NCR Entity (Non-Conformance Report)
+# TDT NCR Entity (Non-Conformance Report)
 
-This document describes the NCR entity type in PDT (Plain-text Product Development Toolkit).
+This document describes the NCR entity type in TDT (Tessera Engineering Toolkit).
 
 ## Overview
 
@@ -9,7 +9,7 @@ NCRs document quality issues - when products or processes don't meet specificati
 ## Entity Type
 
 - **Prefix**: `NCR`
-- **File extension**: `.pdt.yaml`
+- **File extension**: `.tdt.yaml`
 - **Directory**: `manufacturing/ncrs/`
 
 ## Schema
@@ -221,77 +221,77 @@ entity_revision: 2
 
 ```bash
 # Create with default template
-pdt ncr new
+tdt ncr new
 
 # Create with title
-pdt ncr new --title "Bore Out of Tolerance"
+tdt ncr new --title "Bore Out of Tolerance"
 
 # Create with type and severity
-pdt ncr new --title "Supplier Material Defect" --type supplier --severity major
+tdt ncr new --title "Supplier Material Defect" --type supplier --severity major
 
 # Create with category
-pdt ncr new --title "Surface Scratch" --type internal --severity minor --category cosmetic
+tdt ncr new --title "Surface Scratch" --type internal --severity minor --category cosmetic
 
 # Interactive wizard
-pdt ncr new -i
+tdt ncr new -i
 
 # Create and immediately edit
-pdt ncr new --title "New NCR" --edit
+tdt ncr new --title "New NCR" --edit
 ```
 
 ### List NCRs
 
 ```bash
 # List all NCRs
-pdt ncr list
+tdt ncr list
 
 # Filter by type
-pdt ncr list --type internal
-pdt ncr list --type supplier
-pdt ncr list --type customer
+tdt ncr list --type internal
+tdt ncr list --type supplier
+tdt ncr list --type customer
 
 # Filter by severity
-pdt ncr list --severity critical
-pdt ncr list --severity major
+tdt ncr list --severity critical
+tdt ncr list --severity major
 
 # Filter by category
-pdt ncr list --category dimensional
-pdt ncr list --category material
+tdt ncr list --category dimensional
+tdt ncr list --category material
 
 # Filter by NCR status
-pdt ncr list --ncr-status open
-pdt ncr list --ncr-status closed
+tdt ncr list --ncr-status open
+tdt ncr list --ncr-status closed
 
 # Search in title/description
-pdt ncr list --search "bore"
+tdt ncr list --search "bore"
 
 # Output formats
-pdt ncr list -f json
-pdt ncr list -f csv
-pdt ncr list -f md
+tdt ncr list -f json
+tdt ncr list -f csv
+tdt ncr list -f md
 ```
 
 ### Show NCR details
 
 ```bash
 # Show by ID
-pdt ncr show NCR-01KC5
+tdt ncr show NCR-01KC5
 
 # Show using short ID
-pdt ncr show NCR@1
+tdt ncr show NCR@1
 
 # Output as JSON
-pdt ncr show NCR@1 -f json
+tdt ncr show NCR@1 -f json
 ```
 
 ### Edit an NCR
 
 ```bash
 # Open in editor
-pdt ncr edit NCR-01KC5
+tdt ncr edit NCR-01KC5
 
 # Using short ID
-pdt ncr edit NCR@1
+tdt ncr edit NCR@1
 ```
 
 ## NCR Workflow
@@ -347,8 +347,8 @@ Open a CAPA when:
 
 ```bash
 # Validate all project files
-pdt validate
+tdt validate
 
 # Validate specific file
-pdt validate manufacturing/ncrs/NCR-01KC5B6E1RKCPKGACCH569FX5R.pdt.yaml
+tdt validate manufacturing/ncrs/NCR-01KC5B6E1RKCPKGACCH569FX5R.tdt.yaml
 ```

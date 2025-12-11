@@ -1,4 +1,4 @@
-//! `pdt validate` command - Validate project files against schemas
+//! `tdt validate` command - Validate project files against schemas
 
 use console::style;
 use miette::Result;
@@ -69,7 +69,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     let files_to_validate: Vec<PathBuf> = if args.staged {
         get_staged_files(&project)?
     } else if args.paths.is_empty() {
-        get_all_pdt_files(&project)
+        get_all_tdt_files(&project)
     } else {
         expand_paths(&args.paths)
     };
@@ -86,8 +86,8 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     );
 
     for path in &files_to_validate {
-        // Skip non-.pdt.yaml files
-        if !path.to_string_lossy().ends_with(".pdt.yaml") {
+        // Skip non-.tdt.yaml files
+        if !path.to_string_lossy().ends_with(".tdt.yaml") {
             continue;
         }
 
@@ -289,14 +289,14 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     }
 }
 
-/// Get all .pdt.yaml files in the project
-fn get_all_pdt_files(project: &Project) -> Vec<PathBuf> {
+/// Get all .tdt.yaml files in the project
+fn get_all_tdt_files(project: &Project) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
     for entry in WalkDir::new(project.root())
         .into_iter()
         .filter_entry(|e| {
-            // Skip .git and .pdt directories
+            // Skip .git and .tdt directories
             let name = e.file_name().to_string_lossy();
             !name.starts_with('.') || e.depth() == 0
         })
@@ -304,7 +304,7 @@ fn get_all_pdt_files(project: &Project) -> Vec<PathBuf> {
         .filter(|e| e.file_type().is_file())
     {
         let path = entry.path();
-        if path.to_string_lossy().ends_with(".pdt.yaml") {
+        if path.to_string_lossy().ends_with(".tdt.yaml") {
             files.push(path.to_path_buf());
         }
     }
@@ -313,7 +313,7 @@ fn get_all_pdt_files(project: &Project) -> Vec<PathBuf> {
     files
 }
 
-/// Get git-staged .pdt.yaml files
+/// Get git-staged .tdt.yaml files
 fn get_staged_files(project: &Project) -> Result<Vec<PathBuf>> {
     let output = std::process::Command::new("git")
         .args(["diff", "--cached", "--name-only", "--diff-filter=ACM"])
@@ -330,7 +330,7 @@ fn get_staged_files(project: &Project) -> Result<Vec<PathBuf>> {
 
     let files: Vec<PathBuf> = String::from_utf8_lossy(&output.stdout)
         .lines()
-        .filter(|line| line.ends_with(".pdt.yaml"))
+        .filter(|line| line.ends_with(".tdt.yaml"))
         .map(|line| project.root().join(line))
         .filter(|path| path.exists())
         .collect();
@@ -338,7 +338,7 @@ fn get_staged_files(project: &Project) -> Result<Vec<PathBuf>> {
     Ok(files)
 }
 
-/// Expand paths - if a directory is given, find all .pdt.yaml files in it
+/// Expand paths - if a directory is given, find all .tdt.yaml files in it
 fn expand_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
     let mut files = Vec::new();
 
@@ -349,7 +349,7 @@ fn expand_paths(paths: &[PathBuf]) -> Vec<PathBuf> {
                 .filter_map(|e| e.ok())
                 .filter(|e| e.file_type().is_file())
             {
-                if entry.path().to_string_lossy().ends_with(".pdt.yaml") {
+                if entry.path().to_string_lossy().ends_with(".tdt.yaml") {
                     files.push(entry.path().to_path_buf());
                 }
             }
@@ -453,7 +453,7 @@ fn load_feature(feature_id: &str, project_root: &Path) -> Option<Feature> {
         .filter(|e| e.file_type().is_file())
     {
         let path = entry.path();
-        if !path.to_string_lossy().ends_with(".pdt.yaml") {
+        if !path.to_string_lossy().ends_with(".tdt.yaml") {
             continue;
         }
 

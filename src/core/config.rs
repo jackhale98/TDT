@@ -5,14 +5,14 @@ use std::path::PathBuf;
 
 use crate::core::Project;
 
-/// PDT configuration with layered hierarchy
+/// TDT configuration with layered hierarchy
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct Config {
     /// Default author for new entities
     pub author: Option<String>,
 
-    /// Editor command for `pdt edit`
+    /// Editor command for `tdt edit`
     pub editor: Option<String>,
 
     /// Pager command for long output
@@ -29,7 +29,7 @@ impl Config {
 
         // 1. Built-in defaults (already in Default impl)
 
-        // 2. Global user config (~/.config/pdt/config.yaml)
+        // 2. Global user config (~/.config/tdt/config.yaml)
         if let Some(global_path) = Self::global_config_path() {
             if global_path.exists() {
                 if let Ok(contents) = std::fs::read_to_string(&global_path) {
@@ -40,9 +40,9 @@ impl Config {
             }
         }
 
-        // 3. Project config (.pdt/config.yaml)
+        // 3. Project config (.tdt/config.yaml)
         if let Ok(project) = Project::discover() {
-            let project_config_path = project.pdt_dir().join("config.yaml");
+            let project_config_path = project.tdt_dir().join("config.yaml");
             if project_config_path.exists() {
                 if let Ok(contents) = std::fs::read_to_string(&project_config_path) {
                     if let Ok(project_config) = serde_yml::from_str::<Config>(&contents) {
@@ -53,10 +53,10 @@ impl Config {
         }
 
         // 4. Environment variables
-        if let Ok(author) = std::env::var("PDT_AUTHOR") {
+        if let Ok(author) = std::env::var("TDT_AUTHOR") {
             config.author = Some(author);
         }
-        if let Ok(editor) = std::env::var("PDT_EDITOR") {
+        if let Ok(editor) = std::env::var("TDT_EDITOR") {
             config.editor = Some(editor);
         }
 
@@ -65,7 +65,7 @@ impl Config {
 
     /// Get the path to the global config file
     fn global_config_path() -> Option<PathBuf> {
-        directories::ProjectDirs::from("", "", "pdt")
+        directories::ProjectDirs::from("", "", "tdt")
             .map(|dirs| dirs.config_dir().join("config.yaml"))
     }
 
