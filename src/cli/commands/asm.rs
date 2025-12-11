@@ -13,6 +13,7 @@ use crate::core::Config;
 use crate::entities::assembly::Assembly;
 use crate::entities::component::Component;
 use crate::schema::template::{TemplateContext, TemplateGenerator};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum AsmCommands {
@@ -69,10 +70,6 @@ pub struct ListArgs {
     /// Show only count
     #[arg(long)]
     pub count: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -114,10 +111,6 @@ pub struct NewArgs {
 pub struct ShowArgs {
     /// Assembly ID or short ID (ASM@N)
     pub id: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "yaml")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -134,24 +127,20 @@ pub struct BomArgs {
     /// Flatten nested assemblies (show all components)
     #[arg(long)]
     pub flat: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 /// Run an assembly subcommand
-pub fn run(cmd: AsmCommands, _global: &GlobalOpts) -> Result<()> {
+pub fn run(cmd: AsmCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        AsmCommands::List(args) => run_list(args),
+        AsmCommands::List(args) => run_list(args, global),
         AsmCommands::New(args) => run_new(args),
-        AsmCommands::Show(args) => run_show(args),
+        AsmCommands::Show(args) => run_show(args, global),
         AsmCommands::Edit(args) => run_edit(args),
-        AsmCommands::Bom(args) => run_bom(args),
+        AsmCommands::Bom(args) => run_bom(args, global),
     }
 }
 
-fn run_list(args: ListArgs) -> Result<()> {
+fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let asm_dir = project.root().join("bom/assemblies");
 
@@ -242,10 +231,9 @@ fn run_list(args: ListArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -342,19 +330,20 @@ fn run_new(args: NewArgs) -> Result<()> {
     let part_number: String;
     let title: String;
 
-    if args.interactive || (args.part_number.is_none() && args.title.is_none()) {
-        // Interactive mode
-        use dialoguer::Input;
+    if args.interactive {
+        // Use schema-driven wizard
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Asm)?;
 
-        part_number = Input::new()
-            .with_prompt("Part number")
-            .interact_text()
-            .into_diagnostic()?;
+        part_number = result
+            .get_string("part_number")
+            .map(String::from)
+            .unwrap_or_else(|| "NEW-ASM".to_string());
 
-        title = Input::new()
-            .with_prompt("Title")
-            .interact_text()
-            .into_diagnostic()?;
+        title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Assembly".to_string());
     } else {
         part_number = args
             .part_number
@@ -420,7 +409,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -453,7 +442,7 @@ fn run_show(args: ShowArgs) -> Result<()> {
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
 
-    match args.format {
+    match global.format {
         OutputFormat::Yaml | OutputFormat::Auto => {
             print!("{}", content);
         }
@@ -508,7 +497,7 @@ fn run_edit(args: EditArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_bom(args: BomArgs) -> Result<()> {
+fn run_bom(args: BomArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -560,10 +549,9 @@ fn run_bom(args: BomArgs) -> Result<()> {
     }
 
     // Display BOM
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     println!();

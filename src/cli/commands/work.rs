@@ -12,6 +12,7 @@ use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
 use crate::entities::work_instruction::WorkInstruction;
 use crate::schema::template::{TemplateContext, TemplateGenerator};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum WorkCommands {
@@ -68,10 +69,6 @@ pub struct ListArgs {
     /// Show only count
     #[arg(long)]
     pub count: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -113,10 +110,6 @@ pub struct NewArgs {
 pub struct ShowArgs {
     /// Work instruction ID or short ID (WORK@N)
     pub id: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "yaml")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -126,16 +119,16 @@ pub struct EditArgs {
 }
 
 /// Run a work instruction subcommand
-pub fn run(cmd: WorkCommands, _global: &GlobalOpts) -> Result<()> {
+pub fn run(cmd: WorkCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        WorkCommands::List(args) => run_list(args),
+        WorkCommands::List(args) => run_list(args, global),
         WorkCommands::New(args) => run_new(args),
-        WorkCommands::Show(args) => run_show(args),
+        WorkCommands::Show(args) => run_show(args, global),
         WorkCommands::Edit(args) => run_edit(args),
     }
 }
 
-fn run_list(args: ListArgs) -> Result<()> {
+fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let work_dir = project.root().join("manufacturing/work_instructions");
 
@@ -251,10 +244,9 @@ fn run_list(args: ListArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -360,18 +352,16 @@ fn run_new(args: NewArgs) -> Result<()> {
 
     let title: String;
 
-    if args.interactive || args.title.is_none() {
-        // Interactive mode
-        use dialoguer::Input;
+    if args.interactive {
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Work)?;
 
-        title = Input::new()
-            .with_prompt("Work instruction title")
-            .interact_text()
-            .into_diagnostic()?;
+        title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Work Instruction".to_string());
     } else {
-        title = args
-            .title
-            .ok_or_else(|| miette::miette!("Title is required (use --title or -t)"))?;
+        title = args.title.unwrap_or_else(|| "New Work Instruction".to_string());
     }
 
     // Generate ID
@@ -435,7 +425,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -469,8 +459,13 @@ fn run_show(args: ShowArgs) -> Result<()> {
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
 
-    match args.format {
-        OutputFormat::Yaml | OutputFormat::Auto => {
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Yaml,
+        f => f,
+    };
+
+    match format {
+        OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {

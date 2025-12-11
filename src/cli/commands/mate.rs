@@ -14,6 +14,7 @@ use crate::core::Config;
 use crate::entities::feature::Feature;
 use crate::entities::mate::{FitAnalysis, Mate, MateType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum MateCommands {
@@ -76,10 +77,6 @@ pub struct ListArgs {
     /// Show only count
     #[arg(long)]
     pub count: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -117,10 +114,6 @@ pub struct NewArgs {
 pub struct ShowArgs {
     /// Mate ID or short ID (MATE@N)
     pub id: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "yaml")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -136,17 +129,17 @@ pub struct RecalcArgs {
 }
 
 /// Run a mate subcommand
-pub fn run(cmd: MateCommands, _global: &GlobalOpts) -> Result<()> {
+pub fn run(cmd: MateCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        MateCommands::List(args) => run_list(args),
+        MateCommands::List(args) => run_list(args, global),
         MateCommands::New(args) => run_new(args),
-        MateCommands::Show(args) => run_show(args),
+        MateCommands::Show(args) => run_show(args, global),
         MateCommands::Edit(args) => run_edit(args),
         MateCommands::Recalc(args) => run_recalc(args),
     }
 }
 
-fn run_list(args: ListArgs) -> Result<()> {
+fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let mate_dir = project.root().join("tolerances/mates");
 
@@ -230,10 +223,9 @@ fn run_list(args: ListArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -382,24 +374,20 @@ fn run_new(args: NewArgs) -> Result<()> {
     let title: String;
     let mate_type: String;
 
-    if args.interactive || args.title.is_none() {
-        use dialoguer::{Input, Select};
+    if args.interactive {
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Mate)?;
 
-        title = Input::new()
-            .with_prompt("Mate title")
-            .interact_text()
-            .into_diagnostic()?;
-
-        let type_options = ["clearance_fit", "interference_fit", "transition_fit", "planar_contact", "thread_engagement"];
-        let type_idx = Select::new()
-            .with_prompt("Mate type")
-            .items(&type_options)
-            .default(0)
-            .interact()
-            .into_diagnostic()?;
-        mate_type = type_options[type_idx].to_string();
+        title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Mate".to_string());
+        mate_type = result
+            .get_string("mate_type")
+            .map(String::from)
+            .unwrap_or_else(|| "clearance_fit".to_string());
     } else {
-        title = args.title.unwrap();
+        title = args.title.unwrap_or_else(|| "New Mate".to_string());
         mate_type = args.mate_type;
     }
 
@@ -476,7 +464,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -509,8 +497,13 @@ fn run_show(args: ShowArgs) -> Result<()> {
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
 
-    match args.format {
-        OutputFormat::Yaml | OutputFormat::Auto => {
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Yaml,
+        f => f,
+    };
+
+    match format {
+        OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {

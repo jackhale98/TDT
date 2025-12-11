@@ -13,6 +13,7 @@ use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
 use crate::entities::feature::{Feature, FeatureType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum FeatCommands {
@@ -82,10 +83,6 @@ pub struct ListArgs {
     /// Show only count
     #[arg(long)]
     pub count: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -119,10 +116,6 @@ pub struct NewArgs {
 pub struct ShowArgs {
     /// Feature ID or short ID (FEAT@N)
     pub id: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "yaml")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -132,16 +125,16 @@ pub struct EditArgs {
 }
 
 /// Run a feature subcommand
-pub fn run(cmd: FeatCommands, _global: &GlobalOpts) -> Result<()> {
+pub fn run(cmd: FeatCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        FeatCommands::List(args) => run_list(args),
+        FeatCommands::List(args) => run_list(args, global),
         FeatCommands::New(args) => run_new(args),
-        FeatCommands::Show(args) => run_show(args),
+        FeatCommands::Show(args) => run_show(args, global),
         FeatCommands::Edit(args) => run_edit(args),
     }
 }
 
-fn run_list(args: ListArgs) -> Result<()> {
+fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let feat_dir = project.root().join("tolerances/features");
 
@@ -244,10 +237,9 @@ fn run_list(args: ListArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -374,24 +366,22 @@ fn run_new(args: NewArgs) -> Result<()> {
     let title: String;
     let feature_type: String;
 
-    if args.interactive || args.title.is_none() {
-        use dialoguer::{Input, Select};
+    if args.interactive {
+        // Use schema-driven wizard
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Feat)?;
 
-        title = Input::new()
-            .with_prompt("Feature title")
-            .interact_text()
-            .into_diagnostic()?;
+        title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Feature".to_string());
 
-        let type_options = ["hole", "shaft", "planar_surface", "slot", "thread", "counterbore", "countersink", "boss", "pocket", "edge", "other"];
-        let type_idx = Select::new()
-            .with_prompt("Feature type")
-            .items(&type_options)
-            .default(0)
-            .interact()
-            .into_diagnostic()?;
-        feature_type = type_options[type_idx].to_string();
+        feature_type = result
+            .get_string("feature_type")
+            .map(String::from)
+            .unwrap_or_else(|| "hole".to_string());
     } else {
-        title = args.title.unwrap();
+        title = args.title.ok_or_else(|| miette::miette!("Title is required (use --title or -i for interactive)"))?;
         feature_type = args.feature_type;
     }
 
@@ -447,7 +437,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -480,7 +470,7 @@ fn run_show(args: ShowArgs) -> Result<()> {
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
 
-    match args.format {
+    match global.format {
         OutputFormat::Yaml | OutputFormat::Auto => {
             print!("{}", content);
         }

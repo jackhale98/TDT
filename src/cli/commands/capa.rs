@@ -12,6 +12,7 @@ use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
 use crate::entities::capa::{Capa, CapaStatus, CapaType, SourceType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum CapaCommands {
@@ -80,10 +81,6 @@ pub struct ListArgs {
     /// Show only count
     #[arg(long)]
     pub count: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -129,10 +126,6 @@ pub struct NewArgs {
 pub struct ShowArgs {
     /// CAPA ID or short ID (CAPA@N)
     pub id: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "yaml")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -142,16 +135,16 @@ pub struct EditArgs {
 }
 
 /// Run a CAPA subcommand
-pub fn run(cmd: CapaCommands, _global: &GlobalOpts) -> Result<()> {
+pub fn run(cmd: CapaCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        CapaCommands::List(args) => run_list(args),
+        CapaCommands::List(args) => run_list(args, global),
         CapaCommands::New(args) => run_new(args),
-        CapaCommands::Show(args) => run_show(args),
+        CapaCommands::Show(args) => run_show(args, global),
         CapaCommands::Edit(args) => run_edit(args),
     }
 }
 
-fn run_list(args: ListArgs) -> Result<()> {
+fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let capa_dir = project.root().join("manufacturing/capas");
 
@@ -263,10 +256,9 @@ fn run_list(args: ListArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -376,36 +368,24 @@ fn run_new(args: NewArgs) -> Result<()> {
     let capa_type: String;
     let source_type: String;
 
-    if args.interactive || args.title.is_none() {
-        // Interactive mode
-        use dialoguer::{Input, Select};
+    if args.interactive {
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Capa)?;
 
-        title = Input::new()
-            .with_prompt("CAPA title")
-            .interact_text()
-            .into_diagnostic()?;
-
-        let type_options = ["corrective", "preventive"];
-        let type_idx = Select::new()
-            .with_prompt("CAPA type")
-            .items(&type_options)
-            .default(0)
-            .interact()
-            .into_diagnostic()?;
-        capa_type = type_options[type_idx].to_string();
-
-        let source_options = ["ncr", "audit", "customer_complaint", "trend_analysis", "risk"];
-        let source_idx = Select::new()
-            .with_prompt("Source type")
-            .items(&source_options)
-            .default(0)
-            .interact()
-            .into_diagnostic()?;
-        source_type = source_options[source_idx].to_string();
+        title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New CAPA".to_string());
+        capa_type = result
+            .get_string("capa_type")
+            .map(String::from)
+            .unwrap_or_else(|| "corrective".to_string());
+        source_type = result
+            .get_string("source.type")
+            .map(String::from)
+            .unwrap_or_else(|| "ncr".to_string());
     } else {
-        title = args
-            .title
-            .ok_or_else(|| miette::miette!("Title is required (use --title or -t)"))?;
+        title = args.title.unwrap_or_else(|| "New CAPA".to_string());
         capa_type = args.r#type;
         source_type = args.source;
     }
@@ -483,7 +463,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -516,8 +496,13 @@ fn run_show(args: ShowArgs) -> Result<()> {
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
 
-    match args.format {
-        OutputFormat::Yaml | OutputFormat::Auto => {
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Yaml,
+        f => f,
+    };
+
+    match format {
+        OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {

@@ -12,6 +12,7 @@ use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
 use crate::entities::component::{Component, ComponentCategory, MakeBuy};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum CmpCommands {
@@ -92,10 +93,6 @@ pub struct ListArgs {
     /// Show only count
     #[arg(long)]
     pub count: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -150,10 +147,6 @@ pub struct NewArgs {
 pub struct ShowArgs {
     /// Component ID or short ID (CMP@N)
     pub id: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "yaml")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -163,16 +156,16 @@ pub struct EditArgs {
 }
 
 /// Run a component subcommand
-pub fn run(cmd: CmpCommands, _global: &GlobalOpts) -> Result<()> {
+pub fn run(cmd: CmpCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        CmpCommands::List(args) => run_list(args),
+        CmpCommands::List(args) => run_list(args, global),
         CmpCommands::New(args) => run_new(args),
-        CmpCommands::Show(args) => run_show(args),
+        CmpCommands::Show(args) => run_show(args, global),
         CmpCommands::Edit(args) => run_edit(args),
     }
 }
 
-fn run_list(args: ListArgs) -> Result<()> {
+fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let cmp_dir = project.root().join("bom/components");
 
@@ -279,10 +272,9 @@ fn run_list(args: ListArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -389,37 +381,30 @@ fn run_new(args: NewArgs) -> Result<()> {
     let make_buy: String;
     let category: String;
 
-    if args.interactive || (args.part_number.is_none() && args.title.is_none()) {
-        // Interactive mode
-        use dialoguer::{Input, Select};
+    if args.interactive {
+        // Use schema-driven wizard
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Cmp)?;
 
-        part_number = Input::new()
-            .with_prompt("Part number")
-            .interact_text()
-            .into_diagnostic()?;
+        part_number = result
+            .get_string("part_number")
+            .map(String::from)
+            .unwrap_or_else(|| "NEW-PART".to_string());
 
-        title = Input::new()
-            .with_prompt("Title")
-            .interact_text()
-            .into_diagnostic()?;
+        title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Component".to_string());
 
-        let make_buy_options = ["buy", "make"];
-        let make_buy_idx = Select::new()
-            .with_prompt("Make or buy")
-            .items(&make_buy_options)
-            .default(0)
-            .interact()
-            .into_diagnostic()?;
-        make_buy = make_buy_options[make_buy_idx].to_string();
+        make_buy = result
+            .get_string("make_buy")
+            .map(String::from)
+            .unwrap_or_else(|| "buy".to_string());
 
-        let category_options = ["mechanical", "electrical", "software", "fastener", "consumable"];
-        let category_idx = Select::new()
-            .with_prompt("Category")
-            .items(&category_options)
-            .default(0)
-            .interact()
-            .into_diagnostic()?;
-        category = category_options[category_idx].to_string();
+        category = result
+            .get_string("category")
+            .map(String::from)
+            .unwrap_or_else(|| "mechanical".to_string());
     } else {
         part_number = args
             .part_number
@@ -495,7 +480,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -528,7 +513,7 @@ fn run_show(args: ShowArgs) -> Result<()> {
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
 
-    match args.format {
+    match global.format {
         OutputFormat::Yaml | OutputFormat::Auto => {
             print!("{}", content);
         }

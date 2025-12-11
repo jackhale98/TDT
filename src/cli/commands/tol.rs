@@ -14,6 +14,7 @@ use crate::core::Config;
 use crate::entities::feature::Feature;
 use crate::entities::stackup::{Contributor, Direction, Disposition, Stackup};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum TolCommands {
@@ -99,10 +100,6 @@ pub struct ListArgs {
     /// Show only count
     #[arg(long)]
     pub count: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -148,10 +145,6 @@ pub struct NewArgs {
 pub struct ShowArgs {
     /// Stackup ID or short ID (TOL@N)
     pub id: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "yaml")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -206,11 +199,11 @@ pub struct RemoveArgs {
 }
 
 /// Run a tol subcommand
-pub fn run(cmd: TolCommands, _global: &GlobalOpts) -> Result<()> {
+pub fn run(cmd: TolCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        TolCommands::List(args) => run_list(args),
+        TolCommands::List(args) => run_list(args, global),
         TolCommands::New(args) => run_new(args),
-        TolCommands::Show(args) => run_show(args),
+        TolCommands::Show(args) => run_show(args, global),
         TolCommands::Edit(args) => run_edit(args),
         TolCommands::Analyze(args) => run_analyze(args),
         TolCommands::Add(args) => run_add(args),
@@ -218,7 +211,7 @@ pub fn run(cmd: TolCommands, _global: &GlobalOpts) -> Result<()> {
     }
 }
 
-fn run_list(args: ListArgs) -> Result<()> {
+fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let tol_dir = project.root().join("tolerances/stackups");
 
@@ -329,10 +322,9 @@ fn run_list(args: ListArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -478,75 +470,36 @@ fn run_new(args: NewArgs) -> Result<()> {
     let target_upper: f64;
     let target_lower: f64;
 
-    if args.interactive
-        || args.title.is_none()
-        || args.target_nominal.is_none()
-        || args.target_upper.is_none()
-        || args.target_lower.is_none()
-    {
-        use dialoguer::{Confirm, Input};
+    if args.interactive {
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Tol)?;
 
-        title = if let Some(t) = args.title {
-            t
-        } else {
-            Input::new()
-                .with_prompt("Stackup title")
-                .interact_text()
-                .into_diagnostic()?
-        };
-
-        target_name = if let Some(n) = args.target_name {
-            n
-        } else {
-            Input::new()
-                .with_prompt("Target dimension name (e.g., 'Gap', 'Clearance')")
-                .interact_text()
-                .into_diagnostic()?
-        };
-
-        target_nominal = if let Some(n) = args.target_nominal {
-            n
-        } else {
-            Input::new()
-                .with_prompt("Target nominal value")
-                .interact_text()
-                .into_diagnostic()?
-        };
-
-        target_upper = if let Some(u) = args.target_upper {
-            u
-        } else {
-            Input::new()
-                .with_prompt("Target upper specification limit")
-                .interact_text()
-                .into_diagnostic()?
-        };
-
-        target_lower = if let Some(l) = args.target_lower {
-            l
-        } else {
-            Input::new()
-                .with_prompt("Target lower specification limit")
-                .interact_text()
-                .into_diagnostic()?
-        };
-
-        // Ask about critical if not specified
-        let _critical = if args.critical {
-            true
-        } else {
-            Confirm::new()
-                .with_prompt("Is this a critical dimension?")
-                .default(false)
-                .interact()
-                .into_diagnostic()?
-        };
+        title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Stackup".to_string());
+        target_name = result
+            .get_string("target.name")
+            .map(String::from)
+            .unwrap_or_else(|| "Target".to_string());
+        target_nominal = result
+            .get_string("target.nominal")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+        target_upper = result
+            .get_string("target.upper_limit")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
+        target_lower = result
+            .get_string("target.lower_limit")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0.0);
     } else {
-        title = args.title.unwrap();
+        title = args.title.unwrap_or_else(|| "New Stackup".to_string());
         target_name = args.target_name.unwrap_or_else(|| "Target".to_string());
-        target_nominal = args.target_nominal.unwrap();
-        target_upper = args.target_upper.unwrap();
-        target_lower = args.target_lower.unwrap();
+        target_nominal = args.target_nominal.unwrap_or(0.0);
+        target_upper = args.target_upper.unwrap_or(0.0);
+        target_lower = args.target_lower.unwrap_or(0.0);
     }
 
     // Generate ID
@@ -601,7 +554,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -635,8 +588,13 @@ fn run_show(args: ShowArgs) -> Result<()> {
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
 
-    match args.format {
-        OutputFormat::Yaml | OutputFormat::Auto => {
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Yaml,
+        f => f,
+    };
+
+    match format {
+        OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {

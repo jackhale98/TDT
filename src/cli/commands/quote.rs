@@ -11,6 +11,7 @@ use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
 use crate::entities::quote::{Quote, QuoteStatus};
+use crate::schema::wizard::SchemaWizard;
 
 #[derive(Subcommand, Debug)]
 pub enum QuoteCommands {
@@ -93,10 +94,6 @@ pub struct ListArgs {
     /// Show only count
     #[arg(long)]
     pub count: bool,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -159,10 +156,6 @@ pub struct NewArgs {
 pub struct ShowArgs {
     /// Quote ID or short ID (QUOT@N)
     pub id: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "yaml")]
-    pub format: OutputFormat,
 }
 
 #[derive(clap::Args, Debug)]
@@ -175,24 +168,20 @@ pub struct EditArgs {
 pub struct CompareArgs {
     /// Component or Assembly ID to compare quotes for
     pub item: String,
-
-    /// Output format
-    #[arg(long, short = 'o', default_value = "auto")]
-    pub format: OutputFormat,
 }
 
 /// Run a quote subcommand
-pub fn run(cmd: QuoteCommands, _global: &GlobalOpts) -> Result<()> {
+pub fn run(cmd: QuoteCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
-        QuoteCommands::List(args) => run_list(args),
+        QuoteCommands::List(args) => run_list(args, global),
         QuoteCommands::New(args) => run_new(args),
-        QuoteCommands::Show(args) => run_show(args),
+        QuoteCommands::Show(args) => run_show(args, global),
         QuoteCommands::Edit(args) => run_edit(args),
-        QuoteCommands::Compare(args) => run_compare(args),
+        QuoteCommands::Compare(args) => run_compare(args, global),
     }
 }
 
-fn run_list(args: ListArgs) -> Result<()> {
+fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let quote_dir = project.root().join("bom/quotes");
 
@@ -332,10 +321,9 @@ fn run_list(args: ListArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -485,46 +473,38 @@ fn run_new(args: NewArgs) -> Result<()> {
         ));
     }
 
-    if args.interactive
-        || (args.component.is_none() && args.assembly.is_none() && args.supplier.is_none())
-    {
-        use dialoguer::{Input, Select};
+    if args.interactive {
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Quot)?;
 
-        // Ask which type of item this quote is for
-        let item_types = vec!["Component (CMP)", "Assembly (ASM)"];
-        let selection = Select::new()
-            .with_prompt("What is this quote for?")
-            .items(&item_types)
-            .default(0)
-            .interact()
-            .into_diagnostic()?;
+        title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Quote".to_string());
 
-        if selection == 0 {
-            let cmp_input: String = Input::new()
-                .with_prompt("Component ID (CMP@N or full ID)")
-                .interact_text()
-                .into_diagnostic()?;
-            component = Some(short_ids.resolve(&cmp_input).unwrap_or(cmp_input));
-            assembly = None;
-        } else {
-            let asm_input: String = Input::new()
-                .with_prompt("Assembly ID (ASM@N or full ID)")
-                .interact_text()
-                .into_diagnostic()?;
-            assembly = Some(short_ids.resolve(&asm_input).unwrap_or(asm_input));
-            component = None;
-        }
-
-        let supplier_input: String = Input::new()
-            .with_prompt("Supplier ID (SUP@N or full ID)")
-            .interact_text()
-            .into_diagnostic()?;
+        // Get supplier from wizard result
+        let supplier_input = result
+            .get_string("supplier")
+            .map(String::from)
+            .unwrap_or_default();
         supplier = short_ids.resolve(&supplier_input).unwrap_or(supplier_input);
 
-        title = Input::new()
-            .with_prompt("Quote title")
-            .interact_text()
-            .into_diagnostic()?;
+        // Get component or assembly from wizard result
+        let comp_input = result.get_string("component").map(String::from);
+        let asm_input = result.get_string("assembly").map(String::from);
+
+        if let Some(cmp) = comp_input {
+            if !cmp.is_empty() {
+                component = Some(short_ids.resolve(&cmp).unwrap_or(cmp));
+                assembly = None;
+            } else {
+                component = None;
+                assembly = asm_input.map(|a| short_ids.resolve(&a).unwrap_or(a));
+            }
+        } else {
+            component = None;
+            assembly = asm_input.map(|a| short_ids.resolve(&a).unwrap_or(a));
+        }
     } else {
         // At least one of component or assembly must be provided
         if args.component.is_none() && args.assembly.is_none() {
@@ -683,7 +663,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_show(args: ShowArgs) -> Result<()> {
+fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
@@ -716,8 +696,13 @@ fn run_show(args: ShowArgs) -> Result<()> {
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
 
-    match args.format {
-        OutputFormat::Yaml | OutputFormat::Auto => {
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Yaml,
+        f => f,
+    };
+
+    match format {
+        OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
@@ -770,7 +755,7 @@ fn run_edit(args: EditArgs) -> Result<()> {
     Ok(())
 }
 
-fn run_compare(args: CompareArgs) -> Result<()> {
+fn run_compare(args: CompareArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let quote_dir = project.root().join("bom/quotes");
 
@@ -831,10 +816,9 @@ fn run_compare(args: CompareArgs) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output comparison
-    let format = if args.format == OutputFormat::Auto {
-        OutputFormat::Tsv
-    } else {
-        args.format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
     };
 
     match format {
@@ -846,7 +830,7 @@ fn run_compare(args: CompareArgs) -> Result<()> {
             let yaml = serde_yml::to_string(&quotes).into_diagnostic()?;
             print!("{}", yaml);
         }
-        OutputFormat::Tsv | OutputFormat::Auto => {
+        OutputFormat::Tsv => {
             println!(
                 "Comparing {} quotes for {}",
                 style(quotes.len()).cyan(),
