@@ -1,0 +1,45 @@
+# Component: Stepper Motor Driver
+# Created by TDT - Tessera Engineering Toolkit
+
+id: CMP-01KC5WN6RYWXG8K40V6QD1NS53
+part_number: "PLA-202-DRIVER"
+revision: ""
+title: "Stepper Motor Driver"
+
+description: |
+  # Detailed description of this component
+  # Include key specifications and requirements
+
+make_buy: buy
+category: electrical
+
+# Physical properties
+material: ""
+mass_kg: null
+unit_cost: null
+
+# Supplier information
+suppliers:
+  - name: ""
+    supplier_pn: ""
+    lead_time_days: null
+    moq: null
+    unit_cost: null
+
+# Associated documents
+documents:
+  - type: drawing
+    path: ""
+    revision: ""
+
+tags: []
+status: draft
+
+links:
+  related_to: []
+  used_in: []
+
+# Auto-managed metadata
+created: 2025-12-11T05:03:06.022774601+00:00
+author: Jack Hale
+entity_revision: 1

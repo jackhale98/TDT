@@ -1,0 +1,17 @@
+id: QUOT-01KC5WQCM70MW77QN4SKK69XX5
+title: '5mm to 8mm Coupling'
+supplier: SUP-01KC5WNTFA9GY4HJFJ5APT94CJ
+component: CMP-01KC5WNBBTYNS0J6R0ZC0Y179S
+currency: USD
+price_breaks:
+- min_qty: 1
+  unit_price: 8.0
+  lead_time_days: 2
+moq: 1
+lead_time_days: 2
+quote_status: pending
+status: draft
+links: {}
+created: '2025-12-11T05:04:17.544662136Z'
+author: Jack Hale
+entity_revision: 1

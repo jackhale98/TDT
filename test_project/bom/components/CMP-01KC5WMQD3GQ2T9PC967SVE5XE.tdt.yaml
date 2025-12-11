@@ -1,0 +1,45 @@
+# Component: Actuator Housing
+# Created by TDT - Tessera Engineering Toolkit
+
+id: CMP-01KC5WMQD3GQ2T9PC967SVE5XE
+part_number: "PLA-100-HOUSING"
+revision: ""
+title: "Actuator Housing"
+
+description: |
+  # Detailed description of this component
+  # Include key specifications and requirements
+
+make_buy: make
+category: mechanical
+
+# Physical properties
+material: "6061-T6 Aluminum"
+mass_kg: null
+unit_cost: null
+
+# Supplier information
+suppliers:
+  - name: ""
+    supplier_pn: ""
+    lead_time_days: null
+    moq: null
+    unit_cost: null
+
+# Associated documents
+documents:
+  - type: drawing
+    path: ""
+    revision: ""
+
+tags: []
+status: draft
+
+links:
+  related_to: []
+  used_in: []
+
+# Auto-managed metadata
+created: 2025-12-11T05:02:50.284489041+00:00
+author: Jack Hale
+entity_revision: 1

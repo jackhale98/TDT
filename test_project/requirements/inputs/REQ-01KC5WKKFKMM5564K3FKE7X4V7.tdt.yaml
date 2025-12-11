@@ -1,0 +1,39 @@
+# Requirement: Stroke Length Requirement
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: REQ-01KC5WKKFKMM5564K3FKE7X4V7
+type: input
+title: "Stroke Length Requirement"
+
+source:
+  document: ""
+  revision: ""
+  section: ""
+  date: 2025-12-11
+
+category: "performance"
+tags: []
+
+text: |
+  # Enter requirement text here
+  # Use clear, testable language:
+  #   - "shall" for mandatory requirements
+  #   - "should" for recommended requirements
+  #   - "may" for optional requirements
+
+rationale: ""
+
+acceptance_criteria:
+  - ""
+
+priority: critical
+status: draft
+
+links:
+  satisfied_by: []
+  verified_by: []
+
+# Auto-managed metadata (do not edit manually)
+created: 2025-12-11T05:02:13.500090800+00:00
+author: Jack Hale
+revision: 1

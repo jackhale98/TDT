@@ -401,20 +401,20 @@ Source types: `ncr`, `audit`, `customer_complaint`, `trend_analysis`, `risk`
 ### Link Management
 
 ```bash
-tdt link add REQ-01 --type satisfied_by REQ-02    # Add link
-tdt link remove REQ-01 --type satisfied_by REQ-02 # Remove link
-tdt link show REQ-01                               # Show all links
-tdt link check                                     # Check for broken links
+tdt link add REQ@1 REQ@2 -t satisfied_by    # Add link
+tdt link remove REQ@1 REQ@2 -t satisfied_by # Remove link
+tdt link show REQ@1                          # Show all links
+tdt link check                               # Check for broken links
 ```
 
 ### Traceability
 
 ```bash
 tdt trace matrix                  # Show traceability matrix
-tdt trace matrix --output csv     # Export as CSV
-tdt trace matrix --output dot     # Export as GraphViz DOT
-tdt trace from REQ-01             # What depends on this?
-tdt trace to REQ-01               # What does this depend on?
+tdt trace matrix -o csv           # Export as CSV
+tdt trace matrix -o dot           # Export as GraphViz DOT
+tdt trace from REQ@1              # What depends on this?
+tdt trace to REQ@1                # What does this depend on?
 tdt trace orphans                 # Find unlinked entities
 tdt trace coverage                # Verification coverage report
 tdt trace coverage --uncovered    # Show uncovered requirements
@@ -430,39 +430,42 @@ Define features on components, create mates, and run worst-case, RSS, and Monte 
 
 ```bash
 # Create a component
-$ tdt cmp new --title "Housing" --part-number "PN-001"
+$ tdt cmp new -p "PN-001" -t "Housing"
 ✓ Created component CMP@1
+   Part: PN-001 | Housing
 
 # Add features with tolerances
-$ tdt feat new --component CMP@1 --type hole --title "Bore"
+$ tdt feat new -c CMP@1 -t hole --title "Bore"
 ✓ Created feature FEAT@1
-
-$ tdt feat new --component CMP@1 --type shaft --title "Locating Pin"
-✓ Created feature FEAT@2
+   Parent: CMP-01KC5W... | Type: hole | Bore
 
 # Create a mate to analyze fit
-$ tdt mate new --feature-a FEAT@1 --feature-b FEAT@2 --title "Pin-Hole Fit"
+$ tdt mate new -a FEAT@1 -b FEAT@2 --title "Pin-Hole Fit"
 ✓ Created mate MATE@1
-
-# Check the fit calculation
-$ tdt mate show MATE@1
-Fit Analysis:
-  Worst-case clearance: 0.02 to 0.15 mm
-  Result: CLEARANCE FIT ✓
+   Fit Analysis:
+     Result: transition (-0.1500 to 0.1500)
 
 # Create a tolerance stackup
-$ tdt tol new --title "Gap Analysis" --target-nominal 1.0 --target-upper 1.5 --target-lower 0.5
+$ tdt tol new -t "Gap Analysis" --target-nominal 1.0 --target-upper 1.5 --target-lower 0.5
 ✓ Created stackup TOL@1
+   Target: Target = 1.000 (LSL: 0.500, USL: 1.500)
 
 # Run Monte Carlo analysis
-$ tdt tol analyze TOL@1 --iterations 50000
-═══════════════════════════════════════════
-  Tolerance Stackup: Gap Analysis
-═══════════════════════════════════════════
+$ tdt tol analyze TOL@1 --iterations 10000
+⚙ Analyzing stackup TOL@1...
+✓ Analysis complete
 
-  Worst Case: 0.87 to 1.18 mm      PASS
-  RSS (3σ):   0.89 to 1.11 mm      Cpk: 4.56
-  Monte Carlo: 99.98% yield (50000 iterations)
+   Worst-Case Analysis:
+     Range: 0.8700 to 1.1800
+     Result: pass
+
+   RSS (Statistical) Analysis:
+     Mean: 1.0000 | ±3σ: 0.0750
+     Cpk: 4.56 | Yield: 99.99%
+
+   Monte Carlo (10000 iterations):
+     Mean: 1.0001 | Std Dev: 0.0249
+     Yield: 100.00%
 ```
 
 ### FMEA Risk Management
@@ -473,19 +476,17 @@ Track design and process risks with full FMEA methodology:
 # Create a risk with FMEA ratings
 $ tdt risk new --title "Motor Overheating" -t design \
     --severity 8 --occurrence 4 --detection 5
-✓ Created risk RISK@1 (RPN: 160, Level: high)
+✓ Created risk RISK@1
+   RPN: 160 (high)
 
 # View risks sorted by RPN
 $ tdt risk list --by-rpn
-@        ID              TYPE      TITLE                    RPN    LEVEL
-------------------------------------------------------------------------
-RISK@1   RISK-01HC2...   design    Motor Overheating        160    high
-RISK@2   RISK-01HC3...   process   Seal Degradation          84    medium
-RISK@3   RISK-01HC4...   design    EMI Susceptibility        48    low
+SHORT    ID                TYPE      TITLE                  STATUS  LEVEL   RPN
+--------------------------------------------------------------------------------
+RISK@1   RISK-01KC5W...    design    Motor Overheating      draft   high    160
+RISK@2   RISK-01KC5W...    process   Seal Degradation       draft   medium   72
 
-# Find unmitigated risks
-$ tdt risk list --unmitigated
-2 risks without mitigations
+2 risk(s) found. Use RISK@N to reference by short ID.
 ```
 
 ### Manufacturing Quality Loop
@@ -494,28 +495,31 @@ Define processes, controls, and track quality issues through to resolution:
 
 ```bash
 # Define a manufacturing process
-$ tdt proc new --title "CNC Milling" --type machining --op-number "OP-010"
+$ tdt proc new -t "CNC Milling" -T machining -n "OP-010"
 ✓ Created process PROC@1
+   Type: machining | CNC Milling
 
 # Add an SPC control point
-$ tdt ctrl new --title "Bore Diameter SPC" --type spc --process PROC@1 --critical
+$ tdt ctrl new -t "Bore Diameter SPC" -T spc -p PROC@1 --critical
 ✓ Created control CTRL@1
+   Type: spc | Bore Diameter SPC [CTQ]
 
 # Create work instructions
-$ tdt work new --title "Mill Setup" --process PROC@1 --doc-number "WI-MACH-001"
+$ tdt work new -t "Mill Setup" -p PROC@1 -d "WI-MACH-001"
 ✓ Created work instruction WORK@1
+   Mill Setup
+   Doc: WI-MACH-001
 
 # Log a non-conformance
-$ tdt ncr new --title "Bore Out of Tolerance" --severity major --type internal
+$ tdt ncr new -t "Bore Out of Tolerance" -S major -T internal
 ✓ Created NCR NCR@1
+   internal | major | Bore Out of Tolerance
 
 # Create corrective action linked to NCR
-$ tdt capa new --title "Tool Wear Detection" --type corrective --ncr NCR@1
-✓ Created CAPA CAPA@1 linked to NCR@1
-
-# Track overdue CAPAs
-$ tdt capa list --overdue
-1 overdue CAPA(s)
+$ tdt capa new -t "Tool Wear Detection" -T corrective --ncr NCR@1
+✓ Created CAPA CAPA@1
+   corrective | Tool Wear Detection
+   Source: NCR-01KC5W...
 ```
 
 ### Full Traceability
@@ -524,25 +528,27 @@ Link requirements to tests, risks to mitigations, and generate coverage reports:
 
 ```bash
 # Link a requirement to a test
-$ tdt link add REQ@1 --type verified_by TEST@1
-✓ Added link: REQ@1 --verified_by--> TEST@1
-
-# Trace from a requirement
-$ tdt trace from REQ@1
-REQ@1 Operating Temperature Range
-├── satisfied_by → REQ@3 Thermal Management Spec
-├── verified_by  → TEST@1 Thermal Chamber Test
-└── related_to   → RISK@1 Overheating Risk
+$ tdt link add REQ@1 TEST@1 -t verified_by
+✓ Added link: REQ-01KC5W... --[verified_by]--> TEST-01KC5W...
 
 # Check verification coverage
 $ tdt trace coverage
-Requirements: 24 total, 22 verified (92%)
-Uncovered: REQ@12, REQ@18
+Verification Coverage Report
+════════════════════════════════════════════════════════════
+Total requirements:     24
+With verification:      22
+Without verification:   2
+
+Coverage: 92%
 
 # Find orphaned entities
 $ tdt trace orphans
-3 requirements with no links
-2 tests with no linked requirements
+Orphaned Entities
+────────────────────────────────────────────────────────────
+○ RISK-01KC5W... - Motor Overheating (no links)
+○ NCR-01KC5W...  - Bore Out of Tolerance (no links)
+
+Found 2 orphaned entity(ies)
 ```
 
 ### Supply Chain Management
@@ -551,22 +557,27 @@ Track suppliers, quotes, and compare pricing:
 
 ```bash
 # Create a supplier
-$ tdt sup new --name "Acme Manufacturing" --short-name "Acme"
+$ tdt sup new -n "Acme Manufacturing" --short-name "Acme"
 ✓ Created supplier SUP@1
+   Name: Acme Manufacturing
 
 # Add a quote for a component
-$ tdt quote new --component CMP@1 --supplier SUP@1 --price 12.50 --lead-time 14
+$ tdt quote new -c CMP@1 -s SUP@1 --price 12.50 --lead-time 14
 ✓ Created quote QUOT@1
+   Supplier: SUP-01KC5W... | Component: CMP-01KC5W...
+   Price: 12.50 | Lead: 14d
 
 # Compare quotes for a component
 $ tdt quote compare CMP@1
-Component: Widget Bracket (CMP@1)
-───────────────────────────────────────────
-Supplier         Price    Lead Time   MOQ
-───────────────────────────────────────────
-Acme Corp        $12.50   14 days     100
-Quality Parts    $13.75   21 days      50
-Budget Metals    $10.00   45 days     500
+Comparing 3 quotes for CMP@1
+
+SHORT    SUPPLIER   PRICE      MOQ   LEAD     STATUS
+------------------------------------------------------
+QUOT@1   SUP@1      12.50      100   14d      pending
+QUOT@2   SUP@2      13.75       50   21d      pending
+QUOT@3   SUP@3      10.00      500   45d      pending
+
+★ Lowest price: 10.00 from SUP@3
 ```
 
 > **Note:** For complete YAML schema documentation and field references, see the individual entity docs in the [docs/](docs/) directory.

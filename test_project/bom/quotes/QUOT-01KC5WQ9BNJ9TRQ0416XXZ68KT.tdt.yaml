@@ -1,0 +1,17 @@
+id: QUOT-01KC5WQ9BNJ9TRQ0416XXZ68KT
+title: LM8UU Linear Bearing
+supplier: SUP-01KC5WNTFA9GY4HJFJ5APT94CJ
+component: CMP-01KC5WN88ACC15C80G224WCM56
+currency: USD
+price_breaks:
+- min_qty: 1
+  unit_price: 4.5
+  lead_time_days: 2
+moq: 4
+lead_time_days: 2
+quote_status: pending
+status: draft
+links: {}
+created: '2025-12-11T05:04:14.198599948Z'
+author: Jack Hale
+entity_revision: 1

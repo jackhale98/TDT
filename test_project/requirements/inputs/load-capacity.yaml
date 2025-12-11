@@ -1,0 +1,16 @@
+id: REQ-01J7KCVN8XYZABC123456789B
+type: input
+title: Load Capacity Requirement
+text: |
+  The actuator shall support a maximum axial load of 50N in both
+  push and pull directions without degradation of positioning accuracy.
+rationale: |
+  Derived from maximum payload weight plus safety factor of 2x.
+category: performance
+priority: critical
+status: approved
+tags:
+  - mechanical
+  - load-bearing
+author: Sarah Chen
+created: 2024-09-15T11:00:00Z

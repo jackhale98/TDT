@@ -1,0 +1,17 @@
+id: QUOT-01KC5WQ4B683E7G75F4BYWTSEB
+title: NEMA 17 Stepper
+supplier: SUP-01KC5WNRGEH0X4KB8FRYA0V53E
+component: CMP-01KC5WN1ZTEZ4YRYDQ1FWC3A2Q
+currency: USD
+price_breaks:
+- min_qty: 1
+  unit_price: 45.0
+  lead_time_days: 7
+moq: 10
+lead_time_days: 7
+quote_status: pending
+status: draft
+links: {}
+created: '2025-12-11T05:04:09.063678891Z'
+author: Jack Hale
+entity_revision: 1

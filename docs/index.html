@@ -509,10 +509,28 @@ nav .container {
   border-bottom: 1px solid var(--border);
 }
 
+@media (max-width: 600px) {
+  .entity-group {
+    margin-bottom: 32px;
+  }
+
+  .entity-group-title {
+    font-size: 12px;
+    margin-bottom: 12px;
+  }
+}
+
 .entities-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .entities-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+  }
 }
 
 .entity-card {
@@ -526,6 +544,13 @@ nav .container {
   color: inherit;
   display: block;
   cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .entity-card {
+    padding: 14px 12px;
+    border-radius: 8px;
+  }
 }
 
 .entity-card:hover {
@@ -546,15 +571,35 @@ nav .container {
   margin-bottom: 12px;
 }
 
+@media (max-width: 600px) {
+  .entity-prefix {
+    font-size: 11px;
+    padding: 3px 8px;
+    margin-bottom: 8px;
+  }
+}
+
 .entity-name {
   font-size: 15px;
   font-weight: 500;
   margin-bottom: 4px;
 }
 
+@media (max-width: 600px) {
+  .entity-name {
+    font-size: 13px;
+  }
+}
+
 .entity-desc {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+@media (max-width: 600px) {
+  .entity-desc {
+    font-size: 11px;
+  }
 }
 
 /* Workflows Section */
@@ -580,6 +625,12 @@ nav .container {
   border-radius: 16px;
   padding: 24px;
   transition: all 0.3s;
+}
+
+@media (max-width: 600px) {
+  .workflow-item {
+    padding: 16px;
+  }
 }
 
 .workflow-item:hover {
@@ -618,11 +669,23 @@ nav .container {
   font-weight: 600;
 }
 
+@media (max-width: 600px) {
+  .workflow-header h3 {
+    font-size: 16px;
+  }
+}
+
 .workflow-desc {
   color: var(--text-secondary);
   font-size: 14px;
   margin-bottom: 16px;
   line-height: 1.5;
+}
+
+@media (max-width: 600px) {
+  .workflow-desc {
+    font-size: 13px;
+  }
 }
 
 .workflow-code {
@@ -639,6 +702,16 @@ nav .container {
   line-height: 1.6;
   overflow-x: auto;
   margin: 0;
+  white-space: pre;
+  word-wrap: normal;
+}
+
+@media (max-width: 600px) {
+  .workflow-code pre {
+    padding: 12px;
+    font-size: 10px;
+    line-height: 1.5;
+  }
 }
 
 .workflow-code .comment { color: var(--text-muted); }
@@ -1368,18 +1441,18 @@ footer {
           <p class="workflow-desc">Define features on components, create mates, and run worst-case, RSS, and Monte Carlo analysis on tolerance chains.</p>
           <div class="workflow-code">
             <pre><span class="comment"># Create features on components</span>
-<span class="symbol">$</span> <span class="cmd">tdt feat new --component CMP@1 --type hole --title "Bore"</span>
-<span class="output">✓ Created feature FEAT@1</span>
-
-<span class="comment"># Define a stackup with contributors</span>
-<span class="symbol">$</span> <span class="cmd">tdt tol new --title "Gap Analysis" --target-nominal 1.0</span>
-<span class="output">✓ Created stackup TOL@1</span>
+<span class="symbol">$</span> <span class="cmd">tdt feat new -c CMP@1 -t hole --title "Bore"</span>
+<span class="output">✓ Created feature FEAT@1
+   Parent: CMP-01KC5W... | Type: hole | Bore</span>
 
 <span class="comment"># Run Monte Carlo analysis</span>
-<span class="symbol">$</span> <span class="cmd">tdt tol analyze TOL@1 --iterations 50000</span>
-<span class="output">Worst Case: 0.87 to 1.18 mm  <span class="status-approved">PASS</span>
-RSS (3σ):   0.89 to 1.11 mm  Cpk: 4.56
-Monte Carlo: 99.98% yield (50000 iterations)</span></pre>
+<span class="symbol">$</span> <span class="cmd">tdt tol analyze TOL@1 --iterations 10000</span>
+<span class="output">⚙ Analyzing stackup TOL@1...
+✓ Analysis complete
+
+   Worst-Case: 0.87 to 1.18 <span class="status-approved">pass</span>
+   RSS: Cpk 4.56 | Yield 99.99%
+   Monte Carlo: Yield 100.00%</span></pre>
           </div>
         </div>
 
@@ -1396,13 +1469,14 @@ Monte Carlo: 99.98% yield (50000 iterations)</span></pre>
             <pre><span class="comment"># Create a risk with FMEA ratings</span>
 <span class="symbol">$</span> <span class="cmd">tdt risk new --title "Motor Overheating" -t design \</span>
     <span class="cmd">--severity 8 --occurrence 4 --detection 5</span>
-<span class="output">✓ Created risk RISK@1 (RPN: 160, Level: high)</span>
+<span class="output">✓ Created risk RISK@1
+   RPN: <span class="priority-high">160</span> (<span class="priority-high">high</span>)</span>
 
 <span class="comment"># View risks sorted by RPN</span>
 <span class="symbol">$</span> <span class="cmd">tdt risk list --by-rpn</span>
-<span class="output">@        TITLE                    RPN    LEVEL
-RISK@1   Motor Overheating        <span class="priority-high">160</span>    <span class="priority-high">high</span>
-RISK@2   Seal Degradation         <span class="status-draft">84</span>     <span class="status-draft">medium</span></span></pre>
+<span class="output">SHORT   TYPE     TITLE               LEVEL   RPN
+RISK@1  design   Motor Overheating   <span class="priority-high">high</span>    <span class="priority-high">160</span>
+RISK@2  process  Seal Degradation    <span class="status-draft">medium</span>   <span class="status-draft">72</span></span></pre>
           </div>
         </div>
 
@@ -1417,20 +1491,19 @@ RISK@2   Seal Degradation         <span class="status-draft">84</span>     <span
           <p class="workflow-desc">Define processes, control plans, work instructions, and track NCRs back to CAPAs for continuous improvement.</p>
           <div class="workflow-code">
             <pre><span class="comment"># Create a manufacturing process</span>
-<span class="symbol">$</span> <span class="cmd">tdt proc new --title "CNC Milling" --type machining</span>
-<span class="output">✓ Created process PROC@1</span>
+<span class="symbol">$</span> <span class="cmd">tdt proc new -t "CNC Milling" -T machining</span>
+<span class="output">✓ Created process PROC@1
+   Type: machining | CNC Milling</span>
 
 <span class="comment"># Add SPC control point</span>
-<span class="symbol">$</span> <span class="cmd">tdt ctrl new --title "Bore SPC" --type spc --process PROC@1</span>
-<span class="output">✓ Created control CTRL@1</span>
+<span class="symbol">$</span> <span class="cmd">tdt ctrl new -t "Bore SPC" -T spc -p PROC@1 --critical</span>
+<span class="output">✓ Created control CTRL@1
+   Type: spc | Bore SPC [CTQ]</span>
 
-<span class="comment"># Log a non-conformance</span>
-<span class="symbol">$</span> <span class="cmd">tdt ncr new --title "Bore OOT" --severity major</span>
-<span class="output">✓ Created NCR NCR@1</span>
-
-<span class="comment"># Create corrective action</span>
-<span class="symbol">$</span> <span class="cmd">tdt capa new --title "Tool Wear Fix" --ncr NCR@1</span>
-<span class="output">✓ Created CAPA CAPA@1 linked to NCR@1</span></pre>
+<span class="comment"># Log NCR and create corrective action</span>
+<span class="symbol">$</span> <span class="cmd">tdt ncr new -t "Bore OOT" -S major</span>
+<span class="output">✓ Created NCR NCR@1
+   internal | major | Bore OOT</span></pre>
           </div>
         </div>
 
@@ -1444,17 +1517,13 @@ RISK@2   Seal Degradation         <span class="status-draft">84</span>     <span
           </div>
           <p class="workflow-desc">Link requirements to tests, risks to mitigations. Generate coverage reports and find orphaned entities.</p>
           <div class="workflow-code">
-            <pre><span class="comment"># Trace from a requirement</span>
-<span class="symbol">$</span> <span class="cmd">tdt trace from REQ@1</span>
-<span class="output"><span class="highlight">REQ@1</span> Operating Temperature
-├── satisfied_by → REQ@3 Thermal Spec
-├── verified_by  → TEST@1 Thermal Test
-└── related_to   → RISK@1 Overheating</span>
+            <pre><span class="comment"># Link requirement to test</span>
+<span class="symbol">$</span> <span class="cmd">tdt link add REQ@1 TEST@1 -t verified_by</span>
+<span class="output">✓ Added link: REQ-01KC5W... --[verified_by]--> TEST-01KC5W...</span>
 
 <span class="comment"># Check verification coverage</span>
 <span class="symbol">$</span> <span class="cmd">tdt trace coverage</span>
-<span class="output">Requirements: 24 total, 22 verified (<span class="status-approved">92%</span>)
-Uncovered: REQ@12, REQ@18</span></pre>
+<span class="output">Coverage: <span class="status-approved">92%</span> (22/24 requirements verified)</span></pre>
           </div>
         </div>
       </div>

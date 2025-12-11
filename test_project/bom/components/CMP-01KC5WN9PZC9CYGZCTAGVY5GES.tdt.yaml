@@ -1,0 +1,45 @@
+# Component: Guide Shaft 8mm
+# Created by TDT - Tessera Engineering Toolkit
+
+id: CMP-01KC5WN9PZC9CYGZCTAGVY5GES
+part_number: "PLA-105-SHAFT"
+revision: ""
+title: "Guide Shaft 8mm"
+
+description: |
+  # Detailed description of this component
+  # Include key specifications and requirements
+
+make_buy: buy
+category: mechanical
+
+# Physical properties
+material: "Chrome-plated Steel"
+mass_kg: null
+unit_cost: null
+
+# Supplier information
+suppliers:
+  - name: ""
+    supplier_pn: ""
+    lead_time_days: null
+    moq: null
+    unit_cost: null
+
+# Associated documents
+documents:
+  - type: drawing
+    path: ""
+    revision: ""
+
+tags: []
+status: draft
+
+links:
+  related_to: []
+  used_in: []
+
+# Auto-managed metadata
+created: 2025-12-11T05:03:09.036268065+00:00
+author: Jack Hale
+entity_revision: 1

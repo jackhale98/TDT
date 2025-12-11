@@ -1,0 +1,17 @@
+id: QUOT-01KC5WQ2QS64DG0P883KY31Y04
+title: THK Anti-Backlash Nut
+supplier: SUP-01KC5WNPY5BK60P55032YYFJE2
+component: CMP-01KC5WMZE9TXGZ0326AGHVZ67Q
+currency: USD
+price_breaks:
+- min_qty: 1
+  unit_price: 85.0
+  lead_time_days: 21
+moq: 5
+lead_time_days: 21
+quote_status: pending
+status: draft
+links: {}
+created: '2025-12-11T05:04:07.418709967Z'
+author: Jack Hale
+entity_revision: 1

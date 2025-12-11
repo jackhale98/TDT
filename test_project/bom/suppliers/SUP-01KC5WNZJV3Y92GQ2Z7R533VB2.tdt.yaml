@@ -1,0 +1,53 @@
+# Supplier: Automation Direct
+# Created by TDT - Tessera Engineering Toolkit
+
+id: SUP-01KC5WNZJV3Y92GQ2Z7R533VB2
+name: "Automation Direct"
+short_name: "AD"
+website: "https://www.automationdirect.com"
+
+# Contact information
+contacts: []
+# Example:
+#   - name: "John Smith"
+#     role: "Sales"
+#     email: "john@example.com"
+#     phone: "+1-555-0100"
+#     primary: true
+
+# Physical addresses
+addresses: []
+# Example:
+#   - type: headquarters
+#     street: "123 Main St"
+#     city: "San Francisco"
+#     state: "CA"
+#     postal: "94102"
+#     country: "USA"
+
+# Payment and currency
+payment_terms: "Net 30"
+currency: USD
+
+# Quality certifications
+certifications: []
+# Example:
+#   - name: "ISO 9001:2015"
+#     expiry: 2025-12-31
+#     certificate_number: "CERT-12345"
+
+# Manufacturing capabilities
+capabilities: []
+# Options: machining, sheet_metal, casting, injection, extrusion, pcb,
+#          pcb_assembly, cable_assembly, assembly, testing, finishing, packaging
+
+tags: []
+status: draft
+
+links:
+  approved_for: []
+
+# Auto-managed metadata
+created: 2025-12-11T05:03:31.428575498+00:00
+author: Jack Hale
+entity_revision: 1
