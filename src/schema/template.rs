@@ -663,6 +663,14 @@ entity_revision: 1
         let feature_type = ctx.feature_type.clone().unwrap_or_else(|| "hole".to_string());
         let created = ctx.created.to_rfc3339();
 
+        // Determine if feature is internal based on type
+        // Internal features: hole, slot, pocket, counterbore, countersink, thread (internal threads)
+        // External features: shaft, boss, edge, planar_surface, other
+        let is_internal = matches!(
+            feature_type.as_str(),
+            "hole" | "slot" | "pocket" | "counterbore" | "countersink"
+        );
+
         format!(
             r#"# Feature: {title}
 # Created by PDT - Plain-text Product Development Toolkit
@@ -679,12 +687,14 @@ description: |
 # Dimensions with tolerances
 # Uses plus_tol/minus_tol format (not +/- symbol)
 # Distribution: normal (default), uniform, or triangular
+# internal: true for holes/slots/pockets (MMC=smallest), false for shafts/bosses (MMC=largest)
 dimensions:
   - name: "diameter"
     nominal: 10.0
     plus_tol: 0.1
     minus_tol: 0.05
     units: "mm"
+    internal: {internal}
     distribution: normal
 
 # GD&T controls (optional)
@@ -712,6 +722,7 @@ entity_revision: 1
             title = title,
             component_id = component_id,
             feature_type = feature_type,
+            internal = is_internal,
             created = created,
             author = ctx.author,
         )

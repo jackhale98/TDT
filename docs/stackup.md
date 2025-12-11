@@ -60,6 +60,8 @@ Stackups represent tolerance chain analyses with multiple dimensional contributo
 | `distribution` | enum | `normal`, `uniform`, `triangular` |
 | `source` | string | Source reference (drawing, etc.) |
 
+**Feature Linking**: When a contributor has a `feature_id`, its `nominal`, `plus_tol`, and `minus_tol` values should match the linked feature's primary dimension. PDT validates this and can automatically sync values when they drift out of sync.
+
 ### AnalysisResults Object (Auto-calculated)
 
 | Field | Type | Description |
@@ -414,9 +416,10 @@ Calculate statistics:
 ### Managing Stackups
 
 1. **Run analysis after changes** - Recalculate when contributors change
-2. **Track disposition** - Document approval/rejection decisions
-3. **Link to requirements** - Connect to requirements being verified
-4. **Mark critical dimensions** - Flag safety/function-critical stackups
+2. **Sync from features** - Use `pdt validate --fix` to sync contributors with linked features
+3. **Track disposition** - Document approval/rejection decisions
+4. **Link to requirements** - Connect to requirements being verified
+5. **Mark critical dimensions** - Flag safety/function-critical stackups
 
 ## Validation
 
@@ -436,11 +439,31 @@ pdt validate tolerances/stackups/TOL-01HC2JB7SMQX7RS1Y0GFKBHPTH.pdt.yaml
 2. **Title**: Required, 1-200 characters
 3. **Target**: Required with name, nominal, upper_limit, lower_limit
 4. **Contributors**: Must have name, nominal, plus_tol, minus_tol
-5. **Direction**: Must be `positive` or `negative`
-6. **Distribution**: Must be `normal`, `uniform`, or `triangular`
-7. **Disposition**: Must be `under_review`, `approved`, or `rejected`
-8. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
-9. **No Additional Properties**: Unknown fields are not allowed
+5. **Contributor Sync**: Contributors with `feature_id` must match linked feature's values
+6. **Direction**: Must be `positive` or `negative`
+7. **Distribution**: Must be `normal`, `uniform`, or `triangular`
+8. **Disposition**: Must be `under_review`, `approved`, or `rejected`
+9. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
+10. **No Additional Properties**: Unknown fields are not allowed
+
+### Syncing Contributors from Features
+
+When feature dimensions change, contributors linked via `feature_id` may become out of sync:
+
+```bash
+# Check for out-of-sync contributors
+pdt validate
+
+# Example warning:
+# ! TOL-01HC2... - 1 calculation warning(s)
+#     Contributor 'Housing Depth' out of sync with FEAT-...:
+#     stored (50.0000 +0.1000/-0.1000) vs feature (50.0000 +0.1500/-0.1000)
+
+# Auto-sync contributor values from features
+pdt validate --fix
+```
+
+The `--fix` flag will update contributor values (`nominal`, `plus_tol`, `minus_tol`) to match their linked features. Note that this does NOT automatically re-run the analysis - use `pdt tol analyze` after fixing to recalculate results.
 
 ## JSON Schema
 

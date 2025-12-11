@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::entity::{Entity, Status};
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::entities::feature::Feature;
 
 /// Target/gap specification
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,6 +116,40 @@ impl Contributor {
         match self.direction {
             Direction::Positive => self.nominal,
             Direction::Negative => -self.nominal,
+        }
+    }
+
+    /// Sync values from a linked feature's primary dimension
+    /// Returns true if any values were changed
+    pub fn sync_from_feature(&mut self, feature: &Feature) -> bool {
+        let mut changed = false;
+
+        if let Some(dim) = feature.primary_dimension() {
+            if (self.nominal - dim.nominal).abs() > f64::EPSILON {
+                self.nominal = dim.nominal;
+                changed = true;
+            }
+            if (self.plus_tol - dim.plus_tol).abs() > f64::EPSILON {
+                self.plus_tol = dim.plus_tol;
+                changed = true;
+            }
+            if (self.minus_tol - dim.minus_tol).abs() > f64::EPSILON {
+                self.minus_tol = dim.minus_tol;
+                changed = true;
+            }
+        }
+
+        changed
+    }
+
+    /// Check if this contributor is out of sync with a feature
+    pub fn is_out_of_sync(&self, feature: &Feature) -> bool {
+        if let Some(dim) = feature.primary_dimension() {
+            (self.nominal - dim.nominal).abs() > f64::EPSILON
+                || (self.plus_tol - dim.plus_tol).abs() > f64::EPSILON
+                || (self.minus_tol - dim.minus_tol).abs() > f64::EPSILON
+        } else {
+            false
         }
     }
 }
@@ -829,5 +864,45 @@ mod tests {
         let yaml = serde_yml::to_string(&contrib).unwrap();
         assert!(yaml.contains("negative"));
         assert!(yaml.contains("uniform"));
+    }
+
+    #[test]
+    fn test_sync_from_feature() {
+        use crate::entities::feature::{Feature, FeatureType};
+
+        // Create a feature with a dimension
+        let mut feature = Feature::new("CMP-001", FeatureType::Hole, "Test Hole", "Author");
+        feature.add_dimension("diameter", 10.0, 0.1, 0.05, true);
+
+        // Create a contributor with outdated values
+        let mut contrib = Contributor {
+            name: "Test".to_string(),
+            feature_id: Some("FEAT-001".to_string()),
+            direction: Direction::Positive,
+            nominal: 9.5,  // Wrong value
+            plus_tol: 0.2, // Wrong value
+            minus_tol: 0.1, // Wrong value
+            distribution: Distribution::Normal,
+            source: None,
+        };
+
+        // Check that it's out of sync
+        assert!(contrib.is_out_of_sync(&feature));
+
+        // Sync from feature
+        let changed = contrib.sync_from_feature(&feature);
+        assert!(changed);
+
+        // Verify values were updated
+        assert!((contrib.nominal - 10.0).abs() < f64::EPSILON);
+        assert!((contrib.plus_tol - 0.1).abs() < f64::EPSILON);
+        assert!((contrib.minus_tol - 0.05).abs() < f64::EPSILON);
+
+        // Check that it's now in sync
+        assert!(!contrib.is_out_of_sync(&feature));
+
+        // Second sync should not change anything
+        let changed_again = contrib.sync_from_feature(&feature);
+        assert!(!changed_again);
     }
 }

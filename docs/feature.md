@@ -46,7 +46,19 @@ Features represent dimensional characteristics on components that have tolerance
 | `plus_tol` | number | Plus tolerance (positive number) |
 | `minus_tol` | number | Minus tolerance (positive number) |
 | `units` | string | Units (default: "mm") |
+| `internal` | boolean | Whether this is an internal feature (default: `false`) |
 | `distribution` | enum | Statistical distribution: `normal` (default), `uniform`, `triangular` |
+
+#### Internal vs External Features
+
+The `internal` field determines how MMC (Maximum Material Condition) and LMC (Least Material Condition) are calculated:
+
+| Feature Type | `internal` | MMC | LMC |
+|--------------|------------|-----|-----|
+| **Internal** (holes, slots, pockets) | `true` | Smallest size (`nominal - minus_tol`) | Largest size (`nominal + plus_tol`) |
+| **External** (shafts, bosses) | `false` | Largest size (`nominal + plus_tol`) | Smallest size (`nominal - minus_tol`) |
+
+This is critical for mate calculations - when validating mates, PDT uses the `internal` flag to auto-detect which feature is the hole and which is the shaft.
 
 ### GdtControl Object
 
@@ -78,13 +90,14 @@ Features represent dimensional characteristics on components that have tolerance
 PDT uses `plus_tol` and `minus_tol` fields instead of the `±` symbol:
 
 ```yaml
-# Represents: 10.0 +0.1/-0.05
+# Represents: 10.0 +0.1/-0.05 for a hole (internal feature)
 dimensions:
   - name: "diameter"
     nominal: 10.0
-    plus_tol: 0.1     # Maximum: 10.1
-    minus_tol: 0.05   # Minimum: 9.95
+    plus_tol: 0.1     # Maximum (LMC): 10.1
+    minus_tol: 0.05   # Minimum (MMC): 9.95
     units: "mm"
+    internal: true    # This is a hole - MMC is smallest
     distribution: normal  # For tolerance stackup analysis
 ```
 
@@ -113,12 +126,14 @@ dimensions:
     plus_tol: 0.1
     minus_tol: 0.05
     units: "mm"
+    internal: true       # Hole - MMC is smallest (9.95)
     distribution: normal
   - name: "depth"
     nominal: 15.0
     plus_tol: 0.5
     minus_tol: 0.0
     units: "mm"
+    internal: true       # Internal dimension
     distribution: normal
 
 gdt:
@@ -229,15 +244,20 @@ pdt feat edit FEAT@1
 
 ## Feature Types
 
-| Type | Description | Typical Dimensions |
-|------|-------------|-------------------|
-| **hole** | Cylindrical hole | diameter, depth |
-| **shaft** | Cylindrical shaft | diameter, length |
-| **planar_surface** | Flat surface | flatness, parallelism |
-| **slot** | Linear slot | width, length, depth |
-| **thread** | Threaded feature | major diameter, pitch |
-| **counterbore** | Counterbored hole | bore diameter, depth |
-| **countersink** | Countersunk hole | cone angle, depth |
+| Type | Description | Internal/External | Typical Dimensions |
+|------|-------------|-------------------|-------------------|
+| **hole** | Cylindrical hole | Internal | diameter, depth |
+| **shaft** | Cylindrical shaft | External | diameter, length |
+| **planar_surface** | Flat surface | External | flatness, parallelism |
+| **slot** | Linear slot | Internal | width, length, depth |
+| **thread** | Threaded feature | Varies | major diameter, pitch |
+| **counterbore** | Counterbored hole | Internal | bore diameter, depth |
+| **countersink** | Countersunk hole | Internal | cone angle, depth |
+| **boss** | Cylindrical protrusion | External | diameter, height |
+| **pocket** | Recessed area | Internal | width, length, depth |
+| **edge** | Edge feature | External | length, radius |
+
+**Note**: When creating a feature, PDT automatically sets `internal: true` for holes, slots, pockets, counterbores, and countersinks. For shafts, bosses, and edges, it defaults to `internal: false`.
 
 ## GD&T Symbols
 

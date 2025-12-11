@@ -70,6 +70,12 @@ pub struct Dimension {
     #[serde(default = "default_units")]
     pub units: String,
 
+    /// Whether this is an internal feature (hole, slot, pocket) vs external (shaft, boss)
+    /// Internal: material is removed (MMC = smallest)
+    /// External: material remains (MMC = largest)
+    #[serde(default)]
+    pub internal: bool,
+
     /// Statistical distribution for tolerance analysis
     /// Used when this feature is added to a stackup
     #[serde(default)]
@@ -82,13 +88,25 @@ fn default_units() -> String {
 
 impl Dimension {
     /// Get the maximum material condition value
+    /// Internal features (holes): MMC = smallest = nominal - minus_tol
+    /// External features (shafts): MMC = largest = nominal + plus_tol
     pub fn mmc(&self) -> f64 {
-        self.nominal + self.plus_tol
+        if self.internal {
+            self.nominal - self.minus_tol
+        } else {
+            self.nominal + self.plus_tol
+        }
     }
 
     /// Get the least material condition value
+    /// Internal features (holes): LMC = largest = nominal + plus_tol
+    /// External features (shafts): LMC = smallest = nominal - minus_tol
     pub fn lmc(&self) -> f64 {
-        self.nominal - self.minus_tol
+        if self.internal {
+            self.nominal + self.plus_tol
+        } else {
+            self.nominal - self.minus_tol
+        }
     }
 
     /// Get the total tolerance band
@@ -314,13 +332,14 @@ impl Feature {
     }
 
     /// Add a dimension to this feature
-    pub fn add_dimension(&mut self, name: impl Into<String>, nominal: f64, plus_tol: f64, minus_tol: f64) {
+    pub fn add_dimension(&mut self, name: impl Into<String>, nominal: f64, plus_tol: f64, minus_tol: f64, internal: bool) {
         self.dimensions.push(Dimension {
             name: name.into(),
             nominal,
             plus_tol,
             minus_tol,
             units: "mm".to_string(),
+            internal,
             distribution: Distribution::default(),
         });
     }
@@ -351,29 +370,50 @@ mod tests {
     }
 
     #[test]
-    fn test_dimension_calculations() {
+    fn test_dimension_calculations_external() {
+        // External feature (shaft): MMC = largest, LMC = smallest
         let dim = Dimension {
             name: "diameter".to_string(),
             nominal: 10.0,
             plus_tol: 0.1,
             minus_tol: 0.05,
             units: "mm".to_string(),
+            internal: false,
             distribution: Distribution::default(),
         };
 
-        assert!((dim.mmc() - 10.1).abs() < 1e-10);
-        assert!((dim.lmc() - 9.95).abs() < 1e-10);
+        assert!((dim.mmc() - 10.1).abs() < 1e-10);  // largest
+        assert!((dim.lmc() - 9.95).abs() < 1e-10); // smallest
+        assert!((dim.tolerance_band() - 0.15).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_dimension_calculations_internal() {
+        // Internal feature (hole): MMC = smallest, LMC = largest
+        let dim = Dimension {
+            name: "diameter".to_string(),
+            nominal: 10.0,
+            plus_tol: 0.1,
+            minus_tol: 0.05,
+            units: "mm".to_string(),
+            internal: true,
+            distribution: Distribution::default(),
+        };
+
+        assert!((dim.mmc() - 9.95).abs() < 1e-10);  // smallest (MMC for hole)
+        assert!((dim.lmc() - 10.1).abs() < 1e-10); // largest (LMC for hole)
         assert!((dim.tolerance_band() - 0.15).abs() < 1e-10);
     }
 
     #[test]
     fn test_add_dimension() {
         let mut feat = Feature::new("CMP-123", FeatureType::Hole, "Test Hole", "Author");
-        feat.add_dimension("diameter", 10.0, 0.1, 0.05);
+        feat.add_dimension("diameter", 10.0, 0.1, 0.05, true); // internal=true for hole
 
         assert_eq!(feat.dimensions.len(), 1);
         assert_eq!(feat.dimensions[0].name, "diameter");
         assert_eq!(feat.dimensions[0].nominal, 10.0);
+        assert!(feat.dimensions[0].internal);
     }
 
     #[test]
@@ -390,7 +430,7 @@ mod tests {
     fn test_feature_roundtrip() {
         let mut feat = Feature::new("CMP-123", FeatureType::Hole, "Mounting Hole", "Author");
         feat.description = Some("Primary mounting hole".to_string());
-        feat.add_dimension("diameter", 10.0, 0.1, 0.05);
+        feat.add_dimension("diameter", 10.0, 0.1, 0.05, true); // internal=true for hole
         feat.gdt.push(GdtControl {
             symbol: GdtSymbol::Position,
             value: 0.25,
@@ -431,11 +471,12 @@ mod tests {
     fn test_tolerance_format() {
         // Verify that tolerances use plus_tol/minus_tol format (not +/- symbol)
         let mut feat = Feature::new("CMP-123", FeatureType::Hole, "Test Hole", "Author");
-        feat.add_dimension("diameter", 10.0, 0.1, 0.05);
+        feat.add_dimension("diameter", 10.0, 0.1, 0.05, true);
 
         let yaml = serde_yml::to_string(&feat).unwrap();
         assert!(yaml.contains("plus_tol"));
         assert!(yaml.contains("minus_tol"));
+        assert!(yaml.contains("internal: true"));
         // Should NOT contain the +/- symbol that users can't type
         assert!(!yaml.contains("±"));
     }

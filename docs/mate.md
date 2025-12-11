@@ -6,6 +6,8 @@ This document describes the Mate entity type in PDT (Plain-text Product Developm
 
 Mates represent 1:1 contact relationships between two features, such as a pin fitting into a hole. PDT automatically calculates worst-case fit analysis when you create or recalculate a mate, determining whether it's a clearance, interference, or transition fit.
 
+**Auto-detection**: PDT automatically determines which feature is the hole and which is the shaft based on their `internal` field - no need to remember which order to link them!
+
 ## Entity Type
 
 - **Prefix**: `MATE`
@@ -19,12 +21,14 @@ Mates represent 1:1 contact relationships between two features, such as a pin fi
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | Unique identifier (MATE-[26-char ULID]) |
-| `feature_a` | string | First feature ID (typically hole) - **REQUIRED** |
-| `feature_b` | string | Second feature ID (typically shaft) - **REQUIRED** |
+| `feature_a` | string | First feature ID - **REQUIRED** |
+| `feature_b` | string | Second feature ID - **REQUIRED** |
 | `title` | string | Short descriptive title (1-200 chars) |
 | `status` | enum | `draft`, `review`, `approved`, `released`, `obsolete` |
 | `created` | datetime | Creation timestamp (ISO 8601) |
 | `author` | string | Author name |
+
+**Note**: The order of `feature_a` and `feature_b` doesn't matter - PDT auto-detects which is the hole (internal) and which is the shaft (external) based on their `internal` field.
 
 ### Optional Fields
 
@@ -54,23 +58,36 @@ Mates represent 1:1 contact relationships between two features, such as a pin fi
 
 ## Fit Calculation
 
-PDT automatically calculates worst-case fit from the primary dimensions of both features:
+PDT automatically calculates worst-case fit from the primary dimensions of both features. The `internal` field on each feature's dimension determines which is treated as the hole and which as the shaft:
+
+- **Internal feature** (`internal: true`): Treated as the hole
+- **External feature** (`internal: false`): Treated as the shaft
 
 ```
-For hole/shaft mate:
-  hole_max = hole.nominal + hole.plus_tol
-  hole_min = hole.nominal - hole.minus_tol
-  shaft_max = shaft.nominal + shaft.plus_tol
-  shaft_min = shaft.nominal - shaft.minus_tol
+Auto-detection from internal field:
+  if feature_a.internal AND NOT feature_b.internal:
+    hole = feature_a, shaft = feature_b
+  else if NOT feature_a.internal AND feature_b.internal:
+    hole = feature_b, shaft = feature_a
+  else:
+    ERROR: Both features must have opposite internal/external designation
 
-  min_clearance = hole_min - shaft_max
-  max_clearance = hole_max - shaft_min
+Calculation:
+  hole_max = hole.nominal + hole.plus_tol      # LMC for hole
+  hole_min = hole.nominal - hole.minus_tol     # MMC for hole
+  shaft_max = shaft.nominal + shaft.plus_tol   # MMC for shaft
+  shaft_min = shaft.nominal - shaft.minus_tol  # LMC for shaft
+
+  min_clearance = hole_min - shaft_max   # MMC hole - MMC shaft
+  max_clearance = hole_max - shaft_min   # LMC hole - LMC shaft
 
   fit_result =
     if min_clearance > 0: clearance
     else if max_clearance < 0: interference
     else: transition
 ```
+
+**Important**: A mate requires one internal feature (hole) and one external feature (shaft). PDT will report an error during validation if both features have the same `internal` value.
 
 ## Example
 
@@ -248,10 +265,11 @@ min_clearance < 0 AND max_clearance > 0
 
 ### Creating Mates
 
-1. **Feature order** - Conventionally, feature_a is the hole and feature_b is the shaft
-2. **Complete features first** - Ensure both features have dimensions before creating mate
-3. **Verify fit type** - Check that calculated fit matches your intent
-4. **Document rationale** - Explain why this fit was chosen
+1. **Set internal field** - Ensure each feature has the correct `internal` field (true for holes, false for shafts)
+2. **Feature order doesn't matter** - PDT auto-detects hole vs shaft from the `internal` field
+3. **Complete features first** - Ensure both features have dimensions before creating mate
+4. **Verify fit type** - Check that calculated fit matches your intent
+5. **Document rationale** - Explain why this fit was chosen
 
 ### Managing Mates
 
@@ -288,11 +306,27 @@ pdt validate tolerances/mates/MATE-01HC2JB7SMQX7RS1Y0GFKBHPTF.pdt.yaml
 1. **ID Format**: Must match `MATE-[A-Z0-9]{26}` pattern
 2. **Feature A**: Required, must be valid FEAT ID
 3. **Feature B**: Required, must be valid FEAT ID
-4. **Title**: Required, 1-200 characters
-5. **Mate Type**: If specified, must be valid enum
-6. **Fit Result**: If specified, must be `clearance`, `interference`, or `transition`
-7. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
-8. **No Additional Properties**: Unknown fields are not allowed
+4. **Feature Pairing**: One feature must be internal, one must be external
+5. **Title**: Required, 1-200 characters
+6. **Mate Type**: If specified, must be valid enum
+7. **Fit Result**: If specified, must be `clearance`, `interference`, or `transition`
+8. **Fit Analysis Sync**: Stored `fit_analysis` must match calculated values from features
+9. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
+10. **No Additional Properties**: Unknown fields are not allowed
+
+### Fixing Out-of-Sync Mates
+
+If feature dimensions have changed, the `fit_analysis` may be out of sync:
+
+```bash
+# Check for validation issues
+pdt validate
+
+# Auto-fix fit_analysis values
+pdt validate --fix
+```
+
+The `--fix` flag will recalculate and update the `fit_analysis` for any mates where the stored values don't match the calculated values from the current feature dimensions.
 
 ## JSON Schema
 

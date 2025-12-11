@@ -3,12 +3,15 @@
 use console::style;
 use miette::Result;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use walkdir::WalkDir;
 
 use crate::core::project::Project;
 use crate::core::EntityPrefix;
+use crate::entities::feature::Feature;
+use crate::entities::mate::{FitAnalysis, Mate};
 use crate::entities::risk::Risk;
+use crate::entities::stackup::Stackup;
 use crate::schema::registry::SchemaRegistry;
 use crate::schema::validator::Validator;
 
@@ -144,11 +147,18 @@ pub fn run(args: ValidateArgs) -> Result<()> {
         // Validate schema
         match validator.iter_errors(&content, &filename, entity_prefix) {
             Ok(_) => {
-                // Schema validation passed - now check calculated values for RISK entities
-                let calc_issues = if entity_prefix == EntityPrefix::Risk {
-                    check_risk_calculations(&content, path, args.fix, &mut stats)?
-                } else {
-                    vec![]
+                // Schema validation passed - now check calculated values
+                let calc_issues = match entity_prefix {
+                    EntityPrefix::Risk => {
+                        check_risk_calculations(&content, path, args.fix, &mut stats)?
+                    }
+                    EntityPrefix::Mate => {
+                        check_mate_values(&content, path, args.fix, &mut stats, project.root())?
+                    }
+                    EntityPrefix::Tol => {
+                        check_stackup_values(&content, path, args.fix, &mut stats, project.root())?
+                    }
+                    _ => vec![],
                 };
 
                 if calc_issues.is_empty() {
@@ -423,6 +433,212 @@ fn check_risk_calculations(
 
         stats.files_fixed += 1;
         issues.clear(); // Clear issues since we fixed them
+    }
+
+    Ok(issues)
+}
+
+/// Load a feature entity by ID from the project
+fn load_feature(feature_id: &str, project_root: &Path) -> Option<Feature> {
+    // Find the feature file by searching in the tolerances/features directory
+    let features_dir = project_root.join("tolerances").join("features");
+
+    if !features_dir.exists() {
+        return None;
+    }
+
+    for entry in WalkDir::new(&features_dir)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+    {
+        let path = entry.path();
+        if !path.to_string_lossy().ends_with(".pdt.yaml") {
+            continue;
+        }
+
+        if let Ok(content) = fs::read_to_string(path) {
+            if let Ok(feature) = serde_yml::from_str::<Feature>(&content) {
+                if feature.id.to_string() == feature_id {
+                    return Some(feature);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// Check and optionally fix calculated values in MATE entities
+fn check_mate_values(
+    content: &str,
+    path: &PathBuf,
+    fix: bool,
+    stats: &mut ValidationStats,
+    project_root: &Path,
+) -> Result<Vec<String>> {
+    let mut issues = Vec::new();
+
+    // Parse the mate
+    let mate: Mate = match serde_yml::from_str(content) {
+        Ok(m) => m,
+        Err(_) => return Ok(issues), // Already reported by schema validation
+    };
+
+    // Load linked features
+    let feat_a = match load_feature(&mate.feature_a, project_root) {
+        Some(f) => f,
+        None => {
+            issues.push(format!("Cannot find feature_a: {}", mate.feature_a));
+            return Ok(issues);
+        }
+    };
+
+    let feat_b = match load_feature(&mate.feature_b, project_root) {
+        Some(f) => f,
+        None => {
+            issues.push(format!("Cannot find feature_b: {}", mate.feature_b));
+            return Ok(issues);
+        }
+    };
+
+    // Get primary dimensions
+    let dim_a = match feat_a.primary_dimension() {
+        Some(d) => d,
+        None => {
+            issues.push(format!("Feature {} has no dimension", mate.feature_a));
+            return Ok(issues);
+        }
+    };
+
+    let dim_b = match feat_b.primary_dimension() {
+        Some(d) => d,
+        None => {
+            issues.push(format!("Feature {} has no dimension", mate.feature_b));
+            return Ok(issues);
+        }
+    };
+
+    // Check that features form a valid mate (one internal, one external)
+    if dim_a.internal == dim_b.internal {
+        if dim_a.internal {
+            issues.push("Both features are internal - mate requires one internal and one external".to_string());
+        } else {
+            issues.push("Both features are external - mate requires one internal and one external".to_string());
+        }
+        return Ok(issues);
+    }
+
+    // Calculate expected fit analysis
+    let expected_analysis = match FitAnalysis::from_dimensions(dim_a, dim_b) {
+        Ok(a) => a,
+        Err(e) => {
+            issues.push(format!("Cannot calculate fit: {}", e));
+            return Ok(issues);
+        }
+    };
+
+    // Compare with stored analysis
+    if let Some(actual) = &mate.fit_analysis {
+        let min_diff = (actual.worst_case_min_clearance - expected_analysis.worst_case_min_clearance).abs();
+        let max_diff = (actual.worst_case_max_clearance - expected_analysis.worst_case_max_clearance).abs();
+
+        if min_diff > 1e-6 || max_diff > 1e-6 || actual.fit_result != expected_analysis.fit_result {
+            issues.push(format!(
+                "fit_analysis mismatch: stored ({:.4} to {:.4}, {}) but calculated ({:.4} to {:.4}, {})",
+                actual.worst_case_min_clearance,
+                actual.worst_case_max_clearance,
+                actual.fit_result,
+                expected_analysis.worst_case_min_clearance,
+                expected_analysis.worst_case_max_clearance,
+                expected_analysis.fit_result
+            ));
+        }
+    } else {
+        issues.push("fit_analysis not calculated".to_string());
+    }
+
+    // Fix if requested and there are issues
+    if fix && !issues.is_empty() {
+        let mut value: serde_yml::Value = serde_yml::from_str(content)
+            .map_err(|e| miette::miette!("Failed to re-parse YAML: {}", e))?;
+
+        // Update fit_analysis
+        value["fit_analysis"] = serde_yml::to_value(&expected_analysis)
+            .map_err(|e| miette::miette!("Failed to serialize fit_analysis: {}", e))?;
+
+        // Write back
+        let updated_content = serde_yml::to_string(&value)
+            .map_err(|e| miette::miette!("Failed to serialize YAML: {}", e))?;
+        fs::write(path, updated_content)
+            .map_err(|e| miette::miette!("Failed to write file: {}", e))?;
+
+        stats.files_fixed += 1;
+        issues.clear();
+    }
+
+    Ok(issues)
+}
+
+/// Check and optionally fix contributor values in stackup entities
+fn check_stackup_values(
+    content: &str,
+    path: &PathBuf,
+    fix: bool,
+    stats: &mut ValidationStats,
+    project_root: &Path,
+) -> Result<Vec<String>> {
+    let mut issues = Vec::new();
+
+    // Parse the stackup
+    let mut stackup: Stackup = match serde_yml::from_str(content) {
+        Ok(s) => s,
+        Err(_) => return Ok(issues), // Already reported by schema validation
+    };
+
+    let mut any_synced = false;
+
+    // Check each contributor that has a feature_id
+    for contributor in stackup.contributors.iter_mut() {
+        if let Some(feature_id) = &contributor.feature_id {
+            if let Some(feature) = load_feature(feature_id, project_root) {
+                if contributor.is_out_of_sync(&feature) {
+                    if fix {
+                        contributor.sync_from_feature(&feature);
+                        any_synced = true;
+                    } else {
+                        if let Some(dim) = feature.primary_dimension() {
+                            issues.push(format!(
+                                "Contributor '{}' out of sync with {}: stored ({:.4} +{:.4}/-{:.4}) vs feature ({:.4} +{:.4}/-{:.4})",
+                                contributor.name,
+                                feature_id,
+                                contributor.nominal,
+                                contributor.plus_tol,
+                                contributor.minus_tol,
+                                dim.nominal,
+                                dim.plus_tol,
+                                dim.minus_tol
+                            ));
+                        }
+                    }
+                }
+            } else {
+                issues.push(format!(
+                    "Contributor '{}' references unknown feature: {}",
+                    contributor.name, feature_id
+                ));
+            }
+        }
+    }
+
+    // Write back if we synced any contributors
+    if fix && any_synced {
+        let updated_content = serde_yml::to_string(&stackup)
+            .map_err(|e| miette::miette!("Failed to serialize YAML: {}", e))?;
+        fs::write(path, updated_content)
+            .map_err(|e| miette::miette!("Failed to write file: {}", e))?;
+
+        stats.files_fixed += 1;
     }
 
     Ok(issues)

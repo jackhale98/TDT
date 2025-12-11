@@ -4,10 +4,12 @@
 //! The fit analysis is automatically calculated based on the feature dimensions.
 
 use chrono::{DateTime, Utc};
+use miette::{miette, Result};
 use serde::{Deserialize, Serialize};
 
 use crate::core::entity::{Entity, Status};
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::entities::feature::Dimension;
 
 /// Mate type classification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -80,7 +82,7 @@ pub struct FitAnalysis {
 }
 
 impl FitAnalysis {
-    /// Calculate fit from hole and shaft dimensions
+    /// Calculate fit from hole and shaft dimensions (legacy tuple interface)
     /// hole_dim: (nominal, plus_tol, minus_tol)
     /// shaft_dim: (nominal, plus_tol, minus_tol)
     pub fn calculate(hole_dim: (f64, f64, f64), shaft_dim: (f64, f64, f64)) -> Self {
@@ -113,6 +115,50 @@ impl FitAnalysis {
             worst_case_max_clearance: max_clearance,
             fit_result,
         }
+    }
+
+    /// Calculate fit from two Dimension structs, auto-detecting which is hole vs shaft
+    /// based on the `internal` field.
+    ///
+    /// Returns error if both dimensions have the same internal/external designation.
+    pub fn from_dimensions(dim_a: &Dimension, dim_b: &Dimension) -> Result<Self> {
+        // Auto-detect: internal=true is hole, internal=false is shaft
+        let (hole_dim, shaft_dim) = if dim_a.internal && !dim_b.internal {
+            (dim_a, dim_b)
+        } else if !dim_a.internal && dim_b.internal {
+            (dim_b, dim_a)
+        } else if dim_a.internal && dim_b.internal {
+            return Err(miette!("Mate requires one internal and one external feature (both are internal)"));
+        } else {
+            return Err(miette!("Mate requires one internal and one external feature (both are external)"));
+        };
+
+        // Hole limits (internal feature)
+        let hole_max = hole_dim.nominal + hole_dim.plus_tol;  // LMC
+        let hole_min = hole_dim.nominal - hole_dim.minus_tol; // MMC
+
+        // Shaft limits (external feature)
+        let shaft_max = shaft_dim.nominal + shaft_dim.plus_tol; // MMC
+        let shaft_min = shaft_dim.nominal - shaft_dim.minus_tol; // LMC
+
+        // Clearance calculations (positive = clearance, negative = interference)
+        let min_clearance = hole_min - shaft_max;
+        let max_clearance = hole_max - shaft_min;
+
+        // Determine fit result
+        let fit_result = if min_clearance > 0.0 {
+            FitResult::Clearance
+        } else if max_clearance < 0.0 {
+            FitResult::Interference
+        } else {
+            FitResult::Transition
+        };
+
+        Ok(FitAnalysis {
+            worst_case_min_clearance: min_clearance,
+            worst_case_max_clearance: max_clearance,
+            fit_result,
+        })
     }
 
     /// Check if this is an acceptable clearance fit
@@ -267,9 +313,16 @@ impl Mate {
         }
     }
 
-    /// Set fit analysis from feature dimensions
+    /// Set fit analysis from feature dimensions (legacy tuple interface)
     pub fn calculate_fit(&mut self, hole_dim: (f64, f64, f64), shaft_dim: (f64, f64, f64)) {
         self.fit_analysis = Some(FitAnalysis::calculate(hole_dim, shaft_dim));
+    }
+
+    /// Calculate fit analysis from two Dimension structs
+    /// Auto-detects which is hole vs shaft based on the `internal` field
+    pub fn calculate_fit_from_dimensions(&mut self, dim_a: &Dimension, dim_b: &Dimension) -> Result<()> {
+        self.fit_analysis = Some(FitAnalysis::from_dimensions(dim_a, dim_b)?);
+        Ok(())
     }
 
     /// Check if fit analysis has been calculated
@@ -394,5 +447,102 @@ mod tests {
         mate.calculate_fit((10.0, 0.1, 0.0), (9.9, 0.0, 0.1));
         let summary = mate.fit_summary();
         assert!(summary.contains("clearance"));
+    }
+
+    #[test]
+    fn test_from_dimensions_auto_detect() {
+        use crate::entities::stackup::Distribution;
+
+        // Hole (internal=true): 10.0 +0.1/-0.0 => 10.0 to 10.1
+        let hole_dim = Dimension {
+            name: "bore".to_string(),
+            nominal: 10.0,
+            plus_tol: 0.1,
+            minus_tol: 0.0,
+            units: "mm".to_string(),
+            internal: true,
+            distribution: Distribution::default(),
+        };
+
+        // Shaft (internal=false): 9.9 +0.0/-0.1 => 9.8 to 9.9
+        let shaft_dim = Dimension {
+            name: "pin".to_string(),
+            nominal: 9.9,
+            plus_tol: 0.0,
+            minus_tol: 0.1,
+            units: "mm".to_string(),
+            internal: false,
+            distribution: Distribution::default(),
+        };
+
+        // Test with hole first
+        let analysis = FitAnalysis::from_dimensions(&hole_dim, &shaft_dim).unwrap();
+        assert!((analysis.worst_case_min_clearance - 0.1).abs() < 1e-10);
+        assert!((analysis.worst_case_max_clearance - 0.3).abs() < 1e-10);
+        assert_eq!(analysis.fit_result, FitResult::Clearance);
+
+        // Test with shaft first - should auto-detect and give same result
+        let analysis2 = FitAnalysis::from_dimensions(&shaft_dim, &hole_dim).unwrap();
+        assert!((analysis2.worst_case_min_clearance - 0.1).abs() < 1e-10);
+        assert!((analysis2.worst_case_max_clearance - 0.3).abs() < 1e-10);
+        assert_eq!(analysis2.fit_result, FitResult::Clearance);
+    }
+
+    #[test]
+    fn test_from_dimensions_both_internal_error() {
+        use crate::entities::stackup::Distribution;
+
+        let dim1 = Dimension {
+            name: "hole1".to_string(),
+            nominal: 10.0,
+            plus_tol: 0.1,
+            minus_tol: 0.0,
+            units: "mm".to_string(),
+            internal: true,
+            distribution: Distribution::default(),
+        };
+
+        let dim2 = Dimension {
+            name: "hole2".to_string(),
+            nominal: 10.0,
+            plus_tol: 0.1,
+            minus_tol: 0.0,
+            units: "mm".to_string(),
+            internal: true,
+            distribution: Distribution::default(),
+        };
+
+        let result = FitAnalysis::from_dimensions(&dim1, &dim2);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("both are internal"));
+    }
+
+    #[test]
+    fn test_from_dimensions_both_external_error() {
+        use crate::entities::stackup::Distribution;
+
+        let dim1 = Dimension {
+            name: "shaft1".to_string(),
+            nominal: 10.0,
+            plus_tol: 0.1,
+            minus_tol: 0.0,
+            units: "mm".to_string(),
+            internal: false,
+            distribution: Distribution::default(),
+        };
+
+        let dim2 = Dimension {
+            name: "shaft2".to_string(),
+            nominal: 10.0,
+            plus_tol: 0.1,
+            minus_tol: 0.0,
+            units: "mm".to_string(),
+            internal: false,
+            distribution: Distribution::default(),
+        };
+
+        let result = FitAnalysis::from_dimensions(&dim1, &dim2);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("both are external"));
     }
 }
