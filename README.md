@@ -112,8 +112,11 @@ validation/
 └── results/                 # Validation results
 
 manufacturing/
-├── processes/               # Manufacturing processes
-└── controls/                # Process controls
+├── processes/               # Manufacturing process definitions
+├── controls/                # Control plan items (SPC, inspection)
+├── work_instructions/       # Operator procedures
+├── ncrs/                    # Non-conformance reports
+└── capas/                   # Corrective/preventive actions
 ```
 
 ## Entity Types
@@ -129,10 +132,13 @@ manufacturing/
 | ASM | Assembly | Assembly definition |
 | CMP | Component | Component definition |
 | FEAT | Feature | Feature (on a component) |
-| PROC | Process | Manufacturing process |
-| CTRL | Control | Control plan item |
+| PROC | Process | Manufacturing process definition |
+| CTRL | Control | Control plan item (SPC, inspection) |
+| WORK | Work Instruction | Operator procedures |
+| NCR | Non-Conformance | Non-conformance report |
+| CAPA | CAPA | Corrective/preventive action |
 | QUOT | Quote | Quote / cost record |
-| ACT | Action | Action item |
+| SUP | Supplier | Approved supplier |
 
 ## Output Formats
 
@@ -318,6 +324,79 @@ pdt tol analyze TOL@1                         # Run worst-case, RSS, Monte Carlo
 pdt tol analyze TOL@1 --iterations 50000      # Custom Monte Carlo iterations
 pdt tol edit TOL@1                            # Open in editor
 ```
+
+### Manufacturing Processes
+
+```bash
+pdt proc new --title "CNC Milling" --type machining
+pdt proc new --title "Final Assembly" --type assembly --op-number "OP-020"
+pdt proc list                                 # List all processes
+pdt proc list --type machining                # Filter by process type
+pdt proc list --status approved               # Filter by status
+pdt proc show PROC@1                          # Show details
+pdt proc edit PROC@1                          # Open in editor
+```
+
+Process types: `machining`, `assembly`, `inspection`, `test`, `finishing`, `packaging`, `handling`, `heat_treat`, `welding`, `coating`
+
+### Control Plan Items (SPC, Inspection)
+
+```bash
+pdt ctrl new --title "Bore Diameter SPC" --type spc --process PROC@1
+pdt ctrl new --title "Visual Check" --type visual --critical
+pdt ctrl list                                 # List all controls
+pdt ctrl list --type spc                      # Filter by control type
+pdt ctrl list --process PROC@1                # Filter by process
+pdt ctrl list --critical                      # Show only CTQ controls
+pdt ctrl show CTRL@1                          # Show details
+pdt ctrl edit CTRL@1                          # Open in editor
+```
+
+Control types: `spc`, `inspection`, `poka_yoke`, `visual`, `functional_test`, `attribute`
+
+### Work Instructions
+
+```bash
+pdt work new --title "CNC Mill Setup" --process PROC@1 --doc-number "WI-MACH-001"
+pdt work list                                 # List all work instructions
+pdt work list --process PROC@1                # Filter by process
+pdt work list --search "setup"                # Search in title
+pdt work show WORK@1                          # Show details
+pdt work edit WORK@1                          # Open in editor
+```
+
+### Non-Conformance Reports (NCRs)
+
+```bash
+pdt ncr new --title "Bore Diameter Out of Tolerance" --type internal --severity major
+pdt ncr new --title "Supplier Material Issue" --type supplier --severity critical --category material
+pdt ncr list                                  # List all NCRs
+pdt ncr list --type internal                  # Filter by NCR type
+pdt ncr list --severity critical              # Filter by severity
+pdt ncr list --ncr-status open                # Filter by workflow status
+pdt ncr show NCR@1                            # Show details
+pdt ncr edit NCR@1                            # Open in editor
+```
+
+NCR types: `internal`, `supplier`, `customer`
+Severity levels: `minor`, `major`, `critical`
+Categories: `dimensional`, `cosmetic`, `material`, `functional`, `documentation`, `process`, `packaging`
+
+### Corrective/Preventive Actions (CAPAs)
+
+```bash
+pdt capa new --title "Tool Wear Detection" --type corrective --ncr NCR@1
+pdt capa new --title "Process Improvement" --type preventive --source trend_analysis
+pdt capa list                                 # List all CAPAs
+pdt capa list --type corrective               # Filter by CAPA type
+pdt capa list --capa-status implementation    # Filter by workflow status
+pdt capa list --overdue                       # Show overdue CAPAs
+pdt capa show CAPA@1                          # Show details
+pdt capa edit CAPA@1                          # Open in editor
+```
+
+CAPA types: `corrective`, `preventive`
+Source types: `ncr`, `audit`, `customer_complaint`, `trend_analysis`, `risk`
 
 ### Link Management
 
@@ -852,6 +931,288 @@ created: 2024-01-15T10:30:00Z
 author: Jack Hale
 entity_revision: 1
 ```
+
+## Manufacturing Process Example
+
+```yaml
+id: PROC-01KC5B2GDDQ0JAXFVXYYZ9DWDZ
+title: "CNC Milling - Housing"
+description: |
+  Precision CNC milling of main housing from aluminum billet.
+
+process_type: machining
+operation_number: "OP-010"
+
+equipment:
+  - name: "Haas VF-2 CNC Mill"
+    equipment_id: "EQ-001"
+    capability: "3-axis, 30x16x20 travel"
+
+parameters:
+  - name: "Spindle Speed"
+    value: 8000
+    units: "RPM"
+    min: 7500
+    max: 8500
+  - name: "Feed Rate"
+    value: 500
+    units: "mm/min"
+
+cycle_time_minutes: 15.5
+setup_time_minutes: 30
+
+capability:
+  cpk: 1.45
+  sample_size: 50
+  study_date: 2024-01-15
+
+operator_skill: intermediate
+
+safety:
+  ppe: [safety_glasses, hearing_protection, steel_toe_boots]
+  hazards: ["rotating machinery", "sharp edges", "coolant splash"]
+
+tags: [machining, housing, critical]
+status: approved
+
+links:
+  produces:
+    - CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
+  controls:
+    - CTRL-01KC5B5M87QMYVJT048X27TJ5S
+  work_instructions:
+    - WORK-01KC5B5XKGWKFTTA9YWTGJB9GE
+
+created: 2024-01-15T10:30:00Z
+author: Jack Hale
+entity_revision: 1
+```
+
+## Control Plan Item Example (SPC)
+
+```yaml
+id: CTRL-01KC5B5M87QMYVJT048X27TJ5S
+title: "Bore Diameter SPC"
+description: |
+  Statistical process control for critical bore diameter.
+
+control_type: spc
+control_category: variable
+
+characteristic:
+  name: "Bore Diameter"
+  nominal: 25.0
+  upper_limit: 25.025
+  lower_limit: 25.000
+  units: "mm"
+  critical: true
+
+measurement:
+  method: "Bore gauge measurement"
+  equipment: "Mitutoyo Bore Gauge GA-045"
+  gage_rr_percent: 12.5
+
+sampling:
+  type: continuous
+  frequency: "5 parts"
+  sample_size: 1
+
+control_limits:
+  ucl: 25.018
+  lcl: 25.007
+  target: 25.0125
+
+reaction_plan: |
+  1. Quarantine affected parts
+  2. Notify supervisor immediately
+  3. Adjust offset per SOP-123
+  4. Verify correction with 3 consecutive good parts
+
+tags: [spc, bore, critical]
+status: approved
+
+links:
+  process: PROC-01KC5B2GDDQ0JAXFVXYYZ9DWDZ
+  feature: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE
+  verifies:
+    - REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD
+
+created: 2024-01-15T10:30:00Z
+author: Jack Hale
+entity_revision: 1
+```
+
+## NCR Example (Non-Conformance Report)
+
+```yaml
+id: NCR-01KC5B6E1RKCPKGACCH569FX5R
+title: "Bore Diameter Out of Tolerance"
+ncr_number: "NCR-2024-0042"
+report_date: 2024-01-20
+
+ncr_type: internal
+severity: major
+category: dimensional
+
+detection:
+  found_at: in_process
+  found_by: "J. Smith"
+  found_date: 2024-01-20
+  operation: "CNC Milling - Op 010"
+
+affected_items:
+  part_number: "PN-12345"
+  lot_number: "LOT-2024-01-20A"
+  serial_numbers: ["SN-001", "SN-002", "SN-003"]
+  quantity_affected: 3
+
+defect:
+  characteristic: "Bore Diameter"
+  specification: "25.00 +0.025/-0.000 mm"
+  actual: "24.985 mm"
+  deviation: -0.015
+
+containment:
+  - action: "Quarantine affected lot"
+    date: 2024-01-20
+    completed_by: "J. Smith"
+    status: completed
+  - action: "100% inspection of in-process inventory"
+    date: 2024-01-20
+    completed_by: "Q. Team"
+    status: completed
+
+disposition:
+  decision: rework
+  decision_date: 2024-01-21
+  decision_by: "R. Williams"
+  justification: "Can re-bore to next oversized tolerance per ECN-123"
+  mrb_required: true
+
+cost_impact:
+  rework_cost: 150.00
+  scrap_cost: 0.00
+  currency: "USD"
+
+ncr_status: closed
+tags: [bore, rework]
+status: approved
+
+links:
+  component: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
+  process: PROC-01KC5B2GDDQ0JAXFVXYYZ9DWDZ
+  control: CTRL-01KC5B5M87QMYVJT048X27TJ5S
+  capa: CAPA-01KC5B6P6PSHZ6TMCSDJQQ6HG3
+
+created: 2024-01-20T14:30:00Z
+author: J. Smith
+entity_revision: 2
+```
+
+## CAPA Example (Corrective Action)
+
+```yaml
+id: CAPA-01KC5B6P6PSHZ6TMCSDJQQ6HG3
+title: "Tool Wear Detection Improvement"
+capa_number: "CAPA-2024-0015"
+
+capa_type: corrective
+
+source:
+  type: ncr
+  reference: NCR-01KC5B6E1RKCPKGACCH569FX5R
+
+problem_statement: |
+  Bore diameter NCRs occurring due to undetected tool wear.
+  3 NCRs in past month related to undersized bores.
+
+root_cause_analysis:
+  method: five_why
+  root_cause: |
+    Lack of systematic tool life monitoring in CNC program.
+    Operators relying on visual inspection which is unreliable.
+  contributing_factors:
+    - "No tool life tracking in CNC controller"
+    - "Insufficient in-process inspection frequency"
+    - "No automatic tool wear compensation"
+
+actions:
+  - action_number: 1
+    description: "Implement tool life management in CNC controller"
+    action_type: corrective
+    owner: "Manufacturing Engineering"
+    due_date: 2024-02-15
+    completed_date: 2024-02-10
+    status: completed
+    evidence: "ECN-456 implemented, verified in production"
+  - action_number: 2
+    description: "Increase SPC sampling frequency from 5 to 3 parts"
+    action_type: preventive
+    owner: "Quality Engineering"
+    due_date: 2024-02-01
+    completed_date: 2024-02-01
+    status: verified
+    evidence: "Control plan updated, operators trained"
+
+effectiveness:
+  verified: true
+  verified_date: 2024-03-15
+  result: effective
+  evidence: "Zero bore diameter NCRs in 60 days post-implementation"
+
+closure:
+  closed: true
+  closed_date: 2024-03-20
+  closed_by: "Quality Manager"
+
+timeline:
+  initiated_date: 2024-01-21
+  target_date: 2024-03-31
+
+capa_status: closed
+tags: [tool_wear, machining]
+status: approved
+
+links:
+  ncrs:
+    - NCR-01KC5B6E1RKCPKGACCH569FX5R
+  processes_modified:
+    - PROC-01KC5B2GDDQ0JAXFVXYYZ9DWDZ
+  controls_added: []
+
+created: 2024-01-21T09:00:00Z
+author: Quality Manager
+entity_revision: 3
+```
+
+## Manufacturing Quality Loop
+
+PDT supports the complete manufacturing quality loop:
+
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│    PROC      │────▶│    CTRL      │────▶│    WORK      │
+│  (Process)   │     │  (Control)   │     │ (Work Inst)  │
+└──────────────┘     └──────────────┘     └──────────────┘
+       │                    │                    │
+       │                    ▼                    │
+       │             ┌──────────────┐            │
+       │             │    NCR       │◀───────────┘
+       │             │ (Non-Conf)   │
+       │             └──────────────┘
+       │                    │
+       │                    ▼
+       │             ┌──────────────┐
+       └────────────▶│    CAPA      │
+                     │  (Corrective)│
+                     └──────────────┘
+```
+
+1. **PROC** defines *what* manufacturing operations to perform
+2. **CTRL** defines *how* to monitor/control the process (SPC, inspection)
+3. **WORK** provides step-by-step instructions for *operators*
+4. **NCR** captures quality issues found during manufacturing
+5. **CAPA** drives systematic improvement back to processes
 
 ## Tolerance Format
 

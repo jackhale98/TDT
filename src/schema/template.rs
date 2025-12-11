@@ -64,6 +64,27 @@ pub struct TemplateContext {
     pub website: Option<String>,
     pub payment_terms: Option<String>,
     pub notes: Option<String>,
+    // PROC fields
+    pub process_type: Option<String>,
+    pub operation_number: Option<String>,
+    pub cycle_time: Option<f64>,
+    pub setup_time: Option<f64>,
+    // CTRL fields
+    pub control_type: Option<String>,
+    pub characteristic_name: Option<String>,
+    pub process_id: Option<String>,
+    pub feature_id: Option<String>,
+    pub critical: bool,
+    // WORK fields
+    pub document_number: Option<String>,
+    // NCR fields
+    pub ncr_type: Option<String>,
+    pub ncr_severity: Option<String>,
+    pub ncr_category: Option<String>,
+    // CAPA fields
+    pub capa_type: Option<String>,
+    pub source_type: Option<String>,
+    pub source_ref: Option<String>,
 }
 
 impl TemplateContext {
@@ -110,6 +131,22 @@ impl TemplateContext {
             website: None,
             payment_terms: None,
             notes: None,
+            process_type: None,
+            operation_number: None,
+            cycle_time: None,
+            setup_time: None,
+            control_type: None,
+            characteristic_name: None,
+            process_id: None,
+            feature_id: None,
+            critical: false,
+            document_number: None,
+            ncr_type: None,
+            ncr_severity: None,
+            ncr_category: None,
+            capa_type: None,
+            source_type: None,
+            source_ref: None,
         }
     }
 
@@ -288,6 +325,86 @@ impl TemplateContext {
 
     pub fn with_notes(mut self, notes: impl Into<String>) -> Self {
         self.notes = Some(notes.into());
+        self
+    }
+
+    pub fn with_process_type(mut self, process_type: impl Into<String>) -> Self {
+        self.process_type = Some(process_type.into());
+        self
+    }
+
+    pub fn with_operation_number(mut self, operation_number: impl Into<String>) -> Self {
+        self.operation_number = Some(operation_number.into());
+        self
+    }
+
+    pub fn with_cycle_time(mut self, cycle_time: f64) -> Self {
+        self.cycle_time = Some(cycle_time);
+        self
+    }
+
+    pub fn with_setup_time(mut self, setup_time: f64) -> Self {
+        self.setup_time = Some(setup_time);
+        self
+    }
+
+    pub fn with_control_type(mut self, control_type: impl Into<String>) -> Self {
+        self.control_type = Some(control_type.into());
+        self
+    }
+
+    pub fn with_characteristic_name(mut self, name: impl Into<String>) -> Self {
+        self.characteristic_name = Some(name.into());
+        self
+    }
+
+    pub fn with_process_id(mut self, process_id: impl Into<String>) -> Self {
+        self.process_id = Some(process_id.into());
+        self
+    }
+
+    pub fn with_feature_id(mut self, feature_id: impl Into<String>) -> Self {
+        self.feature_id = Some(feature_id.into());
+        self
+    }
+
+    pub fn with_critical(mut self, critical: bool) -> Self {
+        self.critical = critical;
+        self
+    }
+
+    pub fn with_document_number(mut self, document_number: impl Into<String>) -> Self {
+        self.document_number = Some(document_number.into());
+        self
+    }
+
+    pub fn with_ncr_type(mut self, ncr_type: impl Into<String>) -> Self {
+        self.ncr_type = Some(ncr_type.into());
+        self
+    }
+
+    pub fn with_ncr_severity(mut self, severity: impl Into<String>) -> Self {
+        self.ncr_severity = Some(severity.into());
+        self
+    }
+
+    pub fn with_ncr_category(mut self, category: impl Into<String>) -> Self {
+        self.ncr_category = Some(category.into());
+        self
+    }
+
+    pub fn with_capa_type(mut self, capa_type: impl Into<String>) -> Self {
+        self.capa_type = Some(capa_type.into());
+        self
+    }
+
+    pub fn with_source_type(mut self, source_type: impl Into<String>) -> Self {
+        self.source_type = Some(source_type.into());
+        self
+    }
+
+    pub fn with_source_ref(mut self, source_ref: impl Into<String>) -> Self {
+        self.source_ref = Some(source_ref.into());
         self
     }
 }
@@ -1342,6 +1459,496 @@ entity_revision: 1
             website_line = website_line,
             payment_terms_line = payment_terms_line,
             notes_line = notes_line,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a process template
+    pub fn generate_process(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        let mut context = tera::Context::new();
+        context.insert("id", &ctx.id.to_string());
+        context.insert("author", &ctx.author);
+        context.insert("created", &ctx.created.to_rfc3339());
+        context.insert("title", &ctx.title.clone().unwrap_or_default());
+        context.insert("process_type", &ctx.process_type.clone().unwrap_or_else(|| "machining".to_string()));
+        context.insert("operation_number", &ctx.operation_number.clone().unwrap_or_default());
+
+        if self.tera.get_template_names().any(|n| n == "process.yaml.tera") {
+            self.tera
+                .render("process.yaml.tera", &context)
+                .map_err(|e| TemplateError::RenderError(e.to_string()))
+        } else {
+            Ok(self.hardcoded_process_template(ctx))
+        }
+    }
+
+    fn hardcoded_process_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let process_type = ctx.process_type.clone().unwrap_or_else(|| "machining".to_string());
+        let operation_number = ctx.operation_number.clone().unwrap_or_default();
+        let created = ctx.created.to_rfc3339();
+
+        let op_line = if operation_number.is_empty() {
+            "operation_number: null\n".to_string()
+        } else {
+            format!("operation_number: \"{}\"\n", operation_number)
+        };
+
+        format!(
+            r#"# Process: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+title: "{title}"
+
+description: |
+  # Detailed description of this manufacturing process
+  # Include key steps and requirements
+
+process_type: {process_type}
+{op_line}
+# Equipment used in this process
+equipment: []
+# Example:
+#   - name: "Haas VF-2 CNC Mill"
+#     equipment_id: "EQ-001"
+#     capability: "3-axis milling"
+
+# Process parameters
+parameters: []
+# Example:
+#   - name: "Spindle Speed"
+#     value: 8000
+#     units: "RPM"
+#     min: 7500
+#     max: 8500
+
+# Timing
+cycle_time_minutes: null
+setup_time_minutes: null
+
+# Process capability (from capability study)
+capability: null
+# Example:
+#   cpk: 1.45
+#   sample_size: 50
+#   study_date: 2024-01-15
+
+operator_skill: intermediate
+
+# Safety requirements
+safety:
+  ppe: []
+  hazards: []
+
+tags: []
+status: draft
+
+links:
+  produces: []
+  controls: []
+  work_instructions: []
+  risks: []
+  related_to: []
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            process_type = process_type,
+            op_line = op_line,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a control template
+    pub fn generate_control(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        Ok(self.hardcoded_control_template(ctx))
+    }
+
+    fn hardcoded_control_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let control_type = ctx.control_type.clone().unwrap_or_else(|| "inspection".to_string());
+        let process_id = ctx.process_id.clone().unwrap_or_default();
+        let feature_id = ctx.feature_id.clone().unwrap_or_default();
+        let critical = ctx.critical;
+        let created = ctx.created.to_rfc3339();
+
+        let process_line = if process_id.is_empty() {
+            "process: null  # REQUIRED - link to parent process".to_string()
+        } else {
+            format!("process: {}", process_id)
+        };
+
+        let feature_line = if feature_id.is_empty() {
+            "feature: null  # Optional - link to feature being controlled".to_string()
+        } else {
+            format!("feature: {}", feature_id)
+        };
+
+        format!(
+            r#"# Control: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+title: "{title}"
+
+description: |
+  # Detailed description of this control plan item
+  # Include what is being controlled and why
+
+control_type: {control_type}
+control_category: variable
+
+# Characteristic being controlled
+characteristic:
+  name: ""
+  nominal: 0.0
+  upper_limit: 0.0
+  lower_limit: 0.0
+  units: "mm"
+  critical: {critical}
+
+# Measurement method
+measurement:
+  method: ""
+  equipment: ""
+  gage_rr_percent: null
+
+# Sampling plan
+sampling:
+  type: continuous
+  frequency: "5 parts"
+  sample_size: 1
+
+# Control limits (for SPC)
+control_limits: null
+# Example:
+#   ucl: 25.018
+#   lcl: 25.007
+#   target: 25.0125
+
+reaction_plan: |
+  # What to do when out of spec
+  1. Quarantine affected parts
+  2. Notify supervisor
+  3. Investigate root cause
+
+tags: []
+status: draft
+
+links:
+  {process_line}
+  {feature_line}
+  verifies: []
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            control_type = control_type,
+            critical = critical,
+            process_line = process_line,
+            feature_line = feature_line,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a work instruction template
+    pub fn generate_work_instruction(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        Ok(self.hardcoded_work_instruction_template(ctx))
+    }
+
+    fn hardcoded_work_instruction_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let process_id = ctx.process_id.clone().unwrap_or_default();
+        let document_number = ctx.document_number.clone().unwrap_or_default();
+        let created = ctx.created.to_rfc3339();
+
+        let process_line = if process_id.is_empty() {
+            "process: null  # REQUIRED - link to parent process".to_string()
+        } else {
+            format!("process: {}", process_id)
+        };
+
+        let doc_line = if document_number.is_empty() {
+            "document_number: null".to_string()
+        } else {
+            format!("document_number: \"{}\"", document_number)
+        };
+
+        format!(
+            r#"# Work Instruction: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+title: "{title}"
+{doc_line}
+revision: "A"
+
+# Safety requirements
+safety:
+  ppe_required: []
+  # Example:
+  #   - item: "Safety Glasses"
+  #     standard: "ANSI Z87.1"
+  hazards: []
+  # Example:
+  #   - hazard: "Rotating machinery"
+  #     control: "Keep hands clear during operation"
+
+# Tools required
+tools_required: []
+# Example:
+#   - name: "End Mill"
+#     part_number: "TL-001"
+
+# Materials required
+materials_required: []
+# Example:
+#   - name: "Cutting Coolant"
+#     specification: "Coolant-500"
+
+# Step-by-step procedure
+procedure:
+  - step: 1
+    action: |
+      # Describe what to do
+    verification: ""
+    caution: null
+    image: null
+    estimated_time_minutes: null
+
+# Quality checks during procedure
+quality_checks: []
+# Example:
+#   - at_step: 5
+#     characteristic: "Diameter"
+#     specification: "10.0 ±0.1 mm"
+
+estimated_duration_minutes: null
+
+tags: []
+status: draft
+
+links:
+  {process_line}
+  controls: []
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            doc_line = doc_line,
+            process_line = process_line,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate an NCR template
+    pub fn generate_ncr(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        Ok(self.hardcoded_ncr_template(ctx))
+    }
+
+    fn hardcoded_ncr_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let ncr_type = ctx.ncr_type.clone().unwrap_or_else(|| "internal".to_string());
+        let severity = ctx.ncr_severity.clone().unwrap_or_else(|| "minor".to_string());
+        let category = ctx.ncr_category.clone().unwrap_or_else(|| "dimensional".to_string());
+        let created = ctx.created.to_rfc3339();
+        let report_date = ctx.created.format("%Y-%m-%d").to_string();
+
+        format!(
+            r#"# NCR: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+title: "{title}"
+ncr_number: null  # Optional company NCR number
+report_date: {report_date}
+
+ncr_type: {ncr_type}
+severity: {severity}
+category: {category}
+
+# Detection details
+detection:
+  found_at: in_process
+  found_by: "{author}"
+  found_date: {report_date}
+  operation: ""
+
+# Affected items
+affected_items:
+  part_number: ""
+  lot_number: ""
+  serial_numbers: []
+  quantity_affected: 1
+
+# Defect details
+defect:
+  characteristic: ""
+  specification: ""
+  actual: ""
+  deviation: null
+
+# Containment actions
+containment: []
+# Example:
+#   - action: "Quarantine affected lot"
+#     date: {report_date}
+#     completed_by: ""
+#     status: completed
+
+# Disposition
+disposition:
+  decision: null  # use_as_is | rework | scrap | return_to_supplier
+  decision_date: null
+  decision_by: null
+  justification: ""
+  mrb_required: false
+
+# Cost impact
+cost_impact:
+  rework_cost: 0.0
+  scrap_cost: 0.0
+  currency: "USD"
+
+ncr_status: open
+
+tags: []
+status: draft
+
+links:
+  component: null
+  process: null
+  control: null
+  capa: null
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            ncr_type = ncr_type,
+            severity = severity,
+            category = category,
+            report_date = report_date,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a CAPA template
+    pub fn generate_capa(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        Ok(self.hardcoded_capa_template(ctx))
+    }
+
+    fn hardcoded_capa_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let capa_type = ctx.capa_type.clone().unwrap_or_else(|| "corrective".to_string());
+        let source_type = ctx.source_type.clone().unwrap_or_else(|| "ncr".to_string());
+        let source_ref = ctx.source_ref.clone().unwrap_or_default();
+        let created = ctx.created.to_rfc3339();
+        let initiated_date = ctx.created.format("%Y-%m-%d").to_string();
+
+        let source_ref_line = if source_ref.is_empty() {
+            "  reference: null".to_string()
+        } else {
+            format!("  reference: {}", source_ref)
+        };
+
+        format!(
+            r#"# CAPA: {title}
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: {id}
+title: "{title}"
+capa_number: null  # Optional company CAPA number
+
+capa_type: {capa_type}
+
+source:
+  type: {source_type}
+{source_ref_line}
+
+problem_statement: |
+  # Describe the problem being addressed
+  # Include scope and impact
+
+# Root cause analysis
+root_cause_analysis:
+  method: five_why
+  root_cause: |
+    # Document the root cause
+  contributing_factors: []
+
+# Action items
+actions: []
+# Example:
+#   - action_number: 1
+#     description: ""
+#     action_type: corrective
+#     owner: ""
+#     due_date: null
+#     completed_date: null
+#     status: open
+#     evidence: null
+
+# Effectiveness verification
+effectiveness:
+  verified: false
+  verified_date: null
+  result: null  # effective | partially_effective | ineffective
+  evidence: null
+
+# Closure
+closure:
+  closed: false
+  closed_date: null
+  closed_by: null
+
+timeline:
+  initiated_date: {initiated_date}
+  target_date: null
+
+capa_status: initiation
+
+tags: []
+status: draft
+
+links:
+  ncrs: []
+  risks: []
+  processes_modified: []
+  controls_added: []
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            capa_type = capa_type,
+            source_type = source_type,
+            source_ref_line = source_ref_line,
+            initiated_date = initiated_date,
             created = created,
             author = ctx.author,
         )

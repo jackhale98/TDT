@@ -118,4 +118,25 @@ impl Config {
             .or_else(|| std::env::var("VISUAL").ok())
             .unwrap_or_else(|| "vi".to_string())
     }
+
+    /// Run the editor on a file, properly handling commands with arguments
+    /// (e.g., "emacsclient -nw" or "code --wait")
+    pub fn run_editor(&self, file_path: &std::path::Path) -> std::io::Result<std::process::ExitStatus> {
+        let editor = self.editor();
+        let parts: Vec<&str> = editor.split_whitespace().collect();
+
+        if parts.is_empty() {
+            return std::process::Command::new("vi")
+                .arg(file_path)
+                .status();
+        }
+
+        let cmd = parts[0];
+        let args = &parts[1..];
+
+        std::process::Command::new(cmd)
+            .args(args)
+            .arg(file_path)
+            .status()
+    }
 }

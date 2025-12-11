@@ -691,14 +691,10 @@ fn run_new(args: NewArgs) -> Result<()> {
 
     // Open in editor if requested (or by default unless --no-edit)
     if args.edit || (!args.no_edit && !args.interactive) {
-        let editor = config.editor();
         println!();
-        println!("Opening in {}...", style(&editor).yellow());
+        println!("Opening in {}...", style(config.editor()).yellow());
 
-        std::process::Command::new(&editor)
-            .arg(&file_path)
-            .status()
-            .into_diagnostic()?;
+        config.run_editor(&file_path).into_diagnostic()?;
     }
 
     Ok(())
@@ -861,17 +857,13 @@ fn run_edit(args: EditArgs) -> Result<()> {
         ));
     }
 
-    let editor = config.editor();
     println!(
         "Opening {} in {}...",
         style(format_short_id(&test.id)).cyan(),
-        style(&editor).yellow()
+        style(config.editor()).yellow()
     );
 
-    std::process::Command::new(&editor)
-        .arg(&file_path)
-        .status()
-        .into_diagnostic()?;
+    config.run_editor(&file_path).into_diagnostic()?;
 
     Ok(())
 }

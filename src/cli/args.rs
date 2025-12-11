@@ -5,11 +5,15 @@ use std::path::PathBuf;
 
 use crate::cli::commands::{
     asm::AsmCommands,
+    capa::CapaCommands,
     cmp::CmpCommands,
+    ctrl::CtrlCommands,
     feat::FeatCommands,
     init::InitArgs,
     link::LinkCommands,
     mate::MateCommands,
+    ncr::NcrCommands,
+    proc::ProcCommands,
     quote::QuoteCommands,
     req::ReqCommands,
     risk::RiskCommands,
@@ -19,6 +23,7 @@ use crate::cli::commands::{
     tol::TolCommands,
     trace::TraceCommands,
     validate::ValidateArgs,
+    work::WorkCommands,
 };
 
 #[derive(Parser)]
@@ -89,6 +94,26 @@ pub enum Commands {
     /// Supplier management (approved suppliers)
     #[command(subcommand)]
     Sup(SupCommands),
+
+    /// Manufacturing process management
+    #[command(subcommand)]
+    Proc(ProcCommands),
+
+    /// Control plan item management (SPC, inspection, etc.)
+    #[command(subcommand)]
+    Ctrl(CtrlCommands),
+
+    /// Work instruction management (operator procedures)
+    #[command(subcommand)]
+    Work(WorkCommands),
+
+    /// Non-conformance report management
+    #[command(subcommand)]
+    Ncr(NcrCommands),
+
+    /// Corrective/preventive action management
+    #[command(subcommand)]
+    Capa(CapaCommands),
 
     /// Feature management (dimensional features on components)
     #[command(subcommand)]

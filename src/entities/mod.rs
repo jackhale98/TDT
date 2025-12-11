@@ -20,9 +20,13 @@
 //! - [`Stackup`] - Tolerance chain analysis with worst-case, RSS, and Monte Carlo
 
 pub mod assembly;
+pub mod capa;
 pub mod component;
+pub mod control;
 pub mod feature;
 pub mod mate;
+pub mod ncr;
+pub mod process;
 pub mod quote;
 pub mod requirement;
 pub mod result;
@@ -30,11 +34,16 @@ pub mod risk;
 pub mod stackup;
 pub mod supplier;
 pub mod test;
+pub mod work_instruction;
 
 pub use assembly::Assembly;
+pub use capa::Capa;
 pub use component::Component;
+pub use control::Control;
 pub use feature::Feature;
 pub use mate::Mate;
+pub use ncr::Ncr;
+pub use process::Process;
 pub use quote::Quote;
 pub use requirement::Requirement;
 pub use result::Result;
@@ -42,3 +51,4 @@ pub use risk::Risk;
 pub use stackup::Stackup;
 pub use supplier::Supplier;
 pub use test::Test;
+pub use work_instruction::WorkInstruction;

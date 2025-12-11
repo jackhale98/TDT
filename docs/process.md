@@ -1,0 +1,311 @@
+# PDT Process Entity (Manufacturing)
+
+This document describes the Process entity type in PDT (Plain-text Product Development Toolkit).
+
+## Overview
+
+Processes define manufacturing operations - the engineering specification of *what* needs to be done. They capture equipment requirements, process parameters, cycle times, capability data, and safety requirements. Processes link to control plans and work instructions.
+
+## Entity Type
+
+- **Prefix**: `PROC`
+- **File extension**: `.pdt.yaml`
+- **Directory**: `manufacturing/processes/`
+
+## Schema
+
+### Required Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique identifier (PROC-[26-char ULID]) |
+| `title` | string | Short descriptive title (1-200 chars) |
+| `status` | enum | `draft`, `review`, `approved`, `released`, `obsolete` |
+| `created` | datetime | Creation timestamp (ISO 8601) |
+| `author` | string | Author name |
+
+### Optional Fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `description` | string | Detailed description |
+| `process_type` | enum | Type of process (see below) |
+| `operation_number` | string | Operation number (e.g., "OP-010") |
+| `equipment` | array[Equipment] | Equipment used |
+| `parameters` | array[ProcessParameter] | Process parameters |
+| `cycle_time_minutes` | number | Cycle time in minutes |
+| `setup_time_minutes` | number | Setup time in minutes |
+| `capability` | ProcessCapability | Process capability data (Cpk, Ppk) |
+| `operator_skill` | enum | Required skill level |
+| `safety` | ProcessSafety | Safety requirements |
+| `tags` | array[string] | Tags for filtering |
+| `entity_revision` | integer | Entity revision number (default: 1) |
+
+### Process Types
+
+| Type | Description |
+|------|-------------|
+| `machining` | Material removal operations (milling, turning, drilling) |
+| `assembly` | Component assembly operations |
+| `inspection` | Quality inspection operations |
+| `test` | Functional or performance testing |
+| `finishing` | Surface finishing (painting, plating, anodizing) |
+| `packaging` | Packaging operations |
+| `handling` | Material handling operations |
+| `heat_treat` | Heat treatment processes |
+| `welding` | Welding and joining operations |
+| `coating` | Coating application |
+
+### Operator Skill Levels
+
+| Level | Description |
+|-------|-------------|
+| `entry` | New operators with basic training |
+| `intermediate` | Trained operators (default) |
+| `advanced` | Experienced operators |
+| `expert` | Highly skilled specialists |
+
+### Equipment Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Equipment name |
+| `equipment_id` | string | Asset number / equipment ID |
+| `capability` | string | Required capability or specification |
+
+### ProcessParameter Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Parameter name (e.g., "Spindle Speed") |
+| `value` | number | Nominal value |
+| `units` | string | Units (e.g., "RPM", "mm/min") |
+| `min` | number | Minimum allowed value |
+| `max` | number | Maximum allowed value |
+
+### ProcessCapability Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `cpk` | number | Process capability index |
+| `ppk` | number | Process performance index |
+| `sample_size` | integer | Sample size for study |
+| `study_date` | date | Date of capability study |
+
+### ProcessSafety Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ppe` | array[string] | Required PPE items |
+| `hazards` | array[string] | Hazards present |
+
+### Links
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `links.produces` | array[EntityId] | Components produced |
+| `links.controls` | array[EntityId] | Control plan items |
+| `links.work_instructions` | array[EntityId] | Work instructions |
+| `links.risks` | array[EntityId] | Related risks |
+| `links.related_to` | array[EntityId] | Related entities |
+
+## Example
+
+```yaml
+id: PROC-01KC5B2GDDQ0JAXFVXYYZ9DWDZ
+title: "CNC Milling - Housing"
+description: |
+  Precision CNC milling of main housing from aluminum billet.
+  Critical features include mounting bores and sealing surfaces.
+
+process_type: machining
+operation_number: "OP-010"
+
+equipment:
+  - name: "Haas VF-2 CNC Mill"
+    equipment_id: "EQ-001"
+    capability: "3-axis, 30x16x20 travel"
+  - name: "Renishaw Probe"
+    equipment_id: "EQ-002"
+
+parameters:
+  - name: "Spindle Speed"
+    value: 8000
+    units: "RPM"
+    min: 7500
+    max: 8500
+  - name: "Feed Rate"
+    value: 500
+    units: "mm/min"
+    min: 400
+    max: 600
+  - name: "Depth of Cut"
+    value: 2.0
+    units: "mm"
+    max: 3.0
+
+cycle_time_minutes: 15.5
+setup_time_minutes: 30
+
+capability:
+  cpk: 1.45
+  ppk: 1.38
+  sample_size: 50
+  study_date: 2024-01-15
+
+operator_skill: intermediate
+
+safety:
+  ppe:
+    - safety_glasses
+    - hearing_protection
+    - steel_toe_boots
+  hazards:
+    - "rotating machinery"
+    - "sharp edges"
+    - "coolant splash"
+
+tags: [machining, housing, critical]
+status: approved
+
+links:
+  produces:
+    - CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
+  controls:
+    - CTRL-01KC5B5M87QMYVJT048X27TJ5S
+  work_instructions:
+    - WORK-01KC5B5XKGWKFTTA9YWTGJB9GE
+  risks: []
+  related_to: []
+
+created: 2024-01-15T10:30:00Z
+author: Jack Hale
+entity_revision: 1
+```
+
+## CLI Commands
+
+### Create a new process
+
+```bash
+# Create with default template
+pdt proc new
+
+# Create with title and type
+pdt proc new --title "CNC Milling" --type machining
+
+# Create with operation number
+pdt proc new --title "Final Assembly" --type assembly --op-number "OP-020"
+
+# Create with cycle/setup times
+pdt proc new --title "Inspection" --type inspection --cycle-time 5 --setup-time 10
+
+# Create with interactive wizard
+pdt proc new -i
+
+# Create and immediately edit
+pdt proc new --title "New Process" --edit
+```
+
+### List processes
+
+```bash
+# List all processes
+pdt proc list
+
+# Filter by type
+pdt proc list --type machining
+pdt proc list --type assembly
+
+# Filter by status
+pdt proc list --status approved
+pdt proc list --status draft
+
+# Search in title/description
+pdt proc list --search "milling"
+
+# Sort and limit
+pdt proc list --sort title
+pdt proc list --limit 10
+
+# Count only
+pdt proc list --count
+
+# Output formats
+pdt proc list -f json
+pdt proc list -f csv
+pdt proc list -f md
+```
+
+### Show process details
+
+```bash
+# Show by ID (partial match supported)
+pdt proc show PROC-01KC5
+
+# Show using short ID
+pdt proc show PROC@1
+
+# Output as JSON
+pdt proc show PROC@1 -f json
+```
+
+### Edit a process
+
+```bash
+# Open in editor
+pdt proc edit PROC-01KC5
+
+# Using short ID
+pdt proc edit PROC@1
+```
+
+## Process vs Work Instruction
+
+| Aspect | Process (PROC) | Work Instruction (WORK) |
+|--------|----------------|-------------------------|
+| **Audience** | Engineers | Operators |
+| **Purpose** | Define *what* to do | Define *how* to do it |
+| **Detail** | Parameters, equipment | Step-by-step actions |
+| **Focus** | Engineering spec | Execution guidance |
+
+## Best Practices
+
+### Process Definition
+
+1. **One operation per process** - Keep processes focused
+2. **Include capability data** - Track Cpk/Ppk from process studies
+3. **Document parameters** - Capture critical process parameters with limits
+4. **Link to controls** - Connect to control plan items
+5. **Safety first** - Always document hazards and PPE requirements
+
+### Operation Numbering
+
+Use a consistent scheme for operation numbers:
+
+```
+OP-010  First operation
+OP-020  Second operation
+OP-030  Third operation
+```
+
+Leave gaps (10s) to allow inserting operations later.
+
+## Validation
+
+Processes are validated against a JSON Schema:
+
+```bash
+# Validate all project files
+pdt validate
+
+# Validate specific file
+pdt validate manufacturing/processes/PROC-01KC5B2GDDQ0JAXFVXYYZ9DWDZ.pdt.yaml
+```
+
+### Validation Rules
+
+1. **ID Format**: Must match `PROC-[A-Z0-9]{26}` pattern
+2. **Title**: Required, 1-200 characters
+3. **Process Type**: If specified, must be valid enum value
+4. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`

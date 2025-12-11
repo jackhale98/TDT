@@ -1,4 +1,4 @@
-//! `pdt cmp` command - Component management
+//! `pdt ncr` command - Non-conformance report management
 
 use clap::{Subcommand, ValueEnum};
 use console::style;
@@ -10,75 +10,73 @@ use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
-use crate::entities::component::{Component, ComponentCategory, MakeBuy};
+use crate::entities::ncr::{Ncr, NcrCategory, NcrSeverity, NcrStatus, NcrType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
 
 #[derive(Subcommand, Debug)]
-pub enum CmpCommands {
-    /// List components with filtering
+pub enum NcrCommands {
+    /// List NCRs with filtering
     List(ListArgs),
 
-    /// Create a new component
+    /// Create a new NCR
     New(NewArgs),
 
-    /// Show a component's details
+    /// Show an NCR's details
     Show(ShowArgs),
 
-    /// Edit a component in your editor
+    /// Edit an NCR in your editor
     Edit(EditArgs),
 }
 
-/// Make/buy filter
+/// NCR type filter
 #[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum MakeBuyFilter {
-    Make,
-    Buy,
+pub enum NcrTypeFilter {
+    Internal,
+    Supplier,
+    Customer,
     All,
 }
 
-/// Category filter
+/// Severity filter
 #[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum CategoryFilter {
-    Mechanical,
-    Electrical,
-    Software,
-    Fastener,
-    Consumable,
+pub enum SeverityFilter {
+    Minor,
+    Major,
+    Critical,
     All,
 }
 
-/// Status filter
+/// NCR status filter
 #[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum StatusFilter {
-    Draft,
-    Review,
-    Approved,
-    Released,
-    Obsolete,
-    /// All statuses
+pub enum NcrStatusFilter {
+    Open,
+    Containment,
+    Investigation,
+    Disposition,
+    Closed,
     All,
 }
 
 #[derive(clap::Args, Debug)]
 pub struct ListArgs {
-    /// Filter by make/buy decision
-    #[arg(long, short = 'm', default_value = "all")]
-    pub make_buy: MakeBuyFilter,
+    /// Filter by NCR type
+    #[arg(long, short = 't', default_value = "all")]
+    pub r#type: NcrTypeFilter,
 
-    /// Filter by category
-    #[arg(long, short = 'c', default_value = "all")]
-    pub category: CategoryFilter,
+    /// Filter by severity
+    #[arg(long, short = 'S', default_value = "all")]
+    pub severity: SeverityFilter,
 
-    /// Filter by status
-    #[arg(long, short = 's', default_value = "all")]
-    pub status: StatusFilter,
+    /// Filter by NCR status
+    #[arg(long, default_value = "all")]
+    pub ncr_status: NcrStatusFilter,
 
-    /// Search in part number and title
+    /// Search in title and description
     #[arg(long)]
     pub search: Option<String>,
 
     /// Sort by field
-    #[arg(long, default_value = "part-number")]
+    #[arg(long, default_value = "created")]
     pub sort: SortField,
 
     /// Reverse sort order
@@ -100,38 +98,30 @@ pub struct ListArgs {
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum SortField {
-    PartNumber,
     Title,
-    Category,
-    Status,
+    Type,
+    Severity,
+    NcrStatus,
     Created,
 }
 
 #[derive(clap::Args, Debug)]
 pub struct NewArgs {
-    /// Part number (required)
-    #[arg(long, short = 'p')]
-    pub part_number: Option<String>,
-
-    /// Title/description
+    /// NCR title (required)
     #[arg(long, short = 't')]
     pub title: Option<String>,
 
-    /// Make or buy decision
-    #[arg(long, short = 'm', default_value = "buy")]
-    pub make_buy: String,
+    /// NCR type
+    #[arg(long, short = 'T', default_value = "internal")]
+    pub r#type: String,
 
-    /// Component category
-    #[arg(long, short = 'c', default_value = "mechanical")]
+    /// Severity level
+    #[arg(long, short = 'S', default_value = "minor")]
+    pub severity: String,
+
+    /// Category
+    #[arg(long, short = 'c', default_value = "dimensional")]
     pub category: String,
-
-    /// Part revision
-    #[arg(long)]
-    pub revision: Option<String>,
-
-    /// Material specification
-    #[arg(long)]
-    pub material: Option<String>,
 
     /// Open in editor after creation
     #[arg(long, short = 'e')]
@@ -148,7 +138,7 @@ pub struct NewArgs {
 
 #[derive(clap::Args, Debug)]
 pub struct ShowArgs {
-    /// Component ID or short ID (CMP@N)
+    /// NCR ID or short ID (NCR@N)
     pub id: String,
 
     /// Output format
@@ -158,80 +148,81 @@ pub struct ShowArgs {
 
 #[derive(clap::Args, Debug)]
 pub struct EditArgs {
-    /// Component ID or short ID (CMP@N)
+    /// NCR ID or short ID (NCR@N)
     pub id: String,
 }
 
-/// Run a component subcommand
-pub fn run(cmd: CmpCommands, _global: &GlobalOpts) -> Result<()> {
+/// Run an NCR subcommand
+pub fn run(cmd: NcrCommands, _global: &GlobalOpts) -> Result<()> {
     match cmd {
-        CmpCommands::List(args) => run_list(args),
-        CmpCommands::New(args) => run_new(args),
-        CmpCommands::Show(args) => run_show(args),
-        CmpCommands::Edit(args) => run_edit(args),
+        NcrCommands::List(args) => run_list(args),
+        NcrCommands::New(args) => run_new(args),
+        NcrCommands::Show(args) => run_show(args),
+        NcrCommands::Edit(args) => run_edit(args),
     }
 }
 
 fn run_list(args: ListArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
-    let cmp_dir = project.root().join("bom/components");
+    let ncr_dir = project.root().join("manufacturing/ncrs");
 
-    if !cmp_dir.exists() {
+    if !ncr_dir.exists() {
         if args.count {
             println!("0");
         } else {
-            println!("No components found.");
+            println!("No NCRs found.");
         }
         return Ok(());
     }
 
-    // Load and parse all components
-    let mut components: Vec<Component> = Vec::new();
+    // Load and parse all NCRs
+    let mut ncrs: Vec<Ncr> = Vec::new();
 
-    for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
+    for entry in fs::read_dir(&ncr_dir).into_diagnostic()? {
         let entry = entry.into_diagnostic()?;
         let path = entry.path();
 
         if path.extension().map_or(false, |e| e == "yaml") {
             let content = fs::read_to_string(&path).into_diagnostic()?;
-            if let Ok(cmp) = serde_yml::from_str::<Component>(&content) {
-                components.push(cmp);
+            if let Ok(ncr) = serde_yml::from_str::<Ncr>(&content) {
+                ncrs.push(ncr);
             }
         }
     }
 
     // Apply filters
-    let components: Vec<Component> = components
+    let ncrs: Vec<Ncr> = ncrs
         .into_iter()
-        .filter(|c| match args.make_buy {
-            MakeBuyFilter::Make => c.make_buy == MakeBuy::Make,
-            MakeBuyFilter::Buy => c.make_buy == MakeBuy::Buy,
-            MakeBuyFilter::All => true,
+        .filter(|n| match args.r#type {
+            NcrTypeFilter::Internal => n.ncr_type == NcrType::Internal,
+            NcrTypeFilter::Supplier => n.ncr_type == NcrType::Supplier,
+            NcrTypeFilter::Customer => n.ncr_type == NcrType::Customer,
+            NcrTypeFilter::All => true,
         })
-        .filter(|c| match args.category {
-            CategoryFilter::Mechanical => c.category == ComponentCategory::Mechanical,
-            CategoryFilter::Electrical => c.category == ComponentCategory::Electrical,
-            CategoryFilter::Software => c.category == ComponentCategory::Software,
-            CategoryFilter::Fastener => c.category == ComponentCategory::Fastener,
-            CategoryFilter::Consumable => c.category == ComponentCategory::Consumable,
-            CategoryFilter::All => true,
+        .filter(|n| match args.severity {
+            SeverityFilter::Minor => n.severity == NcrSeverity::Minor,
+            SeverityFilter::Major => n.severity == NcrSeverity::Major,
+            SeverityFilter::Critical => n.severity == NcrSeverity::Critical,
+            SeverityFilter::All => true,
         })
-        .filter(|c| match args.status {
-            StatusFilter::Draft => c.status == crate::core::entity::Status::Draft,
-            StatusFilter::Review => c.status == crate::core::entity::Status::Review,
-            StatusFilter::Approved => c.status == crate::core::entity::Status::Approved,
-            StatusFilter::Released => c.status == crate::core::entity::Status::Released,
-            StatusFilter::Obsolete => c.status == crate::core::entity::Status::Obsolete,
-            StatusFilter::All => true,
+        .filter(|n| match args.ncr_status {
+            NcrStatusFilter::Open => n.ncr_status == NcrStatus::Open,
+            NcrStatusFilter::Containment => n.ncr_status == NcrStatus::Containment,
+            NcrStatusFilter::Investigation => n.ncr_status == NcrStatus::Investigation,
+            NcrStatusFilter::Disposition => n.ncr_status == NcrStatus::Disposition,
+            NcrStatusFilter::Closed => n.ncr_status == NcrStatus::Closed,
+            NcrStatusFilter::All => true,
         })
-        .filter(|c| {
+        .filter(|n| {
             if let Some(ref search) = args.search {
                 let search_lower = search.to_lowercase();
-                c.part_number.to_lowercase().contains(&search_lower)
-                    || c.title.to_lowercase().contains(&search_lower)
-                    || c.description
+                n.title.to_lowercase().contains(&search_lower)
+                    || n.description
                         .as_ref()
                         .map_or(false, |d| d.to_lowercase().contains(&search_lower))
+                    || n.ncr_number
+                        .as_ref()
+                        .map_or(false, |num| num.to_lowercase().contains(&search_lower))
             } else {
                 true
             }
@@ -239,43 +230,45 @@ fn run_list(args: ListArgs) -> Result<()> {
         .collect();
 
     // Sort
-    let mut components = components;
+    let mut ncrs = ncrs;
     match args.sort {
-        SortField::PartNumber => components.sort_by(|a, b| a.part_number.cmp(&b.part_number)),
-        SortField::Title => components.sort_by(|a, b| a.title.cmp(&b.title)),
-        SortField::Category => components.sort_by(|a, b| {
-            format!("{:?}", a.category).cmp(&format!("{:?}", b.category))
-        }),
-        SortField::Status => {
-            components.sort_by(|a, b| format!("{:?}", a.status).cmp(&format!("{:?}", b.status)))
+        SortField::Title => ncrs.sort_by(|a, b| a.title.cmp(&b.title)),
+        SortField::Type => {
+            ncrs.sort_by(|a, b| format!("{:?}", a.ncr_type).cmp(&format!("{:?}", b.ncr_type)))
         }
-        SortField::Created => components.sort_by(|a, b| a.created.cmp(&b.created)),
+        SortField::Severity => {
+            ncrs.sort_by(|a, b| format!("{:?}", a.severity).cmp(&format!("{:?}", b.severity)))
+        }
+        SortField::NcrStatus => {
+            ncrs.sort_by(|a, b| format!("{:?}", a.ncr_status).cmp(&format!("{:?}", b.ncr_status)))
+        }
+        SortField::Created => ncrs.sort_by(|a, b| a.created.cmp(&b.created)),
     }
 
     if args.reverse {
-        components.reverse();
+        ncrs.reverse();
     }
 
     // Apply limit
     if let Some(limit) = args.limit {
-        components.truncate(limit);
+        ncrs.truncate(limit);
     }
 
     // Count only
     if args.count {
-        println!("{}", components.len());
+        println!("{}", ncrs.len());
         return Ok(());
     }
 
     // No results
-    if components.is_empty() {
-        println!("No components found.");
+    if ncrs.is_empty() {
+        println!("No NCRs found.");
         return Ok(());
     }
 
     // Update short ID index
     let mut short_ids = ShortIdIndex::load(&project);
-    short_ids.ensure_all(components.iter().map(|c| c.id.to_string()));
+    short_ids.ensure_all(ncrs.iter().map(|n| n.id.to_string()));
     let _ = short_ids.save(&project);
 
     // Output based on format
@@ -287,90 +280,90 @@ fn run_list(args: ListArgs) -> Result<()> {
 
     match format {
         OutputFormat::Json => {
-            let json = serde_json::to_string_pretty(&components).into_diagnostic()?;
+            let json = serde_json::to_string_pretty(&ncrs).into_diagnostic()?;
             println!("{}", json);
         }
         OutputFormat::Yaml => {
-            let yaml = serde_yml::to_string(&components).into_diagnostic()?;
+            let yaml = serde_yml::to_string(&ncrs).into_diagnostic()?;
             print!("{}", yaml);
         }
         OutputFormat::Csv => {
-            println!("short_id,id,part_number,revision,title,make_buy,category,status");
-            for cmp in &components {
-                let short_id = short_ids.get_short_id(&cmp.id.to_string()).unwrap_or_default();
+            println!("short_id,id,title,type,severity,category,ncr_status");
+            for ncr in &ncrs {
+                let short_id = short_ids.get_short_id(&ncr.id.to_string()).unwrap_or_default();
                 println!(
-                    "{},{},{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{}",
                     short_id,
-                    cmp.id,
-                    cmp.part_number,
-                    cmp.revision.as_deref().unwrap_or(""),
-                    escape_csv(&cmp.title),
-                    cmp.make_buy,
-                    cmp.category,
-                    cmp.status
+                    ncr.id,
+                    escape_csv(&ncr.title),
+                    ncr.ncr_type,
+                    ncr.severity,
+                    ncr.category,
+                    ncr.ncr_status
                 );
             }
         }
         OutputFormat::Tsv => {
             println!(
-                "{:<8} {:<17} {:<12} {:<30} {:<6} {:<12} {:<10}",
+                "{:<8} {:<17} {:<26} {:<10} {:<10} {:<12} {:<12}",
                 style("SHORT").bold().dim(),
                 style("ID").bold(),
-                style("PART #").bold(),
                 style("TITLE").bold(),
-                style("M/B").bold(),
+                style("TYPE").bold(),
+                style("SEVERITY").bold(),
                 style("CATEGORY").bold(),
                 style("STATUS").bold()
             );
             println!("{}", "-".repeat(100));
 
-            for cmp in &components {
-                let short_id = short_ids.get_short_id(&cmp.id.to_string()).unwrap_or_default();
-                let id_display = format_short_id(&cmp.id);
-                let title_truncated = truncate_str(&cmp.title, 28);
-                let make_buy_short = match cmp.make_buy {
-                    MakeBuy::Make => "make",
-                    MakeBuy::Buy => "buy",
+            for ncr in &ncrs {
+                let short_id = short_ids.get_short_id(&ncr.id.to_string()).unwrap_or_default();
+                let id_display = format_short_id(&ncr.id);
+                let title_truncated = truncate_str(&ncr.title, 24);
+                let severity_styled = match ncr.severity {
+                    NcrSeverity::Critical => style(ncr.severity.to_string()).red().bold(),
+                    NcrSeverity::Major => style(ncr.severity.to_string()).yellow(),
+                    NcrSeverity::Minor => style(ncr.severity.to_string()).white(),
                 };
 
                 println!(
-                    "{:<8} {:<17} {:<12} {:<30} {:<6} {:<12} {:<10}",
+                    "{:<8} {:<17} {:<26} {:<10} {:<10} {:<12} {:<12}",
                     style(&short_id).cyan(),
                     id_display,
-                    truncate_str(&cmp.part_number, 10),
                     title_truncated,
-                    make_buy_short,
-                    cmp.category,
-                    cmp.status
+                    ncr.ncr_type,
+                    severity_styled,
+                    ncr.category,
+                    ncr.ncr_status
                 );
             }
 
             println!();
             println!(
-                "{} component(s) found. Use {} to reference by short ID.",
-                style(components.len()).cyan(),
-                style("CMP@N").cyan()
+                "{} NCR(s) found. Use {} to reference by short ID.",
+                style(ncrs.len()).cyan(),
+                style("NCR@N").cyan()
             );
         }
         OutputFormat::Id => {
-            for cmp in &components {
-                println!("{}", cmp.id);
+            for ncr in &ncrs {
+                println!("{}", ncr.id);
             }
         }
         OutputFormat::Md => {
-            println!("| Short | ID | Part # | Title | M/B | Category | Status |");
+            println!("| Short | ID | Title | Type | Severity | Category | Status |");
             println!("|---|---|---|---|---|---|---|");
-            for cmp in &components {
-                let short_id = short_ids.get_short_id(&cmp.id.to_string()).unwrap_or_default();
+            for ncr in &ncrs {
+                let short_id = short_ids.get_short_id(&ncr.id.to_string()).unwrap_or_default();
                 println!(
                     "| {} | {} | {} | {} | {} | {} | {} |",
                     short_id,
-                    format_short_id(&cmp.id),
-                    cmp.part_number,
-                    cmp.title,
-                    cmp.make_buy,
-                    cmp.category,
-                    cmp.status
+                    format_short_id(&ncr.id),
+                    ncr.title,
+                    ncr.ncr_type,
+                    ncr.severity,
+                    ncr.category,
+                    ncr.ncr_status
                 );
             }
         }
@@ -384,35 +377,47 @@ fn run_new(args: NewArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let config = Config::load();
 
-    let part_number: String;
     let title: String;
-    let make_buy: String;
+    let ncr_type: String;
+    let severity: String;
     let category: String;
 
-    if args.interactive || (args.part_number.is_none() && args.title.is_none()) {
+    if args.interactive || args.title.is_none() {
         // Interactive mode
         use dialoguer::{Input, Select};
 
-        part_number = Input::new()
-            .with_prompt("Part number")
-            .interact_text()
-            .into_diagnostic()?;
-
         title = Input::new()
-            .with_prompt("Title")
+            .with_prompt("NCR title")
             .interact_text()
             .into_diagnostic()?;
 
-        let make_buy_options = ["buy", "make"];
-        let make_buy_idx = Select::new()
-            .with_prompt("Make or buy")
-            .items(&make_buy_options)
+        let type_options = ["internal", "supplier", "customer"];
+        let type_idx = Select::new()
+            .with_prompt("NCR type")
+            .items(&type_options)
             .default(0)
             .interact()
             .into_diagnostic()?;
-        make_buy = make_buy_options[make_buy_idx].to_string();
+        ncr_type = type_options[type_idx].to_string();
 
-        let category_options = ["mechanical", "electrical", "software", "fastener", "consumable"];
+        let severity_options = ["minor", "major", "critical"];
+        let severity_idx = Select::new()
+            .with_prompt("Severity")
+            .items(&severity_options)
+            .default(0)
+            .interact()
+            .into_diagnostic()?;
+        severity = severity_options[severity_idx].to_string();
+
+        let category_options = [
+            "dimensional",
+            "cosmetic",
+            "material",
+            "functional",
+            "documentation",
+            "process",
+            "packaging",
+        ];
         let category_idx = Select::new()
             .with_prompt("Category")
             .items(&category_options)
@@ -421,45 +426,42 @@ fn run_new(args: NewArgs) -> Result<()> {
             .into_diagnostic()?;
         category = category_options[category_idx].to_string();
     } else {
-        part_number = args
-            .part_number
-            .ok_or_else(|| miette::miette!("Part number is required (use --part-number or -p)"))?;
         title = args
             .title
             .ok_or_else(|| miette::miette!("Title is required (use --title or -t)"))?;
-        make_buy = args.make_buy;
+        ncr_type = args.r#type;
+        severity = args.severity;
         category = args.category;
     }
 
+    // Validate enums
+    ncr_type
+        .parse::<NcrType>()
+        .map_err(|e| miette::miette!("{}", e))?;
+    severity
+        .parse::<NcrSeverity>()
+        .map_err(|e| miette::miette!("{}", e))?;
+    category
+        .parse::<NcrCategory>()
+        .map_err(|e| miette::miette!("{}", e))?;
+
     // Generate ID
-    let id = EntityId::new(EntityPrefix::Cmp);
+    let id = EntityId::new(EntityPrefix::Ncr);
 
     // Generate template
     let generator = TemplateGenerator::new().map_err(|e| miette::miette!("{}", e))?;
     let ctx = TemplateContext::new(id.clone(), config.author())
         .with_title(&title)
-        .with_part_number(&part_number)
-        .with_make_buy(&make_buy)
-        .with_component_category(&category);
-
-    let ctx = if let Some(ref rev) = args.revision {
-        ctx.with_part_revision(rev)
-    } else {
-        ctx
-    };
-
-    let ctx = if let Some(ref mat) = args.material {
-        ctx.with_material(mat)
-    } else {
-        ctx
-    };
+        .with_ncr_type(&ncr_type)
+        .with_ncr_severity(&severity)
+        .with_ncr_category(&category);
 
     let yaml_content = generator
-        .generate_component(&ctx)
+        .generate_ncr(&ctx)
         .map_err(|e| miette::miette!("{}", e))?;
 
     // Write file
-    let output_dir = project.root().join("bom/components");
+    let output_dir = project.root().join("manufacturing/ncrs");
     if !output_dir.exists() {
         fs::create_dir_all(&output_dir).into_diagnostic()?;
     }
@@ -472,15 +474,22 @@ fn run_new(args: NewArgs) -> Result<()> {
     let short_id = short_ids.add(id.to_string());
     let _ = short_ids.save(&project);
 
+    let severity_styled = match severity.as_str() {
+        "critical" => style(&severity).red().bold(),
+        "major" => style(&severity).yellow(),
+        _ => style(&severity).white(),
+    };
+
     println!(
-        "{} Created component {}",
+        "{} Created NCR {}",
         style("✓").green(),
         style(short_id.unwrap_or_else(|| format_short_id(&id))).cyan()
     );
     println!("   {}", style(file_path.display()).dim());
     println!(
-        "   Part: {} | {}",
-        style(&part_number).yellow(),
+        "   {} | {} | {}",
+        style(&ncr_type).yellow(),
+        severity_styled,
         style(&title).white()
     );
 
@@ -504,12 +513,12 @@ fn run_show(args: ShowArgs) -> Result<()> {
         .resolve(&args.id)
         .unwrap_or_else(|| args.id.clone());
 
-    // Find the component file
-    let cmp_dir = project.root().join("bom/components");
+    // Find the NCR file
+    let ncr_dir = project.root().join("manufacturing/ncrs");
     let mut found_path = None;
 
-    if cmp_dir.exists() {
-        for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
+    if ncr_dir.exists() {
+        for entry in fs::read_dir(&ncr_dir).into_diagnostic()? {
             let entry = entry.into_diagnostic()?;
             let path = entry.path();
 
@@ -523,7 +532,7 @@ fn run_show(args: ShowArgs) -> Result<()> {
         }
     }
 
-    let path = found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", args.id))?;
+    let path = found_path.ok_or_else(|| miette::miette!("No NCR found matching '{}'", args.id))?;
 
     // Read and display
     let content = fs::read_to_string(&path).into_diagnostic()?;
@@ -533,8 +542,8 @@ fn run_show(args: ShowArgs) -> Result<()> {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let cmp: Component = serde_yml::from_str(&content).into_diagnostic()?;
-            let json = serde_json::to_string_pretty(&cmp).into_diagnostic()?;
+            let ncr: Ncr = serde_yml::from_str(&content).into_diagnostic()?;
+            let json = serde_json::to_string_pretty(&ncr).into_diagnostic()?;
             println!("{}", json);
         }
         _ => {
@@ -555,12 +564,12 @@ fn run_edit(args: EditArgs) -> Result<()> {
         .resolve(&args.id)
         .unwrap_or_else(|| args.id.clone());
 
-    // Find the component file
-    let cmp_dir = project.root().join("bom/components");
+    // Find the NCR file
+    let ncr_dir = project.root().join("manufacturing/ncrs");
     let mut found_path = None;
 
-    if cmp_dir.exists() {
-        for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
+    if ncr_dir.exists() {
+        for entry in fs::read_dir(&ncr_dir).into_diagnostic()? {
             let entry = entry.into_diagnostic()?;
             let path = entry.path();
 
@@ -574,9 +583,13 @@ fn run_edit(args: EditArgs) -> Result<()> {
         }
     }
 
-    let path = found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", args.id))?;
+    let path = found_path.ok_or_else(|| miette::miette!("No NCR found matching '{}'", args.id))?;
 
-    println!("Opening {} in {}...", style(path.display()).cyan(), style(config.editor()).yellow());
+    println!(
+        "Opening {} in {}...",
+        style(path.display()).cyan(),
+        style(config.editor()).yellow()
+    );
 
     config.run_editor(&path).into_diagnostic()?;
 

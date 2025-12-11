@@ -117,6 +117,7 @@ impl Project {
             "bom/assemblies",
             "bom/components",
             "bom/quotes",
+            "bom/suppliers",
             "tolerances/features",
             "tolerances/mates",
             "tolerances/stackups",
@@ -126,6 +127,9 @@ impl Project {
             "validation/results",
             "manufacturing/processes",
             "manufacturing/controls",
+            "manufacturing/work_instructions",
+            "manufacturing/ncrs",
+            "manufacturing/capas",
         ];
 
         for dir in dirs {
@@ -171,6 +175,9 @@ impl Project {
             EntityPrefix::Quot => "bom/quotes",
             EntityPrefix::Sup => "bom/suppliers",
             EntityPrefix::Act => "actions",
+            EntityPrefix::Work => "manufacturing/work_instructions",
+            EntityPrefix::Ncr => "manufacturing/ncrs",
+            EntityPrefix::Capa => "manufacturing/capas",
         }
     }
 

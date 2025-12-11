@@ -38,6 +38,12 @@ pub enum EntityPrefix {
     Sup,
     /// Action item
     Act,
+    /// Work instruction
+    Work,
+    /// Non-conformance report
+    Ncr,
+    /// Corrective/preventive action
+    Capa,
 }
 
 impl EntityPrefix {
@@ -58,6 +64,9 @@ impl EntityPrefix {
             EntityPrefix::Quot => "QUOT",
             EntityPrefix::Sup => "SUP",
             EntityPrefix::Act => "ACT",
+            EntityPrefix::Work => "WORK",
+            EntityPrefix::Ncr => "NCR",
+            EntityPrefix::Capa => "CAPA",
         }
     }
 
@@ -78,6 +87,9 @@ impl EntityPrefix {
             EntityPrefix::Quot,
             EntityPrefix::Sup,
             EntityPrefix::Act,
+            EntityPrefix::Work,
+            EntityPrefix::Ncr,
+            EntityPrefix::Capa,
         ]
     }
 
@@ -126,6 +138,9 @@ impl EntityPrefix {
                     "controls" => return Some(EntityPrefix::Ctrl),
                     "quotes" => return Some(EntityPrefix::Quot),
                     "suppliers" => return Some(EntityPrefix::Sup),
+                    "work_instructions" => return Some(EntityPrefix::Work),
+                    "ncrs" => return Some(EntityPrefix::Ncr),
+                    "capas" => return Some(EntityPrefix::Capa),
                     _ => {}
                 }
             }
@@ -159,6 +174,9 @@ impl FromStr for EntityPrefix {
             "QUOT" => Ok(EntityPrefix::Quot),
             "SUP" => Ok(EntityPrefix::Sup),
             "ACT" => Ok(EntityPrefix::Act),
+            "WORK" => Ok(EntityPrefix::Work),
+            "NCR" => Ok(EntityPrefix::Ncr),
+            "CAPA" => Ok(EntityPrefix::Capa),
             _ => Err(IdParseError::InvalidPrefix(s.to_string())),
         }
     }
@@ -245,7 +263,7 @@ impl<'de> Deserialize<'de> for EntityId {
 /// Errors that can occur when parsing entity IDs
 #[derive(Debug, Error)]
 pub enum IdParseError {
-    #[error("invalid entity prefix: '{0}' (valid: REQ, RISK, TEST, RSLT, TOL, MATE, ASM, CMP, FEAT, PROC, CTRL, QUOT, SUP, ACT)")]
+    #[error("invalid entity prefix: '{0}' (valid: REQ, RISK, TEST, RSLT, TOL, MATE, ASM, CMP, FEAT, PROC, CTRL, QUOT, SUP, ACT, WORK, NCR, CAPA)")]
     InvalidPrefix(String),
 
     #[error("missing '-' delimiter in entity ID: '{0}'")]
