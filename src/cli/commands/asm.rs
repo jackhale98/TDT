@@ -32,6 +32,20 @@ pub enum AsmCommands {
 
     /// Show expanded BOM for an assembly
     Bom(BomArgs),
+
+    /// Add a component to an assembly's BOM
+    #[command(name = "add")]
+    AddComponent(AddComponentArgs),
+
+    /// Remove a component from an assembly's BOM
+    #[command(name = "rm")]
+    RemoveComponent(RemoveComponentArgs),
+
+    /// Calculate total cost for an assembly (recursive BOM)
+    Cost(CostArgs),
+
+    /// Calculate total mass for an assembly (recursive BOM)
+    Mass(MassArgs),
 }
 
 /// List column types
@@ -158,6 +172,56 @@ pub struct BomArgs {
     pub flat: bool,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct AddComponentArgs {
+    /// Assembly ID or short ID (ASM@N)
+    pub assembly: String,
+
+    /// Component ID or short ID (CMP@N)
+    pub component: String,
+
+    /// Quantity (default: 1)
+    #[arg(long, default_value = "1")]
+    pub qty: u32,
+
+    /// Reference designators (comma-separated, e.g., "U1,U2,U3")
+    #[arg(long, short = 'r', value_delimiter = ',')]
+    pub refs: Vec<String>,
+
+    /// Notes about this BOM line item
+    #[arg(long, short = 'n')]
+    pub notes: Option<String>,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct RemoveComponentArgs {
+    /// Assembly ID or short ID (ASM@N)
+    pub assembly: String,
+
+    /// Component ID or short ID (CMP@N) to remove
+    pub component: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CostArgs {
+    /// Assembly ID or short ID (ASM@N)
+    pub assembly: String,
+
+    /// Show breakdown by component
+    #[arg(long)]
+    pub breakdown: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct MassArgs {
+    /// Assembly ID or short ID (ASM@N)
+    pub assembly: String,
+
+    /// Show breakdown by component
+    #[arg(long)]
+    pub breakdown: bool,
+}
+
 /// Run an assembly subcommand
 pub fn run(cmd: AsmCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -166,6 +230,10 @@ pub fn run(cmd: AsmCommands, global: &GlobalOpts) -> Result<()> {
         AsmCommands::Show(args) => run_show(args, global),
         AsmCommands::Edit(args) => run_edit(args),
         AsmCommands::Bom(args) => run_bom(args, global),
+        AsmCommands::AddComponent(args) => run_add_component(args),
+        AsmCommands::RemoveComponent(args) => run_remove_component(args),
+        AsmCommands::Cost(args) => run_cost(args),
+        AsmCommands::Mass(args) => run_mass(args),
     }
 }
 
@@ -734,6 +802,446 @@ fn run_bom(args: BomArgs, global: &GlobalOpts) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn run_add_component(args: AddComponentArgs) -> Result<()> {
+    use crate::entities::assembly::BomItem;
+
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Resolve assembly ID
+    let asm_id = short_ids
+        .resolve(&args.assembly)
+        .unwrap_or_else(|| args.assembly.clone());
+
+    // Resolve component ID
+    let cmp_id = short_ids
+        .resolve(&args.component)
+        .unwrap_or_else(|| args.component.clone());
+
+    // Validate component exists
+    let cmp_dir = project.root().join("bom/components");
+    let mut component_found = false;
+    let mut component_info: Option<Component> = None;
+
+    if cmp_dir.exists() {
+        for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&cmp_id) || filename.starts_with(&cmp_id) {
+                    let content = fs::read_to_string(&path).into_diagnostic()?;
+                    if let Ok(cmp) = serde_yml::from_str::<Component>(&content) {
+                        component_found = true;
+                        component_info = Some(cmp);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    if !component_found {
+        return Err(miette::miette!(
+            "Component '{}' not found. Create it first with: tdt cmp new",
+            args.component
+        ));
+    }
+
+    // Find and load the assembly
+    let asm_dir = project.root().join("bom/assemblies");
+    let mut found_path = None;
+    let mut assembly: Option<Assembly> = None;
+
+    if asm_dir.exists() {
+        for entry in fs::read_dir(&asm_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&asm_id) || filename.starts_with(&asm_id) {
+                    let content = fs::read_to_string(&path).into_diagnostic()?;
+                    if let Ok(asm) = serde_yml::from_str::<Assembly>(&content) {
+                        assembly = Some(asm);
+                        found_path = Some(path);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut assembly = assembly.ok_or_else(|| {
+        miette::miette!(
+            "Assembly '{}' not found. Create it first with: tdt asm new",
+            args.assembly
+        )
+    })?;
+    let path = found_path.unwrap();
+
+    // Get the full component ID
+    let full_cmp_id = component_info.as_ref().map(|c| c.id.to_string()).unwrap_or(cmp_id);
+
+    // Check if component already exists in BOM
+    if let Some(existing) = assembly.bom.iter_mut().find(|item| item.component_id == full_cmp_id) {
+        // Update existing entry
+        existing.quantity += args.qty;
+        if !args.refs.is_empty() {
+            existing.reference_designators.extend(args.refs.clone());
+        }
+        if args.notes.is_some() {
+            existing.notes = args.notes.clone();
+        }
+
+        println!(
+            "{} Updated {} in {} (qty now: {})",
+            style("✓").green(),
+            style(&args.component).cyan(),
+            style(&args.assembly).yellow(),
+            existing.quantity
+        );
+    } else {
+        // Add new BOM item
+        let bom_item = BomItem {
+            component_id: full_cmp_id.clone(),
+            quantity: args.qty,
+            reference_designators: args.refs.clone(),
+            notes: args.notes.clone(),
+        };
+        assembly.bom.push(bom_item);
+
+        let cmp_info = component_info.as_ref();
+        println!(
+            "{} Added {} to {}",
+            style("✓").green(),
+            style(&args.component).cyan(),
+            style(&args.assembly).yellow()
+        );
+        println!(
+            "   Component: {} | {}",
+            style(cmp_info.map(|c| c.part_number.as_str()).unwrap_or("-")).white(),
+            style(cmp_info.map(|c| c.title.as_str()).unwrap_or("-")).dim()
+        );
+        println!("   Quantity: {}", args.qty);
+        if !args.refs.is_empty() {
+            println!("   References: {}", args.refs.join(", "));
+        }
+    }
+
+    // Save the updated assembly
+    let yaml = serde_yml::to_string(&assembly).into_diagnostic()?;
+    fs::write(&path, yaml).into_diagnostic()?;
+
+    println!(
+        "   BOM now has {} line items ({} total components)",
+        assembly.bom.len(),
+        assembly.total_component_count()
+    );
+
+    Ok(())
+}
+
+fn run_remove_component(args: RemoveComponentArgs) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Resolve assembly ID
+    let asm_id = short_ids
+        .resolve(&args.assembly)
+        .unwrap_or_else(|| args.assembly.clone());
+
+    // Resolve component ID
+    let cmp_id = short_ids
+        .resolve(&args.component)
+        .unwrap_or_else(|| args.component.clone());
+
+    // Find and load the assembly
+    let asm_dir = project.root().join("bom/assemblies");
+    let mut found_path = None;
+    let mut assembly: Option<Assembly> = None;
+
+    if asm_dir.exists() {
+        for entry in fs::read_dir(&asm_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&asm_id) || filename.starts_with(&asm_id) {
+                    let content = fs::read_to_string(&path).into_diagnostic()?;
+                    if let Ok(asm) = serde_yml::from_str::<Assembly>(&content) {
+                        assembly = Some(asm);
+                        found_path = Some(path);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut assembly = assembly.ok_or_else(|| {
+        miette::miette!(
+            "Assembly '{}' not found",
+            args.assembly
+        )
+    })?;
+    let path = found_path.unwrap();
+
+    // Find and remove the component
+    let original_len = assembly.bom.len();
+    assembly.bom.retain(|item| !item.component_id.contains(&cmp_id));
+
+    if assembly.bom.len() == original_len {
+        return Err(miette::miette!(
+            "Component '{}' not found in assembly '{}' BOM",
+            args.component,
+            args.assembly
+        ));
+    }
+
+    // Save the updated assembly
+    let yaml = serde_yml::to_string(&assembly).into_diagnostic()?;
+    fs::write(&path, yaml).into_diagnostic()?;
+
+    println!(
+        "{} Removed {} from {}",
+        style("✓").green(),
+        style(&args.component).cyan(),
+        style(&args.assembly).yellow()
+    );
+    println!(
+        "   BOM now has {} line items",
+        assembly.bom.len()
+    );
+
+    Ok(())
+}
+
+fn run_cost(args: CostArgs) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Resolve assembly ID
+    let resolved_id = short_ids.resolve(&args.assembly).unwrap_or_else(|| args.assembly.clone());
+
+    // Load assembly
+    let assembly = find_assembly(&project, &resolved_id)?;
+
+    // Load all components and assemblies for lookup
+    let components = load_all_components(&project);
+    let component_map: std::collections::HashMap<String, &Component> = components.iter()
+        .map(|c| (c.id.to_string(), c))
+        .collect();
+
+    let assemblies = load_all_assemblies(&project);
+    let assembly_map: std::collections::HashMap<String, &Assembly> = assemblies.iter()
+        .map(|a| (a.id.to_string(), a))
+        .collect();
+
+    // Calculate costs recursively
+    let mut breakdown: Vec<(String, String, u32, f64)> = Vec::new(); // (id, title, qty, cost)
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(assembly.id.to_string());
+
+    fn calculate_bom_cost(
+        bom: &[crate::entities::assembly::BomItem],
+        component_map: &std::collections::HashMap<String, &Component>,
+        assembly_map: &std::collections::HashMap<String, &Assembly>,
+        breakdown: &mut Vec<(String, String, u32, f64)>,
+        visited: &mut std::collections::HashSet<String>,
+    ) -> f64 {
+        let mut total = 0.0;
+        for item in bom {
+            let item_id = item.component_id.to_string();
+            if let Some(cmp) = component_map.get(&item_id) {
+                let line_cost = cmp.unit_cost.unwrap_or(0.0) * item.quantity as f64;
+                total += line_cost;
+                breakdown.push((item_id, cmp.title.clone(), item.quantity, line_cost));
+            } else if let Some(sub_asm) = assembly_map.get(&item_id) {
+                if !visited.contains(&item_id) {
+                    visited.insert(item_id.clone());
+                    let sub_cost = calculate_bom_cost(
+                        &sub_asm.bom, component_map, assembly_map, breakdown, visited
+                    );
+                    let line_cost = sub_cost * item.quantity as f64;
+                    total += line_cost;
+                    breakdown.push((item_id.clone(), sub_asm.title.clone(), item.quantity, line_cost));
+                    visited.remove(&item_id);
+                }
+            }
+        }
+        total
+    }
+
+    let total_cost = calculate_bom_cost(
+        &assembly.bom, &component_map, &assembly_map, &mut breakdown, &mut visited
+    );
+
+    // Output
+    println!("{} {}", style("Assembly:").bold(), style(&assembly.title).cyan());
+    println!("{} {}\n", style("Part Number:").bold(), assembly.part_number);
+
+    if args.breakdown && !breakdown.is_empty() {
+        println!("{:<12} {:<30} {:<6} {:<12}", style("ID").bold(), style("TITLE").bold(), style("QTY").bold(), style("COST").bold());
+        println!("{}", "-".repeat(65));
+        for (id, title, qty, cost) in &breakdown {
+            let id_short = short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 10));
+            if *cost > 0.0 {
+                println!("{:<12} {:<30} {:<6} ${:.2}", id_short, truncate_str(title, 28), qty, cost);
+            }
+        }
+        println!("{}", "-".repeat(65));
+    }
+
+    println!("{} ${:.2}", style("Total Cost:").green().bold(), total_cost);
+
+    Ok(())
+}
+
+fn run_mass(args: MassArgs) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Resolve assembly ID
+    let resolved_id = short_ids.resolve(&args.assembly).unwrap_or_else(|| args.assembly.clone());
+
+    // Load assembly
+    let assembly = find_assembly(&project, &resolved_id)?;
+
+    // Load all components and assemblies for lookup
+    let components = load_all_components(&project);
+    let component_map: std::collections::HashMap<String, &Component> = components.iter()
+        .map(|c| (c.id.to_string(), c))
+        .collect();
+
+    let assemblies = load_all_assemblies(&project);
+    let assembly_map: std::collections::HashMap<String, &Assembly> = assemblies.iter()
+        .map(|a| (a.id.to_string(), a))
+        .collect();
+
+    // Calculate mass recursively
+    let mut breakdown: Vec<(String, String, u32, f64)> = Vec::new(); // (id, title, qty, mass)
+    let mut visited = std::collections::HashSet::new();
+    visited.insert(assembly.id.to_string());
+
+    fn calculate_bom_mass(
+        bom: &[crate::entities::assembly::BomItem],
+        component_map: &std::collections::HashMap<String, &Component>,
+        assembly_map: &std::collections::HashMap<String, &Assembly>,
+        breakdown: &mut Vec<(String, String, u32, f64)>,
+        visited: &mut std::collections::HashSet<String>,
+    ) -> f64 {
+        let mut total = 0.0;
+        for item in bom {
+            let item_id = item.component_id.to_string();
+            if let Some(cmp) = component_map.get(&item_id) {
+                let line_mass = cmp.mass_kg.unwrap_or(0.0) * item.quantity as f64;
+                total += line_mass;
+                breakdown.push((item_id, cmp.title.clone(), item.quantity, line_mass));
+            } else if let Some(sub_asm) = assembly_map.get(&item_id) {
+                if !visited.contains(&item_id) {
+                    visited.insert(item_id.clone());
+                    let sub_mass = calculate_bom_mass(
+                        &sub_asm.bom, component_map, assembly_map, breakdown, visited
+                    );
+                    let line_mass = sub_mass * item.quantity as f64;
+                    total += line_mass;
+                    breakdown.push((item_id.clone(), sub_asm.title.clone(), item.quantity, line_mass));
+                    visited.remove(&item_id);
+                }
+            }
+        }
+        total
+    }
+
+    let total_mass = calculate_bom_mass(
+        &assembly.bom, &component_map, &assembly_map, &mut breakdown, &mut visited
+    );
+
+    // Output
+    println!("{} {}", style("Assembly:").bold(), style(&assembly.title).cyan());
+    println!("{} {}\n", style("Part Number:").bold(), assembly.part_number);
+
+    if args.breakdown && !breakdown.is_empty() {
+        println!("{:<12} {:<30} {:<6} {:<12}", style("ID").bold(), style("TITLE").bold(), style("QTY").bold(), style("MASS (kg)").bold());
+        println!("{}", "-".repeat(65));
+        for (id, title, qty, mass) in &breakdown {
+            let id_short = short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 10));
+            if *mass > 0.0 {
+                println!("{:<12} {:<30} {:<6} {:.3}", id_short, truncate_str(title, 28), qty, mass);
+            }
+        }
+        println!("{}", "-".repeat(65));
+    }
+
+    println!("{} {:.3} kg", style("Total Mass:").green().bold(), total_mass);
+
+    Ok(())
+}
+
+fn find_assembly(project: &Project, id: &str) -> Result<Assembly> {
+    let asm_dir = project.root().join("bom/assemblies");
+
+    if asm_dir.exists() {
+        for entry in walkdir::WalkDir::new(&asm_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(asm) = crate::yaml::parse_yaml_file::<Assembly>(entry.path()) {
+                if asm.id.to_string() == id || asm.id.to_string().starts_with(id) {
+                    return Ok(asm);
+                }
+            }
+        }
+    }
+
+    Err(miette::miette!("Assembly not found: {}", id))
+}
+
+fn load_all_components(project: &Project) -> Vec<Component> {
+    let mut components = Vec::new();
+    let dir = project.root().join("bom/components");
+
+    if dir.exists() {
+        for entry in walkdir::WalkDir::new(&dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(cmp) = crate::yaml::parse_yaml_file::<Component>(entry.path()) {
+                components.push(cmp);
+            }
+        }
+    }
+
+    components
+}
+
+fn load_all_assemblies(project: &Project) -> Vec<Assembly> {
+    let mut assemblies = Vec::new();
+    let dir = project.root().join("bom/assemblies");
+
+    if dir.exists() {
+        for entry in walkdir::WalkDir::new(&dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(asm) = crate::yaml::parse_yaml_file::<Assembly>(entry.path()) {
+                assemblies.push(asm);
+            }
+        }
+    }
+
+    assemblies
 }
 
 // Helper functions

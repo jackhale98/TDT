@@ -1,61 +1,62 @@
-# Stackup: Motor Shaft Alignment Stackup
-# Created by TDT - Tessera Engineering Toolkit
-
 id: TOL-01KC5X5S73WTNRM1YF4KDC999Y
-title: "Motor Shaft Alignment Stackup"
-
+title: Motor Shaft Alignment Stackup
 description: |
   # Detailed description of this tolerance stackup
   # Include the tolerance chain being analyzed
-
-# Target specification
 target:
-  name: "Shaft Misalignment"
-  nominal: 0
+  name: Shaft Misalignment
+  nominal: 0.0
   upper_limit: 0.1
   lower_limit: -0.1
-  units: "mm"
+  units: mm
   critical: false
-
-# Contributors to the stackup
-# Use plus_tol/minus_tol format (not +/- symbol)
 contributors:
-  - name: "Motor Mounting Position"
-    direction: positive
-    nominal: 0.0
-    plus_tol: 0.02
-    minus_tol: 0.02
-    distribution: normal
-    source: "DWG-003 Rev A"
-  - name: "Coupling Runout"
-    direction: positive
-    nominal: 0.0
-    plus_tol: 0.03
-    minus_tol: 0.0
-    distribution: uniform
-    source: "Coupling Spec"
-  - name: "Screw Runout"
-    direction: positive
-    nominal: 0.0
-    plus_tol: 0.02
-    minus_tol: 0.0
-    distribution: uniform
-    source: "THK Spec Sheet"
-
-# Analysis results (auto-calculated)
-# Run 'tdt tol analyze TOL@N' to calculate
-analysis_results: {}
-
+- name: Motor Mounting Position
+  direction: positive
+  nominal: 0.0
+  plus_tol: 0.02
+  minus_tol: 0.02
+  distribution: normal
+  source: DWG-003 Rev A
+- name: Coupling Runout
+  direction: positive
+  nominal: 0.0
+  plus_tol: 0.03
+  minus_tol: 0.0
+  distribution: uniform
+  source: Coupling Spec
+- name: Screw Runout
+  direction: positive
+  nominal: 0.0
+  plus_tol: 0.02
+  minus_tol: 0.0
+  distribution: uniform
+  source: THK Spec Sheet
+analysis_results:
+  worst_case:
+    min: -0.02
+    max: 0.07
+    margin: 0.03
+    result: pass
+  rss:
+    mean: 0.0
+    sigma_3: 0.02692582403567252
+    margin: 0.07307417596432748
+    cpk: 3.713906763541037
+    yield_percent: 99.9999
+  monte_carlo:
+    iterations: 10000
+    mean: 0.024829295673556125
+    std_dev: 0.012262018657171811
+    min: -0.014292390509627408
+    max: 0.06507043268157096
+    yield_percent: 100.0
+    percentile_2_5: 0.0014335369054184995
+    percentile_97_5: 0.048323052425500036
 disposition: under_review
-
 tags: []
 status: draft
-
-links:
-  verifies: []
-  mates_used: []
-
-# Auto-managed metadata
-created: 2025-12-11T05:12:09.198611877+00:00
+links: {}
+created: '2025-12-11T05:12:09.198611877Z'
 author: Jack Hale
 entity_revision: 1

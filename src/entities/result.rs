@@ -250,6 +250,10 @@ pub struct ResultLinks {
     /// IDs of action items created from this result
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub actions: Vec<EntityId>,
+
+    /// NCR created from a failed test result
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_ncr: Option<EntityId>,
 }
 
 /// A test result entity (execution record)

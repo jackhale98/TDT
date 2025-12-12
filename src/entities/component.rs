@@ -136,6 +136,14 @@ pub struct ComponentLinks {
     /// Assemblies that use this component
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub used_in: Vec<EntityId>,
+
+    /// Components this replaces (supersedes)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub replaces: Vec<EntityId>,
+
+    /// Interchangeable components (alternates)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub interchangeable_with: Vec<EntityId>,
 }
 
 /// A Component entity - individual part (purchased or manufactured)

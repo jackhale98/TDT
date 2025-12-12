@@ -27,6 +27,9 @@ pub enum RiskCommands {
 
     /// Edit a risk in your editor
     Edit(EditArgs),
+
+    /// Show risk statistics summary
+    Summary(SummaryArgs),
 }
 
 /// Risk type filter
@@ -129,6 +132,10 @@ pub struct ListArgs {
     #[arg(long)]
     pub max_rpn: Option<u16>,
 
+    /// Show risks above this RPN threshold (alias for --min-rpn)
+    #[arg(long, value_name = "N")]
+    pub above_rpn: Option<u16>,
+
     /// Filter by author (substring match)
     #[arg(long, short = 'a')]
     pub author: Option<String>,
@@ -140,6 +147,14 @@ pub struct ListArgs {
     /// Show only risks without mitigations
     #[arg(long)]
     pub unmitigated: bool,
+
+    /// Show risks with incomplete mitigations (not all verified/completed)
+    #[arg(long)]
+    pub open_mitigations: bool,
+
+    /// Show only critical risks (shortcut for --level critical)
+    #[arg(long)]
+    pub critical: bool,
 
     /// Show risks created in last N days
     #[arg(long)]
@@ -232,12 +247,24 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct SummaryArgs {
+    /// Show top N risks by RPN (default: 5)
+    #[arg(long, short = 'n', default_value = "5")]
+    pub top: usize,
+
+    /// Include detailed breakdown by category
+    #[arg(long)]
+    pub detailed: bool,
+}
+
 pub fn run(cmd: RiskCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
         RiskCommands::List(args) => run_list(args, global),
         RiskCommands::New(args) => run_new(args),
         RiskCommands::Show(args) => run_show(args, global),
         RiskCommands::Edit(args) => run_edit(args),
+        RiskCommands::Summary(args) => run_summary(args, global),
     }
 }
 
@@ -322,8 +349,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             RiskLevelFilter::Critical => r.risk_level == Some(RiskLevel::Critical),
         };
 
-        // RPN filters
-        let min_rpn_match = args.min_rpn.map_or(true, |min| r.rpn.unwrap_or(0) >= min);
+        // RPN filters (above_rpn is an alias for min_rpn)
+        let effective_min_rpn = args.above_rpn.or(args.min_rpn);
+        let min_rpn_match = effective_min_rpn.map_or(true, |min| r.rpn.unwrap_or(0) >= min);
         let max_rpn_match = args.max_rpn.map_or(true, |max| r.rpn.unwrap_or(0) <= max);
 
         // Category filter (case-insensitive)
@@ -351,6 +379,22 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         // Unmitigated filter
         let unmitigated_match = !args.unmitigated || r.mitigations.is_empty();
 
+        // Open mitigations filter (has mitigations but not all completed/verified)
+        let open_mitigations_match = if args.open_mitigations {
+            use crate::entities::risk::MitigationStatus;
+            !r.mitigations.is_empty() && r.mitigations.iter().any(|m| {
+                match m.status {
+                    Some(MitigationStatus::Completed) | Some(MitigationStatus::Verified) => false,
+                    _ => true, // Proposed, InProgress, or None
+                }
+            })
+        } else {
+            true
+        };
+
+        // Critical shortcut filter
+        let critical_match = !args.critical || r.risk_level == Some(RiskLevel::Critical);
+
         // Recent filter (created in last N days)
         let recent_match = args.recent.map_or(true, |days| {
             let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
@@ -359,7 +403,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
         type_match && status_match && level_match && min_rpn_match && max_rpn_match
             && category_match && tag_match && author_match && search_match
-            && unmitigated_match && recent_match
+            && unmitigated_match && open_mitigations_match && critical_match && recent_match
     });
 
     if risks.is_empty() {
@@ -938,4 +982,227 @@ fn truncate_str(s: &str, max_len: usize) -> String {
     } else {
         format!("{}...", &s[..max_len.saturating_sub(3)])
     }
+}
+
+fn run_summary(args: SummaryArgs, global: &GlobalOpts) -> Result<()> {
+    use crate::entities::risk::MitigationStatus;
+
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Collect all risks
+    let mut risks: Vec<Risk> = Vec::new();
+
+    for subdir in &["risks/design", "risks/process"] {
+        let dir = project.root().join(subdir);
+        if !dir.exists() {
+            continue;
+        }
+
+        for entry in walkdir::WalkDir::new(&dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(risk) = crate::yaml::parse_yaml_file::<Risk>(entry.path()) {
+                risks.push(risk);
+            }
+        }
+    }
+
+    if risks.is_empty() {
+        println!("{}", style("No risks found in project.").yellow());
+        return Ok(());
+    }
+
+    // Calculate metrics
+    let total = risks.len();
+
+    // Count by level (using effective level - either explicit or calculated from RPN)
+    let mut by_level: std::collections::HashMap<RiskLevel, usize> = std::collections::HashMap::new();
+    for risk in &risks {
+        let level = risk.risk_level.or_else(|| risk.determine_risk_level()).unwrap_or(RiskLevel::Medium);
+        *by_level.entry(level).or_insert(0) += 1;
+    }
+
+    // Count by type
+    let mut by_type: std::collections::HashMap<RiskType, usize> = std::collections::HashMap::new();
+    for risk in &risks {
+        *by_type.entry(risk.risk_type).or_insert(0) += 1;
+    }
+
+    // Calculate RPN statistics (only for risks that have RPN values)
+    let rpns: Vec<u16> = risks.iter()
+        .filter_map(|r| r.calculate_rpn())
+        .collect();
+
+    let (avg_rpn, max_rpn, min_rpn) = if rpns.is_empty() {
+        (0.0, 0u16, 0u16)
+    } else {
+        let avg = rpns.iter().map(|&r| r as f64).sum::<f64>() / rpns.len() as f64;
+        let max = *rpns.iter().max().unwrap_or(&0);
+        let min = *rpns.iter().min().unwrap_or(&0);
+        (avg, max, min)
+    };
+
+    // Count unmitigated
+    let unmitigated = risks.iter()
+        .filter(|r| r.mitigations.is_empty())
+        .count();
+
+    // Count with open mitigations (not all verified)
+    let open_mitigations = risks.iter()
+        .filter(|r| !r.mitigations.is_empty() &&
+            r.mitigations.iter().any(|m| m.status != Some(MitigationStatus::Verified)))
+        .count();
+
+    // Sort by RPN for top N (risks without RPN go last)
+    let mut sorted_risks: Vec<&Risk> = risks.iter().collect();
+    sorted_risks.sort_by(|a, b| {
+        let rpn_a = a.calculate_rpn().unwrap_or(0);
+        let rpn_b = b.calculate_rpn().unwrap_or(0);
+        rpn_b.cmp(&rpn_a)
+    });
+
+    // Output based on format
+    match global.format {
+        OutputFormat::Json => {
+            let summary = serde_json::json!({
+                "total": total,
+                "by_level": {
+                    "critical": by_level.get(&RiskLevel::Critical).unwrap_or(&0),
+                    "high": by_level.get(&RiskLevel::High).unwrap_or(&0),
+                    "medium": by_level.get(&RiskLevel::Medium).unwrap_or(&0),
+                    "low": by_level.get(&RiskLevel::Low).unwrap_or(&0),
+                },
+                "by_type": {
+                    "design": by_type.get(&RiskType::Design).unwrap_or(&0),
+                    "process": by_type.get(&RiskType::Process).unwrap_or(&0),
+                },
+                "rpn": {
+                    "average": avg_rpn,
+                    "max": max_rpn,
+                    "min": min_rpn,
+                    "risks_with_rpn": rpns.len(),
+                },
+                "unmitigated": unmitigated,
+                "open_mitigations": open_mitigations,
+                "top_risks": sorted_risks.iter().take(args.top).map(|r| {
+                    let level = r.risk_level.or_else(|| r.determine_risk_level());
+                    serde_json::json!({
+                        "id": r.id.to_string(),
+                        "title": r.title,
+                        "rpn": r.calculate_rpn(),
+                        "level": level.map(|l| format!("{:?}", l).to_lowercase()),
+                    })
+                }).collect::<Vec<_>>(),
+            });
+            println!("{}", serde_json::to_string_pretty(&summary).unwrap_or_default());
+        }
+        _ => {
+            // Human-readable output
+            println!("{}", style("Risk Summary").bold().underlined());
+            println!();
+
+            // Overview section
+            println!("{:<20} {}", style("Total Risks:").bold(), total);
+            if !rpns.is_empty() {
+                println!("{:<20} {:.1}", style("Average RPN:").bold(), avg_rpn);
+                println!("{:<20} {} (max: {})", style("RPN Range:").bold(), min_rpn, max_rpn);
+            }
+            println!();
+
+            // By level
+            println!("{}", style("By Risk Level:").bold());
+            let critical = *by_level.get(&RiskLevel::Critical).unwrap_or(&0);
+            let high = *by_level.get(&RiskLevel::High).unwrap_or(&0);
+            let medium = *by_level.get(&RiskLevel::Medium).unwrap_or(&0);
+            let low = *by_level.get(&RiskLevel::Low).unwrap_or(&0);
+
+            if critical > 0 {
+                println!("  {} {}", style("Critical:").red().bold(), critical);
+            }
+            if high > 0 {
+                println!("  {} {}", style("High:").yellow().bold(), high);
+            }
+            println!("  {:<12} {}", style("Medium:").dim(), medium);
+            println!("  {:<12} {}", style("Low:").dim(), low);
+            println!();
+
+            // By type
+            println!("{}", style("By Risk Type:").bold());
+            println!("  {:<12} {}", "Design:", by_type.get(&RiskType::Design).unwrap_or(&0));
+            println!("  {:<12} {}", "Process:", by_type.get(&RiskType::Process).unwrap_or(&0));
+            println!();
+
+            // Mitigation status
+            println!("{}", style("Mitigation Status:").bold());
+            if unmitigated > 0 {
+                println!("  {} {}", style("Unmitigated:").red(), unmitigated);
+            } else {
+                println!("  {} {}", style("Unmitigated:").green(), "0");
+            }
+            if open_mitigations > 0 {
+                println!("  {} {}", style("Open (unverified):").yellow(), open_mitigations);
+            }
+            let fully_mitigated = total.saturating_sub(unmitigated).saturating_sub(open_mitigations);
+            println!("  {:<17} {}", "Fully mitigated:", fully_mitigated);
+            println!();
+
+            // Top N risks
+            println!("{} {}", style("Top").bold(), style(format!("{} Risks by RPN:", args.top)).bold());
+            println!("{}", "-".repeat(60));
+            println!("{:<10} {:<6} {:<10} {}", style("ID").bold(), style("RPN").bold(), style("LEVEL").bold(), style("TITLE").bold());
+
+            for risk in sorted_risks.iter().take(args.top) {
+                let id_short = short_ids.get_short_id(&risk.id.to_string())
+                    .unwrap_or_else(|| truncate_str(&risk.id.to_string(), 8));
+                let rpn = risk.calculate_rpn().map(|r| r.to_string()).unwrap_or_else(|| "-".to_string());
+                let level = risk.risk_level.or_else(|| risk.determine_risk_level()).unwrap_or(RiskLevel::Medium);
+                let level_str = format!("{:?}", level).to_lowercase();
+                let level_styled = match level {
+                    RiskLevel::Critical => style(level_str).red().bold().to_string(),
+                    RiskLevel::High => style(level_str).yellow().to_string(),
+                    RiskLevel::Medium => style(level_str).dim().to_string(),
+                    RiskLevel::Low => style(level_str).dim().to_string(),
+                };
+                println!("{:<10} {:<6} {:<10} {}",
+                    style(id_short).cyan(),
+                    rpn,
+                    level_styled,
+                    truncate_str(&risk.title, 35));
+            }
+
+            // Detailed breakdown by category
+            if args.detailed {
+                println!();
+                println!("{}", style("By Category:").bold());
+
+                let mut by_category: std::collections::HashMap<String, Vec<&Risk>> = std::collections::HashMap::new();
+                for risk in &risks {
+                    let cat = risk.category.clone().unwrap_or_else(|| "Uncategorized".to_string());
+                    by_category.entry(cat).or_default().push(risk);
+                }
+
+                let mut categories: Vec<_> = by_category.keys().collect();
+                categories.sort();
+
+                for cat in categories {
+                    let cat_risks = by_category.get(cat).unwrap();
+                    let cat_rpns: Vec<u16> = cat_risks.iter()
+                        .filter_map(|r| r.calculate_rpn())
+                        .collect();
+                    let cat_avg_rpn = if cat_rpns.is_empty() {
+                        "-".to_string()
+                    } else {
+                        format!("{:.0}", cat_rpns.iter().map(|&r| r as f64).sum::<f64>() / cat_rpns.len() as f64)
+                    };
+                    println!("  {} ({} risks, avg RPN: {})", style(cat).cyan(), cat_risks.len(), cat_avg_rpn);
+                }
+            }
+        }
+    }
+
+    Ok(())
 }

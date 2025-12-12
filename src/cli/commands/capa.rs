@@ -86,6 +86,10 @@ pub struct ListArgs {
     #[arg(long)]
     pub overdue: bool,
 
+    /// Show only open CAPAs (status != closed) - shortcut filter
+    #[arg(long)]
+    pub open: bool,
+
     /// Search in title and problem statement
     #[arg(long)]
     pub search: Option<String>,
@@ -230,6 +234,14 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                     .as_ref()
                     .and_then(|t| t.target_date)
                     .map_or(false, |target| target < today && c.capa_status != CapaStatus::Closed)
+            } else {
+                true
+            }
+        })
+        // Open filter - show CAPAs not closed
+        .filter(|c| {
+            if args.open {
+                c.capa_status != CapaStatus::Closed
             } else {
                 true
             }

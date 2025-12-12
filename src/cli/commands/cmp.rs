@@ -86,6 +86,22 @@ pub struct ListArgs {
     #[arg(long)]
     pub recent: Option<u32>,
 
+    /// Show components with lead time exceeding N days
+    #[arg(long, value_name = "DAYS")]
+    pub long_lead: Option<u32>,
+
+    /// Show components with only one supplier (supply chain risk)
+    #[arg(long)]
+    pub single_source: bool,
+
+    /// Show components without any quotes
+    #[arg(long)]
+    pub no_quote: bool,
+
+    /// Show components with unit cost above this amount
+    #[arg(long, value_name = "AMOUNT")]
+    pub high_cost: Option<f64>,
+
     /// Columns to display (can specify multiple)
     #[arg(long, value_delimiter = ',', default_values_t = vec![
         ListColumn::Id,
@@ -221,6 +237,13 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         return Ok(());
     }
 
+    // Pre-load quotes if needed for no_quote filter
+    let quotes: Vec<crate::entities::quote::Quote> = if args.no_quote {
+        load_all_quotes(&project)
+    } else {
+        Vec::new()
+    };
+
     // Load and parse all components
     let mut components: Vec<Component> = Vec::new();
 
@@ -281,6 +304,39 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             args.recent.map_or(true, |days| {
                 let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
                 c.created >= cutoff
+            })
+        })
+        // Long lead time filter - check if any supplier has lead_time_days > threshold
+        .filter(|c| {
+            args.long_lead.map_or(true, |threshold| {
+                c.suppliers.iter().any(|s| {
+                    s.lead_time_days.map_or(false, |days| days > threshold)
+                })
+            })
+        })
+        // Single source filter - exactly one supplier
+        .filter(|c| {
+            if args.single_source {
+                c.suppliers.len() == 1
+            } else {
+                true
+            }
+        })
+        // No quote filter - component not referenced by any quote
+        .filter(|c| {
+            if args.no_quote {
+                let cid_str = c.id.to_string();
+                !quotes.iter().any(|q| {
+                    q.component.as_ref().map_or(false, |qc| qc == &cid_str)
+                })
+            } else {
+                true
+            }
+        })
+        // High cost filter
+        .filter(|c| {
+            args.high_cost.map_or(true, |threshold| {
+                c.unit_cost.map_or(false, |cost| cost > threshold)
             })
         })
         .collect();
@@ -663,4 +719,25 @@ fn escape_csv(s: &str) -> String {
     } else {
         s.to_string()
     }
+}
+
+/// Load all quotes from the project
+fn load_all_quotes(project: &Project) -> Vec<crate::entities::quote::Quote> {
+    let mut quotes = Vec::new();
+
+    let quotes_dir = project.root().join("procurement/quotes");
+    if quotes_dir.exists() {
+        for entry in walkdir::WalkDir::new(&quotes_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(quote) = crate::yaml::parse_yaml_file::<crate::entities::quote::Quote>(entry.path()) {
+                quotes.push(quote);
+            }
+        }
+    }
+
+    quotes
 }

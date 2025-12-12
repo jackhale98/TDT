@@ -5,24 +5,32 @@ use std::path::PathBuf;
 
 use crate::cli::commands::{
     asm::AsmCommands,
+    baseline::BaselineCommands,
+    blame::BlameArgs,
+    bulk::BulkCommands,
     capa::CapaCommands,
     cmp::CmpCommands,
     ctrl::CtrlCommands,
+    diff::DiffArgs,
     feat::FeatCommands,
+    history::HistoryArgs,
     init::InitArgs,
     link::LinkCommands,
     mate::MateCommands,
     ncr::NcrCommands,
     proc::ProcCommands,
     quote::QuoteCommands,
+    report::ReportCommands,
     req::ReqCommands,
     risk::RiskCommands,
     rslt::RsltCommands,
+    status::StatusArgs,
     sup::SupCommands,
     test::TestCommands,
     tol::TolCommands,
     trace::TraceCommands,
     validate::ValidateArgs,
+    where_used::WhereUsedArgs,
     work::WorkCommands,
 };
 
@@ -137,6 +145,33 @@ pub enum Commands {
     /// Traceability queries and reports
     #[command(subcommand)]
     Trace(TraceCommands),
+
+    /// Generate engineering reports (RVM, FMEA, BOM, etc.)
+    #[command(subcommand)]
+    Report(ReportCommands),
+
+    /// Find where an entity is used/referenced
+    WhereUsed(WhereUsedArgs),
+
+    /// View git history for an entity
+    History(HistoryArgs),
+
+    /// View git blame for an entity
+    Blame(BlameArgs),
+
+    /// View git diff for an entity
+    Diff(DiffArgs),
+
+    /// Baseline management (git tags with validation)
+    #[command(subcommand)]
+    Baseline(BaselineCommands),
+
+    /// Bulk operations on multiple entities
+    #[command(subcommand)]
+    Bulk(BulkCommands),
+
+    /// Show project status dashboard
+    Status(StatusArgs),
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]

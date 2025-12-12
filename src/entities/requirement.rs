@@ -59,6 +59,14 @@ pub struct Links {
     /// Tests that verify this requirement
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub verified_by: Vec<EntityId>,
+
+    /// Parent requirements this derives from (requirement decomposition)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub derives_from: Vec<EntityId>,
+
+    /// Features this requirement is allocated to
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allocated_to: Vec<EntityId>,
 }
 
 /// A requirement entity (design input or output)

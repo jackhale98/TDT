@@ -602,27 +602,30 @@ description: |
   # Include key specifications and assembly requirements
 
 # Bill of Materials
-bom:
-  - component_id: ""
-    quantity: 1
-    reference_designators: []
-    notes: ""
+# Add components using: tdt asm add-component ASM@N CMP@N --qty 2
+bom: []
+# Example:
+#   - component_id: CMP-01ABC...
+#     quantity: 2
+#     reference_designators: ["U1", "U2"]
+#     notes: "Main bearings"
 
 # Sub-assembly references (ASM-... IDs)
 subassemblies: []
 
 # Associated documents
-documents:
-  - type: drawing
-    path: ""
-    revision: ""
+documents: []
+# Example:
+#   - type: drawing
+#     path: "drawings/PLA-1000-A.pdf"
+#     revision: "A"
 
 tags: []
 status: draft
 
 links:
   related_to: []
-  parent: null
+  # parent: ASM-...  # Set if this is a sub-assembly
 
 # Auto-managed metadata
 created: {created}
@@ -772,9 +775,8 @@ feature_b: {feature_b}   # Typically shaft/pin
 
 mate_type: {mate_type}
 
-# Fit analysis (auto-calculated when features have dimensions)
-# Run 'tdt mate recalc MATE@N' to update
-fit_analysis: null
+# Fit analysis - auto-calculated when linked features have dimensions
+# Run 'tdt mate analyze MATE@N' to calculate after adding dimensions to features
 
 notes: |
   # Additional assembly or fit notes
@@ -854,7 +856,7 @@ target:
 # Use plus_tol/minus_tol format (not +/- symbol)
 contributors:
   - name: "Part A Length"
-    feature_id: null
+    # feature_id: FEAT-...  # Optional: link to feature entity
     direction: positive
     nominal: 10.0
     plus_tol: 0.1
@@ -864,10 +866,7 @@ contributors:
 
 # Analysis results (auto-calculated)
 # Run 'tdt tol analyze TOL@N' to calculate
-analysis_results:
-  worst_case: null
-  rss: null
-  monte_carlo: null
+analysis_results: {{}}
 
 disposition: under_review
 
@@ -1879,9 +1878,9 @@ entity_revision: 1
         let initiated_date = ctx.created.format("%Y-%m-%d").to_string();
 
         let source_ref_line = if source_ref.is_empty() {
-            "  reference: null".to_string()
+            "  reference: \"TBD - specify source reference\"".to_string()
         } else {
-            format!("  reference: {}", source_ref)
+            format!("  reference: \"{}\"", source_ref)
         };
 
         format!(

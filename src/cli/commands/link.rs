@@ -634,6 +634,38 @@ fn get_reciprocal_link_type(link_type: &str, target_prefix: EntityPrefix) -> Opt
         ("ncrs", EntityPrefix::Ncr) => None,
         ("capa", EntityPrefix::Capa) => Some("ncrs".to_string()),
 
+        // Requirement decomposition: derives_from <-> derived_by
+        ("derives_from", EntityPrefix::Req) => Some("derived_by".to_string()),
+        ("derived_by", EntityPrefix::Req) => Some("derives_from".to_string()),
+
+        // Requirement allocation: allocated_to <-> allocated_from
+        ("allocated_to", EntityPrefix::Feat) => Some("allocated_from".to_string()),
+        ("allocated_from", EntityPrefix::Req) => Some("allocated_to".to_string()),
+
+        // Risk affects: affects_* -> affected_by_risk
+        ("affects_features", EntityPrefix::Feat) => Some("affected_by_risk".to_string()),
+        ("affects_components", EntityPrefix::Cmp) => Some("affected_by_risk".to_string()),
+        ("affects_assemblies", EntityPrefix::Asm) => Some("affected_by_risk".to_string()),
+        ("affects_processes", EntityPrefix::Proc) => Some("affected_by_risk".to_string()),
+        ("affected_by_risk", EntityPrefix::Risk) => None, // Risk doesn't get reverse links auto-added
+
+        // Result -> NCR: created_ncr <-> from_result
+        ("created_ncr", EntityPrefix::Ncr) => Some("from_result".to_string()),
+        ("from_result", EntityPrefix::Rslt) => Some("created_ncr".to_string()),
+
+        // CAPA -> Process/Control modifications
+        ("processes_modified", EntityPrefix::Proc) => Some("modified_by_capa".to_string()),
+        ("modified_by_capa", EntityPrefix::Capa) => Some("processes_modified".to_string()),
+        ("controls_added", EntityPrefix::Ctrl) => Some("added_by_capa".to_string()),
+        ("added_by_capa", EntityPrefix::Capa) => Some("controls_added".to_string()),
+
+        // Component supersession: replaces <-> replaced_by
+        ("replaces", EntityPrefix::Cmp) => Some("replaced_by".to_string()),
+        ("replaced_by", EntityPrefix::Cmp) => Some("replaces".to_string()),
+
+        // Component interchangeability is symmetric
+        ("interchangeable_with", EntityPrefix::Cmp) => Some("interchangeable_with".to_string()),
+
         // No reciprocal defined for other cases
         (_, _) => None,
     }

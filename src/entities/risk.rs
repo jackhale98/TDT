@@ -7,7 +7,7 @@ use crate::core::entity::{Entity, Status};
 use crate::core::identity::EntityId;
 
 /// Risk type - design or process risk
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RiskType {
     Design,
@@ -30,7 +30,7 @@ impl std::fmt::Display for RiskType {
 }
 
 /// Risk level assessment
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RiskLevel {
     Low,
@@ -150,6 +150,22 @@ pub struct RiskLinks {
     /// Tests that verify risk mitigation
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub verified_by: Vec<EntityId>,
+
+    /// Features affected by this risk
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub affects_features: Vec<EntityId>,
+
+    /// Components affected by this risk
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub affects_components: Vec<EntityId>,
+
+    /// Assemblies affected by this risk
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub affects_assemblies: Vec<EntityId>,
+
+    /// Processes affected by this risk
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub affects_processes: Vec<EntityId>,
 }
 
 /// A risk entity (FMEA item)

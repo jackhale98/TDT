@@ -149,6 +149,14 @@ pub struct ListArgs {
     #[arg(long)]
     pub recent: Option<u32>,
 
+    /// Show tests with no results recorded
+    #[arg(long)]
+    pub no_results: bool,
+
+    /// Show tests where most recent result failed
+    #[arg(long)]
+    pub last_failed: bool,
+
     /// Columns to display (comma-separated)
     #[arg(long, value_delimiter = ',', default_values_t = vec![
         ListColumn::Id,
@@ -244,6 +252,13 @@ pub fn run(cmd: TestCommands, global: &GlobalOpts) -> Result<()> {
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+
+    // Pre-load results if needed for result-based filters
+    let results: Vec<crate::entities::result::Result> = if args.no_results || args.last_failed {
+        load_all_results(&project)
+    } else {
+        Vec::new()
+    };
 
     // Collect all test files from both verification and validation directories
     let mut tests: Vec<Test> = Vec::new();
@@ -368,9 +383,32 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             t.created >= cutoff
         });
 
+        // No results filter - tests with no results recorded
+        let no_results_match = if args.no_results {
+            !results.iter().any(|r| r.test_id == t.id)
+        } else {
+            true
+        };
+
+        // Last failed filter - tests where most recent result is fail
+        let last_failed_match = if args.last_failed {
+            // Find all results for this test, sorted by date desc
+            let mut test_results: Vec<_> = results.iter()
+                .filter(|r| r.test_id == t.id)
+                .collect();
+            test_results.sort_by(|a, b| b.executed_date.cmp(&a.executed_date));
+
+            // Check if most recent result is fail
+            test_results.first().map_or(false, |r| {
+                r.verdict == crate::entities::result::Verdict::Fail
+            })
+        } else {
+            true
+        };
+
         type_match && level_match && method_match && status_match && priority_match
             && category_match && tag_match && author_match && search_match
-            && orphans_match && recent_match
+            && orphans_match && recent_match && no_results_match && last_failed_match
     });
 
     if tests.is_empty() {
@@ -985,4 +1023,41 @@ fn truncate_str(s: &str, max_len: usize) -> String {
     } else {
         format!("{}...", &s[..max_len.saturating_sub(3)])
     }
+}
+
+/// Load all test results from the project
+fn load_all_results(project: &Project) -> Vec<crate::entities::result::Result> {
+    let mut results = Vec::new();
+
+    // Load from verification/results
+    let ver_dir = project.root().join("verification/results");
+    if ver_dir.exists() {
+        for entry in walkdir::WalkDir::new(&ver_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(result) = crate::yaml::parse_yaml_file::<crate::entities::result::Result>(entry.path()) {
+                results.push(result);
+            }
+        }
+    }
+
+    // Load from validation/results
+    let val_dir = project.root().join("validation/results");
+    if val_dir.exists() {
+        for entry in walkdir::WalkDir::new(&val_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(result) = crate::yaml::parse_yaml_file::<crate::entities::result::Result>(entry.path()) {
+                results.push(result);
+            }
+        }
+    }
+
+    results
 }

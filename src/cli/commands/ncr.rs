@@ -110,6 +110,10 @@ pub struct ListArgs {
     #[arg(long)]
     pub search: Option<String>,
 
+    /// Show only open NCRs (status != closed) - shortcut filter
+    #[arg(long)]
+    pub open: bool,
+
     /// Columns to display
     #[arg(long, value_delimiter = ',', default_values_t = vec![
         ListColumn::Id,
@@ -266,6 +270,14 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                     || n.ncr_number
                         .as_ref()
                         .map_or(false, |num| num.to_lowercase().contains(&search_lower))
+            } else {
+                true
+            }
+        })
+        // Open filter - show NCRs not closed
+        .filter(|n| {
+            if args.open {
+                n.ncr_status != NcrStatus::Closed
             } else {
                 true
             }

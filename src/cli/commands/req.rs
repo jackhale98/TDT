@@ -142,6 +142,24 @@ pub struct ListArgs {
     #[arg(long, value_name = "DAYS")]
     pub recent: Option<u32>,
 
+    // ========== VERIFICATION STATUS FILTERS ==========
+
+    /// Show unverified requirements (no verified_by links)
+    #[arg(long)]
+    pub unverified: bool,
+
+    /// Show untested requirements (has tests but no results yet)
+    #[arg(long)]
+    pub untested: bool,
+
+    /// Show requirements where linked tests have failed
+    #[arg(long)]
+    pub failed: bool,
+
+    /// Show requirements where all linked tests pass
+    #[arg(long)]
+    pub passing: bool,
+
     // ========== OUTPUT CONTROL ==========
 
     /// Columns to display (can specify multiple)
@@ -237,6 +255,13 @@ pub fn run(cmd: ReqCommands, global: &GlobalOpts) -> Result<()> {
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+
+    // Pre-load test results if we need verification status filters
+    let results: Vec<crate::entities::result::Result> = if args.untested || args.failed || args.passing {
+        load_all_results(&project)
+    } else {
+        Vec::new()
+    };
 
     // Collect all requirement files
     let mut reqs: Vec<Requirement> = Vec::new();
@@ -350,9 +375,61 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             req.created >= cutoff
         });
 
+        // Unverified filter (no verified_by links)
+        let unverified_match = if args.unverified {
+            req.links.verified_by.is_empty()
+        } else {
+            true
+        };
+
+        // For untested/failed/passing, check test results
+        let test_ids: Vec<_> = req.links.verified_by.iter().collect();
+
+        // Untested: has tests linked but no results for those tests
+        let untested_match = if args.untested {
+            if test_ids.is_empty() {
+                false // No tests linked, not "untested" - it's unverified
+            } else {
+                // Check if any linked test has a result
+                !test_ids.iter().any(|tid| {
+                    results.iter().any(|r| &r.test_id == *tid)
+                })
+            }
+        } else {
+            true
+        };
+
+        // Failed: has test results with verdict=fail
+        let failed_match = if args.failed {
+            test_ids.iter().any(|tid| {
+                results.iter().any(|r| {
+                    &r.test_id == *tid && r.verdict == crate::entities::result::Verdict::Fail
+                })
+            })
+        } else {
+            true
+        };
+
+        // Passing: all linked tests have results with pass verdict
+        let passing_match = if args.passing {
+            if test_ids.is_empty() {
+                false // No tests = can't be passing
+            } else {
+                // All linked tests must have at least one passing result
+                test_ids.iter().all(|tid| {
+                    results.iter().any(|r| {
+                        &r.test_id == *tid && r.verdict == crate::entities::result::Verdict::Pass
+                    })
+                })
+            }
+        } else {
+            true
+        };
+
         type_match && status_match && priority_match && category_match
             && tag_match && author_match && search_match && orphans_match
-            && needs_review_match && recent_match
+            && needs_review_match && recent_match && unverified_match
+            && untested_match && failed_match && passing_match
     });
 
     // Handle count-only mode
@@ -863,4 +940,41 @@ fn truncate_str(s: &str, max_len: usize) -> String {
     } else {
         format!("{}...", &s[..max_len.saturating_sub(3)])
     }
+}
+
+/// Load all test results from the project
+fn load_all_results(project: &Project) -> Vec<crate::entities::result::Result> {
+    let mut results = Vec::new();
+
+    // Load from verification/results
+    let ver_dir = project.root().join("verification/results");
+    if ver_dir.exists() {
+        for entry in walkdir::WalkDir::new(&ver_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(result) = crate::yaml::parse_yaml_file::<crate::entities::result::Result>(entry.path()) {
+                results.push(result);
+            }
+        }
+    }
+
+    // Load from validation/results
+    let val_dir = project.root().join("validation/results");
+    if val_dir.exists() {
+        for entry in walkdir::WalkDir::new(&val_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(result) = crate::yaml::parse_yaml_file::<crate::entities::result::Result>(entry.path()) {
+                results.push(result);
+            }
+        }
+    }
+
+    results
 }
