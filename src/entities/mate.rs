@@ -184,6 +184,63 @@ pub struct MateLinks {
     pub verifies: Vec<String>,
 }
 
+/// Cached feature reference info for mates (denormalized for readability, validated on check)
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MateFeatureRef {
+    /// Feature entity ID (FEAT-...)
+    pub id: EntityId,
+
+    /// Feature name (cached from feature entity)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
+    /// Component ID that owns this feature (cached)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_id: Option<String>,
+
+    /// Component name/title (cached for readability)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_name: Option<String>,
+}
+
+impl std::fmt::Display for MateFeatureRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Display the name if available, otherwise the ID
+        if let Some(ref name) = self.name {
+            write!(f, "{}", name)
+        } else {
+            write!(f, "{}", self.id)
+        }
+    }
+}
+
+impl MateFeatureRef {
+    /// Create a new MateFeatureRef with just the ID
+    pub fn new(id: EntityId) -> Self {
+        Self {
+            id,
+            name: None,
+            component_id: None,
+            component_name: None,
+        }
+    }
+
+    /// Create a MateFeatureRef with all cached info populated
+    pub fn with_cache(
+        id: EntityId,
+        name: Option<String>,
+        component_id: Option<String>,
+        component_name: Option<String>,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            component_id,
+            component_name,
+        }
+    }
+}
+
 /// Mate entity - 1:1 contact between two features
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Mate {
@@ -197,11 +254,11 @@ pub struct Mate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 
-    /// First feature ID (FEAT-...) - typically the hole/bore
-    pub feature_a: String,
+    /// First feature (FEAT-...) - typically the hole/bore (with cached info)
+    pub feature_a: MateFeatureRef,
 
-    /// Second feature ID (FEAT-...) - typically the shaft/pin
-    pub feature_b: String,
+    /// Second feature (FEAT-...) - typically the shaft/pin (with cached info)
+    pub feature_b: MateFeatureRef,
 
     /// Mate type classification
     pub mate_type: MateType,
@@ -271,45 +328,56 @@ impl Entity for Mate {
     }
 }
 
-impl Default for Mate {
-    fn default() -> Self {
-        Self {
-            id: EntityId::new(EntityPrefix::Mate),
-            title: String::new(),
-            description: None,
-            feature_a: String::new(),
-            feature_b: String::new(),
-            mate_type: MateType::default(),
-            fit_analysis: None,
-            notes: None,
-            tags: Vec::new(),
-            status: Status::default(),
-            links: MateLinks::default(),
-            created: Utc::now(),
-            author: String::new(),
-            entity_revision: 1,
-        }
-    }
-}
-
 impl Mate {
-    /// Create a new mate with required fields
+    /// Create a new mate with required fields (accepts feature EntityIds)
     pub fn new(
         title: impl Into<String>,
-        feature_a: impl Into<String>,
-        feature_b: impl Into<String>,
+        feature_a: EntityId,
+        feature_b: EntityId,
         mate_type: MateType,
         author: impl Into<String>,
     ) -> Self {
         Self {
             id: EntityId::new(EntityPrefix::Mate),
             title: title.into(),
-            feature_a: feature_a.into(),
-            feature_b: feature_b.into(),
+            description: None,
+            feature_a: MateFeatureRef::new(feature_a),
+            feature_b: MateFeatureRef::new(feature_b),
             mate_type,
-            author: author.into(),
+            fit_analysis: None,
+            notes: None,
+            tags: Vec::new(),
+            status: Status::default(),
+            links: MateLinks::default(),
             created: Utc::now(),
-            ..Default::default()
+            author: author.into(),
+            entity_revision: 1,
+        }
+    }
+
+    /// Create a new mate with full feature references (including cached info)
+    pub fn with_features(
+        title: impl Into<String>,
+        feature_a: MateFeatureRef,
+        feature_b: MateFeatureRef,
+        mate_type: MateType,
+        author: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: EntityId::new(EntityPrefix::Mate),
+            title: title.into(),
+            description: None,
+            feature_a,
+            feature_b,
+            mate_type,
+            fit_analysis: None,
+            notes: None,
+            tags: Vec::new(),
+            status: Status::default(),
+            links: MateLinks::default(),
+            created: Utc::now(),
+            author: author.into(),
+            entity_revision: 1,
         }
     }
 
@@ -348,10 +416,12 @@ mod tests {
 
     #[test]
     fn test_mate_creation() {
-        let mate = Mate::new("Pin-Hole Mate", "FEAT-001", "FEAT-002", MateType::ClearanceFit, "Author");
+        let feat_a = EntityId::new(EntityPrefix::Feat);
+        let feat_b = EntityId::new(EntityPrefix::Feat);
+        let mate = Mate::new("Pin-Hole Mate", feat_a.clone(), feat_b.clone(), MateType::ClearanceFit, "Author");
         assert_eq!(mate.title, "Pin-Hole Mate");
-        assert_eq!(mate.feature_a, "FEAT-001");
-        assert_eq!(mate.feature_b, "FEAT-002");
+        assert_eq!(mate.feature_a.id, feat_a);
+        assert_eq!(mate.feature_b.id, feat_b);
         assert_eq!(mate.mate_type, MateType::ClearanceFit);
         assert!(mate.fit_analysis.is_none());
     }
@@ -397,7 +467,9 @@ mod tests {
 
     #[test]
     fn test_entity_trait_implementation() {
-        let mate = Mate::new("Test Mate", "FEAT-001", "FEAT-002", MateType::ClearanceFit, "Author");
+        let feat_a = EntityId::new(EntityPrefix::Feat);
+        let feat_b = EntityId::new(EntityPrefix::Feat);
+        let mate = Mate::new("Test Mate", feat_a, feat_b, MateType::ClearanceFit, "Author");
         assert!(mate.id().to_string().starts_with("MATE-"));
         assert_eq!(mate.title(), "Test Mate");
         assert_eq!(mate.author(), "Author");
@@ -407,7 +479,9 @@ mod tests {
 
     #[test]
     fn test_mate_roundtrip() {
-        let mut mate = Mate::new("Pin-Hole Mate", "FEAT-001", "FEAT-002", MateType::ClearanceFit, "Author");
+        let feat_a = EntityId::new(EntityPrefix::Feat);
+        let feat_b = EntityId::new(EntityPrefix::Feat);
+        let mut mate = Mate::new("Pin-Hole Mate", feat_a.clone(), feat_b.clone(), MateType::ClearanceFit, "Author");
         mate.description = Some("Locating pin engagement".to_string());
         // Hole: 10.0 +0.1/-0.0 => 10.0 to 10.1
         // Shaft: 9.8 +0.05/-0.05 => 9.75 to 9.85
@@ -420,15 +494,17 @@ mod tests {
         let parsed: Mate = serde_yml::from_str(&yaml).unwrap();
 
         assert_eq!(parsed.title, "Pin-Hole Mate");
-        assert_eq!(parsed.feature_a, "FEAT-001");
-        assert_eq!(parsed.feature_b, "FEAT-002");
+        assert_eq!(parsed.feature_a.id, feat_a);
+        assert_eq!(parsed.feature_b.id, feat_b);
         assert!(parsed.fit_analysis.is_some());
         assert_eq!(parsed.fit_analysis.as_ref().unwrap().fit_result, FitResult::Clearance);
     }
 
     #[test]
     fn test_mate_type_serialization() {
-        let mate = Mate::new("Test", "F1", "F2", MateType::InterferenceFit, "Author");
+        let feat_a = EntityId::new(EntityPrefix::Feat);
+        let feat_b = EntityId::new(EntityPrefix::Feat);
+        let mate = Mate::new("Test", feat_a, feat_b, MateType::InterferenceFit, "Author");
         let yaml = serde_yml::to_string(&mate).unwrap();
         assert!(yaml.contains("interference_fit"));
 
@@ -438,7 +514,9 @@ mod tests {
 
     #[test]
     fn test_fit_summary() {
-        let mut mate = Mate::new("Test", "F1", "F2", MateType::ClearanceFit, "Author");
+        let feat_a = EntityId::new(EntityPrefix::Feat);
+        let feat_b = EntityId::new(EntityPrefix::Feat);
+        let mut mate = Mate::new("Test", feat_a, feat_b, MateType::ClearanceFit, "Author");
 
         // Before calculation
         assert_eq!(mate.fit_summary(), "Not calculated");

@@ -21,14 +21,23 @@ Mates represent 1:1 contact relationships between two features, such as a pin fi
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | Unique identifier (MATE-[26-char ULID]) |
-| `feature_a` | string | First feature ID - **REQUIRED** |
-| `feature_b` | string | Second feature ID - **REQUIRED** |
+| `feature_a` | MateFeatureRef | First feature reference with cached info - **REQUIRED** |
+| `feature_b` | MateFeatureRef | Second feature reference with cached info - **REQUIRED** |
 | `title` | string | Short descriptive title (1-200 chars) |
 | `status` | enum | `draft`, `review`, `approved`, `released`, `obsolete` |
 | `created` | datetime | Creation timestamp (ISO 8601) |
 | `author` | string | Author name |
 
-**Note**: The order of `feature_a` and `feature_b` doesn't matter - TDT auto-detects which is the hole (internal) and which is the shaft (external) based on their `internal` field.
+### MateFeatureRef Object (Cached Feature Reference)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | EntityId | Feature entity ID (FEAT-...) - **Required** |
+| `name` | string | Feature name (cached from feature entity) |
+| `component_id` | string | Component ID that owns this feature (cached) |
+| `component_name` | string | Component name/title (cached for readability) |
+
+**Note**: The order of `feature_a` and `feature_b` doesn't matter - TDT auto-detects which is the hole (internal) and which is the shaft (external) based on their `internal` field. The cached fields improve readability and are validated during `tdt validate`.
 
 ### Optional Fields
 
@@ -93,7 +102,7 @@ Calculation:
 
 ```yaml
 # Mate: Pin-Hole Mate
-# Created by TDT - Plain-text Product Development Toolkit
+# Created by TDT - Tessera Engineering Toolkit
 
 id: MATE-01HC2JB7SMQX7RS1Y0GFKBHPTF
 title: "Pin-Hole Mate"
@@ -102,15 +111,25 @@ description: |
   Locating pin engagement with mounting hole.
   Critical for alignment accuracy.
 
-feature_a: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE  # Hole: 10.0 +0.1/-0.05
-feature_b: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTG  # Shaft: 9.95 +0.02/-0.02
+# Features with cached info for readability
+feature_a:
+  id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE     # Hole: 10.0 +0.1/-0.05
+  name: "Mounting Hole"                     # Cached from feature
+  component_id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTA
+  component_name: "Housing"                 # Cached for readability
+
+feature_b:
+  id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTG     # Shaft: 9.95 +0.02/-0.02
+  name: "Locating Pin"
+  component_id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTB
+  component_name: "Pin Assembly"
 
 mate_type: clearance_fit
 
 # Auto-calculated from feature dimensions
 fit_analysis:
-  worst_case_min_clearance: 0.03   # hole_min - shaft_max = 9.95 - 9.97 = -0.02? Let me recalc
-  worst_case_max_clearance: 0.17   # hole_max - shaft_min = 10.1 - 9.93 = 0.17
+  worst_case_min_clearance: 0.03
+  worst_case_max_clearance: 0.17
   fit_result: clearance
 
 notes: |
@@ -304,29 +323,37 @@ tdt validate tolerances/mates/MATE-01HC2JB7SMQX7RS1Y0GFKBHPTF.tdt.yaml
 ### Validation Rules
 
 1. **ID Format**: Must match `MATE-[A-Z0-9]{26}` pattern
-2. **Feature A**: Required, must be valid FEAT ID
-3. **Feature B**: Required, must be valid FEAT ID
-4. **Feature Pairing**: One feature must be internal, one must be external
-5. **Title**: Required, 1-200 characters
-6. **Mate Type**: If specified, must be valid enum
-7. **Fit Result**: If specified, must be `clearance`, `interference`, or `transition`
-8. **Fit Analysis Sync**: Stored `fit_analysis` must match calculated values from features
-9. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
-10. **No Additional Properties**: Unknown fields are not allowed
+2. **Feature A**: Required, `feature_a.id` must reference a valid FEAT entity
+3. **Feature B**: Required, `feature_b.id` must reference a valid FEAT entity
+4. **Feature Pairing**: One feature must be internal (hole), one must be external (shaft)
+5. **Cached Info Sync**: Cached `name` and `component_id` must match actual feature values
+6. **Title**: Required, 1-200 characters
+7. **Mate Type**: If specified, must be valid enum
+8. **Fit Result**: If specified, must be `clearance`, `interference`, or `transition`
+9. **Fit Analysis Sync**: Stored `fit_analysis` must match calculated values from features
+10. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
+11. **No Additional Properties**: Unknown fields are not allowed
 
 ### Fixing Out-of-Sync Mates
 
-If feature dimensions have changed, the `fit_analysis` may be out of sync:
+If feature dimensions or metadata have changed, mates may be out of sync:
 
 ```bash
 # Check for validation issues
 tdt validate
 
-# Auto-fix fit_analysis values
+# Example warnings:
+# ! MATE-01HC2... - validation warning(s)
+#     fit_analysis mismatch: stored (0.03 to 0.17) vs calculated (0.02 to 0.18)
+#     feature_a has stale cached name 'Old Name' (feature is 'Mounting Hole')
+
+# Auto-fix fit_analysis and cached values
 tdt validate --fix
 ```
 
-The `--fix` flag will recalculate and update the `fit_analysis` for any mates where the stored values don't match the calculated values from the current feature dimensions.
+The `--fix` flag will:
+- Recalculate and update `fit_analysis` values
+- Update cached `name` and `component_id` fields to match actual features
 
 ## JSON Schema
 

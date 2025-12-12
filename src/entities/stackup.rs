@@ -73,15 +73,61 @@ impl Default for Distribution {
     }
 }
 
+/// Cached feature reference info (denormalized for readability, validated on check)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeatureRef {
+    /// Feature entity ID (FEAT-...)
+    pub id: EntityId,
+
+    /// Feature name (cached from feature entity)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+
+    /// Component ID that owns this feature (cached)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_id: Option<String>,
+
+    /// Component name/title (cached for readability)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub component_name: Option<String>,
+}
+
+impl FeatureRef {
+    /// Create a new FeatureRef with just the ID
+    pub fn new(id: EntityId) -> Self {
+        Self {
+            id,
+            name: None,
+            component_id: None,
+            component_name: None,
+        }
+    }
+
+    /// Create a FeatureRef with all cached info populated
+    pub fn with_cache(
+        id: EntityId,
+        name: Option<String>,
+        component_id: Option<String>,
+        component_name: Option<String>,
+    ) -> Self {
+        Self {
+            id,
+            name,
+            component_id,
+            component_name,
+        }
+    }
+}
+
 /// A contributor to the tolerance stackup
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Contributor {
     /// Contributor name/description
     pub name: String,
 
-    /// Optional reference to a Feature entity
+    /// Optional reference to a Feature entity (with cached info)
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub feature_id: Option<String>,
+    pub feature: Option<FeatureRef>,
 
     /// Direction of contribution
     #[serde(default)]
@@ -658,7 +704,7 @@ mod tests {
         let mut stackup = Stackup::new("Test", "Gap", 1.0, 1.5, 0.5, "Author");
         stackup.add_contributor(Contributor {
             name: "Part A".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Positive,
             nominal: 10.0,
             plus_tol: 0.1,
@@ -677,7 +723,7 @@ mod tests {
         // Part A: 10 ±0.1 (positive)
         stackup.add_contributor(Contributor {
             name: "Part A".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Positive,
             nominal: 10.0,
             plus_tol: 0.1,
@@ -689,7 +735,7 @@ mod tests {
         // Part B: 9 ±0.1 (negative)
         stackup.add_contributor(Contributor {
             name: "Part B".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Negative,
             nominal: 9.0,
             plus_tol: 0.1,
@@ -714,7 +760,7 @@ mod tests {
         // Tight tolerance that will fail worst-case
         stackup.add_contributor(Contributor {
             name: "Part A".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Positive,
             nominal: 10.0,
             plus_tol: 0.2,
@@ -725,7 +771,7 @@ mod tests {
 
         stackup.add_contributor(Contributor {
             name: "Part B".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Negative,
             nominal: 9.0,
             plus_tol: 0.2,
@@ -747,7 +793,7 @@ mod tests {
 
         stackup.add_contributor(Contributor {
             name: "Part A".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Positive,
             nominal: 10.0,
             plus_tol: 0.1,
@@ -758,7 +804,7 @@ mod tests {
 
         stackup.add_contributor(Contributor {
             name: "Part B".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Negative,
             nominal: 9.0,
             plus_tol: 0.1,
@@ -781,7 +827,7 @@ mod tests {
 
         stackup.add_contributor(Contributor {
             name: "Part A".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Positive,
             nominal: 10.0,
             plus_tol: 0.1,
@@ -792,7 +838,7 @@ mod tests {
 
         stackup.add_contributor(Contributor {
             name: "Part B".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Negative,
             nominal: 9.0,
             plus_tol: 0.1,
@@ -825,9 +871,17 @@ mod tests {
         stackup.description = Some("Main gap stackup".to_string());
         stackup.target.critical = true;
 
+        // Create a feature ID for testing
+        let feat_id = EntityId::new(EntityPrefix::Feat);
+
         stackup.add_contributor(Contributor {
             name: "Part A Length".to_string(),
-            feature_id: Some("FEAT-001".to_string()),
+            feature: Some(FeatureRef {
+                id: feat_id,
+                name: Some("Length A".to_string()),
+                component_id: Some("CMP-001".to_string()),
+                component_name: Some("Housing".to_string()),
+            }),
             direction: Direction::Positive,
             nominal: 10.0,
             plus_tol: 0.1,
@@ -852,7 +906,7 @@ mod tests {
     fn test_direction_serialization() {
         let contrib = Contributor {
             name: "Test".to_string(),
-            feature_id: None,
+            feature: None,
             direction: Direction::Negative,
             nominal: 10.0,
             plus_tol: 0.1,
@@ -877,7 +931,12 @@ mod tests {
         // Create a contributor with outdated values
         let mut contrib = Contributor {
             name: "Test".to_string(),
-            feature_id: Some("FEAT-001".to_string()),
+            feature: Some(FeatureRef {
+                id: feature.id.clone(),
+                name: None,
+                component_id: None,
+                component_name: None,
+            }),
             direction: Direction::Positive,
             nominal: 9.5,  // Wrong value
             plus_tol: 0.2, // Wrong value

@@ -257,6 +257,8 @@ tdt asm new --title "Main Assembly" --part-number "ASM-001"
 tdt asm list                                  # List all assemblies
 tdt asm show ASM@1                            # Show details
 tdt asm bom ASM@1                             # Show flattened BOM
+tdt asm cost ASM@1                            # Calculate recursive BOM cost
+tdt asm mass ASM@1                            # Calculate recursive BOM mass
 tdt asm edit ASM@1                            # Open in editor
 ```
 
@@ -418,6 +420,92 @@ tdt trace to REQ@1                # What does this depend on?
 tdt trace orphans                 # Find unlinked entities
 tdt trace coverage                # Verification coverage report
 tdt trace coverage --uncovered    # Show uncovered requirements
+```
+
+### Where-Used Queries
+
+```bash
+tdt where-used CMP@1              # Find where a component is used
+tdt where-used FEAT@3             # Find stackups/mates using a feature
+tdt where-used REQ@5              # Find what references a requirement
+tdt where-used CMP@1 --direct-only  # Show only direct references
+```
+
+### Reports
+
+```bash
+tdt report rvm                    # Requirements Verification Matrix
+tdt report rvm -o report.csv      # Export RVM to CSV
+tdt report fmea                   # FMEA report sorted by RPN
+tdt report fmea --top 10          # Show top 10 risks by RPN
+tdt report bom ASM@1              # Indented BOM with costs/masses
+tdt report test-status            # Test execution summary
+tdt report open-issues            # All open NCRs, CAPAs, failed tests
+```
+
+### Risk Summary
+
+```bash
+tdt risk summary                  # Risk statistics overview
+tdt risk summary --top 5          # Show top N risks by RPN
+tdt risk summary -f json          # Output as JSON (for CI/CD)
+```
+
+### Project Status Dashboard
+
+```bash
+tdt status                        # Full project status dashboard
+tdt status --section requirements # Show only requirements metrics
+tdt status --section risks        # Show only risk metrics
+tdt status --detailed             # Show detailed breakdown
+tdt status -f json                # Output as JSON (for CI/CD)
+```
+
+### Version Control (Git Wrappers)
+
+```bash
+# History - view git history for an entity
+tdt history REQ@1                 # Show commit history
+tdt history REQ@1 -n 10           # Last 10 commits
+tdt history REQ@1 --since 2024-01-01  # Since date
+tdt history REQ@1 --full          # Show full commit messages
+
+# Blame - view git blame for an entity
+tdt blame REQ@1                   # Show who changed each line
+tdt blame REQ@1 --line 15         # Blame specific line range
+
+# Diff - view git diff for an entity
+tdt diff REQ@1                    # Show working changes
+tdt diff REQ@1 HEAD~1             # Diff vs previous commit
+tdt diff REQ@1 v1.0..v2.0         # Diff between tags
+```
+
+### Baselines (Git Tags)
+
+```bash
+tdt baseline create v1.0          # Validate, then create git tag
+tdt baseline create v1.0 -m "Release 1.0"  # With message
+tdt baseline list                 # List all TDT baselines
+tdt baseline compare v1.0 v2.0    # Show what changed between versions
+tdt baseline changed --since v1.0 # List entities changed since baseline
+```
+
+### Bulk Operations
+
+```bash
+# Set status on multiple entities
+tdt bulk set-status approved REQ@1 REQ@2 REQ@3
+tdt bulk set-status review --type req --all --dry-run
+
+# Add/remove tags
+tdt bulk add-tag "v2.0" CMP@1 CMP@2 CMP@3
+tdt bulk remove-tag "deprecated" --type cmp --all
+
+# Set author
+tdt bulk set-author "Jane Doe" REQ@1 REQ@2
+
+# Dry run (preview changes without modifying)
+tdt bulk set-status approved --type req --all --dry-run
 ```
 
 ## Example Workflows

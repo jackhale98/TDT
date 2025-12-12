@@ -34,11 +34,75 @@ use crate::cli::commands::{
     work::WorkCommands,
 };
 
+/// Custom help template with grouped commands
+const HELP_TEMPLATE: &str = "\
+{before-help}{name} {version}
+{about-with-newline}
+{usage-heading} {usage}
+
+PROJECT:
+  init        Initialize a new TDT project
+  status      Show project status dashboard
+  validate    Validate project files against schemas
+
+REQUIREMENTS & RISKS:
+  req         Requirement management (new, list, show, edit)
+  risk        Risk/FMEA management (new, list, show, edit, summary)
+
+VERIFICATION & VALIDATION:
+  test        Test protocol management (new, list, show, edit)
+  rslt        Test result management (new, list, show, edit)
+
+BILL OF MATERIALS:
+  cmp         Component management (new, list, show, edit)
+  asm         Assembly management (new, list, show, edit, cost, mass)
+
+PROCUREMENT:
+  quote       Quote management (new, list, show, edit)
+  sup         Supplier management (new, list, show, edit)
+
+MANUFACTURING:
+  proc        Manufacturing process management (new, list, show, edit)
+  ctrl        Control plan item management (new, list, show, edit)
+  work        Work instruction management (new, list, show, edit)
+
+QUALITY:
+  ncr         Non-conformance report management (new, list, show, edit)
+  capa        Corrective/preventive action management (new, list, show, edit)
+
+TOLERANCE ANALYSIS:
+  feat        Feature management - dimensional features on components
+  mate        Mate management - 1:1 feature contacts with fit calculation
+  tol         Tolerance stackup analysis (worst-case, RSS, Monte Carlo)
+
+TRACEABILITY & REPORTS:
+  link        Manage links between entities (add, remove, show)
+  trace       Traceability queries (from, to, coverage)
+  where-used  Find where an entity is used/referenced
+  report      Generate engineering reports (rvm, fmea, bom, etc.)
+
+VERSION CONTROL:
+  history     View git history for an entity
+  blame       View git blame for an entity
+  diff        View git diff for an entity
+  baseline    Baseline management (create, compare, list, changed)
+
+UTILITIES:
+  bulk        Bulk operations on multiple entities
+  help        Print this message or the help of the given subcommand(s)
+
+OPTIONS:
+{options}
+{after-help}";
+
 #[derive(Parser)]
 #[command(name = "tdt")]
 #[command(author, version, about = "Tessera Engineering Toolkit")]
 #[command(long_about = "A Unix-style toolkit for managing engineering artifacts as plain text files under git version control.")]
 #[command(propagate_version = true)]
+#[command(help_template = HELP_TEMPLATE)]
+#[command(subcommand_required = true)]
+#[command(disable_help_subcommand = false)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
@@ -66,68 +130,107 @@ pub struct GlobalOpts {
     pub project: Option<PathBuf>,
 }
 
+/// Subcommands grouped logically by function area
 #[derive(Subcommand)]
 pub enum Commands {
+    // ─────────────────────────────────────────────────────────────────────
+    // PROJECT MANAGEMENT
+    // ─────────────────────────────────────────────────────────────────────
+
     /// Initialize a new TDT project
     Init(InitArgs),
 
-    /// Requirement management
+    /// Show project status dashboard
+    Status(StatusArgs),
+
+    /// Validate project files against schemas
+    Validate(ValidateArgs),
+
+    // ─────────────────────────────────────────────────────────────────────
+    // REQUIREMENTS & RISKS
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Requirement management (new, list, show, edit)
     #[command(subcommand)]
     Req(ReqCommands),
 
-    /// Risk/FMEA management
+    /// Risk/FMEA management (new, list, show, edit, summary)
     #[command(subcommand)]
     Risk(RiskCommands),
 
-    /// Test protocol management (verification/validation)
+    // ─────────────────────────────────────────────────────────────────────
+    // VERIFICATION & VALIDATION
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Test protocol management (new, list, show, edit)
     #[command(subcommand)]
     Test(TestCommands),
 
-    /// Test result management
+    /// Test result management (new, list, show, edit)
     #[command(subcommand)]
     Rslt(RsltCommands),
 
-    /// Component management (BOM parts)
+    // ─────────────────────────────────────────────────────────────────────
+    // BILL OF MATERIALS
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Component management (new, list, show, edit)
     #[command(subcommand)]
     Cmp(CmpCommands),
 
-    /// Assembly management (BOM assemblies)
+    /// Assembly management (new, list, show, edit, cost, mass)
     #[command(subcommand)]
     Asm(AsmCommands),
 
-    /// Quote management (supplier quotations)
+    // ─────────────────────────────────────────────────────────────────────
+    // PROCUREMENT
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Quote management (new, list, show, edit)
     #[command(subcommand)]
     Quote(QuoteCommands),
 
-    /// Supplier management (approved suppliers)
+    /// Supplier management (new, list, show, edit)
     #[command(subcommand)]
     Sup(SupCommands),
 
-    /// Manufacturing process management
+    // ─────────────────────────────────────────────────────────────────────
+    // MANUFACTURING
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Manufacturing process management (new, list, show, edit)
     #[command(subcommand)]
     Proc(ProcCommands),
 
-    /// Control plan item management (SPC, inspection, etc.)
+    /// Control plan item management (new, list, show, edit)
     #[command(subcommand)]
     Ctrl(CtrlCommands),
 
-    /// Work instruction management (operator procedures)
+    /// Work instruction management (new, list, show, edit)
     #[command(subcommand)]
     Work(WorkCommands),
 
-    /// Non-conformance report management
+    // ─────────────────────────────────────────────────────────────────────
+    // QUALITY
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Non-conformance report management (new, list, show, edit)
     #[command(subcommand)]
     Ncr(NcrCommands),
 
-    /// Corrective/preventive action management
+    /// Corrective/preventive action management (new, list, show, edit)
     #[command(subcommand)]
     Capa(CapaCommands),
 
-    /// Feature management (dimensional features on components)
+    // ─────────────────────────────────────────────────────────────────────
+    // TOLERANCE ANALYSIS
+    // ─────────────────────────────────────────────────────────────────────
+
+    /// Feature management - dimensional features on components
     #[command(subcommand)]
     Feat(FeatCommands),
 
-    /// Mate management (1:1 feature contacts with fit calculation)
+    /// Mate management - 1:1 feature contacts with fit calculation
     #[command(subcommand)]
     Mate(MateCommands),
 
@@ -135,23 +238,28 @@ pub enum Commands {
     #[command(subcommand)]
     Tol(TolCommands),
 
-    /// Validate project files against schemas
-    Validate(ValidateArgs),
+    // ─────────────────────────────────────────────────────────────────────
+    // TRACEABILITY & REPORTS
+    // ─────────────────────────────────────────────────────────────────────
 
-    /// Manage links between entities
+    /// Manage links between entities (add, remove, show)
     #[command(subcommand)]
     Link(LinkCommands),
 
-    /// Traceability queries and reports
+    /// Traceability queries (from, to, coverage)
     #[command(subcommand)]
     Trace(TraceCommands),
 
-    /// Generate engineering reports (RVM, FMEA, BOM, etc.)
+    /// Find where an entity is used/referenced
+    WhereUsed(WhereUsedArgs),
+
+    /// Generate engineering reports (rvm, fmea, bom, etc.)
     #[command(subcommand)]
     Report(ReportCommands),
 
-    /// Find where an entity is used/referenced
-    WhereUsed(WhereUsedArgs),
+    // ─────────────────────────────────────────────────────────────────────
+    // VERSION CONTROL
+    // ─────────────────────────────────────────────────────────────────────
 
     /// View git history for an entity
     History(HistoryArgs),
@@ -162,16 +270,17 @@ pub enum Commands {
     /// View git diff for an entity
     Diff(DiffArgs),
 
-    /// Baseline management (git tags with validation)
+    /// Baseline management (create, compare, list, changed)
     #[command(subcommand)]
     Baseline(BaselineCommands),
+
+    // ─────────────────────────────────────────────────────────────────────
+    // UTILITIES
+    // ─────────────────────────────────────────────────────────────────────
 
     /// Bulk operations on multiple entities
     #[command(subcommand)]
     Bulk(BulkCommands),
-
-    /// Show project status dashboard
-    Status(StatusArgs),
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]

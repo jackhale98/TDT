@@ -181,11 +181,11 @@ fn find_mate_references(
             let mut found = false;
             let mut which_feature = "";
 
-            if mate.feature_a.to_string() == target_id {
+            if mate.feature_a.id.to_string() == target_id {
                 found = true;
                 which_feature = "feature_a";
             }
-            if mate.feature_b.to_string() == target_id {
+            if mate.feature_b.id.to_string() == target_id {
                 found = true;
                 which_feature = "feature_b";
             }
@@ -222,7 +222,7 @@ fn find_stackup_references(
     {
         if let Ok(stackup) = crate::yaml::parse_yaml_file::<crate::entities::stackup::Stackup>(entry.path()) {
             for (i, contrib) in stackup.contributors.iter().enumerate() {
-                if contrib.feature_id.as_ref().map_or(false, |fid| fid == target_id) {
+                if contrib.feature.as_ref().map_or(false, |f| f.id.to_string() == target_id) {
                     found_refs.push((
                         stackup.id.to_string(),
                         "stackup".to_string(),

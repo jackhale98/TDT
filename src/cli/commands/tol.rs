@@ -13,7 +13,7 @@ use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
 use crate::entities::feature::Feature;
-use crate::entities::stackup::{Contributor, Direction, Disposition, Stackup};
+use crate::entities::stackup::{Contributor, Direction, Disposition, FeatureRef, Stackup};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
 use crate::schema::wizard::SchemaWizard;
 
@@ -1025,7 +1025,7 @@ fn run_add(args: AddArgs) -> Result<()> {
         let already_exists = stackup
             .contributors
             .iter()
-            .any(|c| c.feature_id.as_ref() == Some(&feature.id.to_string()));
+            .any(|c| c.feature.as_ref().map(|f| &f.id) == Some(&feature.id));
 
         if already_exists {
             println!(
@@ -1036,11 +1036,16 @@ fn run_add(args: AddArgs) -> Result<()> {
             continue;
         }
 
-        // Create contributor from feature
+        // Create contributor from feature with cached info
         // Distribution comes from the feature's dimension, not CLI args
         let contributor = Contributor {
             name: format!("{} - {}", feature.title, dimension.name),
-            feature_id: Some(feature.id.to_string()),
+            feature: Some(FeatureRef::with_cache(
+                feature.id.clone(),
+                Some(feature.title.clone()),
+                Some(feature.component.clone()),
+                None, // component_name - would need to load component to get this
+            )),
             direction,
             nominal: dimension.nominal,
             plus_tol: dimension.plus_tol,
@@ -1148,8 +1153,8 @@ fn run_remove(args: RemoveArgs) -> Result<()> {
 
         let before_len = stackup.contributors.len();
         stackup.contributors.retain(|c| {
-            if let Some(ref fid) = c.feature_id {
-                !fid.contains(&resolved_feat_id)
+            if let Some(ref feat) = c.feature {
+                !feat.id.to_string().contains(&resolved_feat_id)
             } else {
                 true
             }

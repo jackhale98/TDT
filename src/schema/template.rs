@@ -770,8 +770,18 @@ description: |
   # Describe the contact and fit requirements
 
 # Features being mated (both REQUIRED)
-feature_a: {feature_a}   # Typically hole/bore
-feature_b: {feature_b}   # Typically shaft/pin
+# Each feature includes cached info for readability (validated on 'tdt validate')
+feature_a:
+  id: {feature_a}   # Typically hole/bore
+  # name: null      # Cached: feature name (populated automatically)
+  # component_id: null   # Cached: owning component ID
+  # component_name: null # Cached: owning component name
+
+feature_b:
+  id: {feature_b}   # Typically shaft/pin
+  # name: null      # Cached: feature name (populated automatically)
+  # component_id: null   # Cached: owning component ID
+  # component_name: null # Cached: owning component name
 
 mate_type: {mate_type}
 

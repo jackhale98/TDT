@@ -260,8 +260,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         match sort_column {
             ListColumn::Id => mates.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string())),
             ListColumn::Title => mates.sort_by(|a, b| a.title.cmp(&b.title)),
-            ListColumn::FeatureA => mates.sort_by(|a, b| a.feature_a.cmp(&b.feature_a)),
-            ListColumn::FeatureB => mates.sort_by(|a, b| a.feature_b.cmp(&b.feature_b)),
+            ListColumn::FeatureA => mates.sort_by(|a, b| a.feature_a.id.to_string().cmp(&b.feature_a.id.to_string())),
+            ListColumn::FeatureB => mates.sort_by(|a, b| a.feature_b.id.to_string().cmp(&b.feature_b.id.to_string())),
             ListColumn::FitType => mates.sort_by(|a, b| {
                 let fit_a = a.fit_analysis.as_ref().map(|f| format!("{}", f.fit_result)).unwrap_or_default();
                 let fit_b = b.fit_analysis.as_ref().map(|f| format!("{}", f.fit_result)).unwrap_or_default();
@@ -366,10 +366,18 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                             format!("{:<20}", truncate_str(&mate.title, 18))
                         }
                         ListColumn::FeatureA => {
-                            format!("{:<20}", truncate_str(&mate.feature_a, 18))
+                            // Display name if cached, otherwise the short ID
+                            let display = mate.feature_a.name.clone()
+                                .or_else(|| short_ids.get_short_id(&mate.feature_a.id.to_string()))
+                                .unwrap_or_else(|| mate.feature_a.id.to_string());
+                            format!("{:<20}", truncate_str(&display, 18))
                         }
                         ListColumn::FeatureB => {
-                            format!("{:<20}", truncate_str(&mate.feature_b, 18))
+                            // Display name if cached, otherwise the short ID
+                            let display = mate.feature_b.name.clone()
+                                .or_else(|| short_ids.get_short_id(&mate.feature_b.id.to_string()))
+                                .unwrap_or_else(|| mate.feature_b.id.to_string());
+                            format!("{:<20}", truncate_str(&display, 18))
                         }
                         ListColumn::FitType => {
                             let fit_result = mate.fit_analysis.as_ref()
@@ -704,18 +712,20 @@ fn run_recalc(args: RecalcArgs) -> Result<()> {
     let mut feat_b: Option<Feature> = None;
 
     if feat_dir.exists() {
+        let feat_a_id = mate.feature_a.id.to_string();
+        let feat_b_id = mate.feature_b.id.to_string();
         for entry in fs::read_dir(&feat_dir).into_diagnostic()? {
             let entry = entry.into_diagnostic()?;
             let feat_path = entry.path();
             if feat_path.extension().map_or(false, |e| e == "yaml") {
                 let filename = feat_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-                if filename.contains(&mate.feature_a) {
+                if filename.contains(&feat_a_id) {
                     let content = fs::read_to_string(&feat_path).into_diagnostic()?;
                     if let Ok(feat) = serde_yml::from_str::<Feature>(&content) {
                         feat_a = Some(feat);
                     }
                 }
-                if filename.contains(&mate.feature_b) {
+                if filename.contains(&feat_b_id) {
                     let content = fs::read_to_string(&feat_path).into_diagnostic()?;
                     if let Ok(feat) = serde_yml::from_str::<Feature>(&content) {
                         feat_b = Some(feat);

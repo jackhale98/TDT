@@ -52,7 +52,7 @@ Stackups represent tolerance chain analyses with multiple dimensional contributo
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | string | Contributor name/description |
-| `feature_id` | string | Optional reference to FEAT entity |
+| `feature` | FeatureRef | Optional reference to FEAT entity with cached info |
 | `direction` | enum | `positive` or `negative` |
 | `nominal` | number | Nominal value |
 | `plus_tol` | number | Plus tolerance (positive number) |
@@ -60,7 +60,16 @@ Stackups represent tolerance chain analyses with multiple dimensional contributo
 | `distribution` | enum | `normal`, `uniform`, `triangular` |
 | `source` | string | Source reference (drawing, etc.) |
 
-**Feature Linking**: When a contributor has a `feature_id`, its `nominal`, `plus_tol`, and `minus_tol` values should match the linked feature's primary dimension. TDT validates this and can automatically sync values when they drift out of sync.
+### FeatureRef Object (Cached Feature Reference)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | EntityId | Feature entity ID (FEAT-...) - **Required** |
+| `name` | string | Feature name (cached from feature entity) |
+| `component_id` | string | Component ID that owns this feature (cached) |
+| `component_name` | string | Component name/title (cached for readability) |
+
+**Feature Linking**: When a contributor has a `feature` reference, its `nominal`, `plus_tol`, and `minus_tol` values should match the linked feature's primary dimension. The cached fields (`name`, `component_id`, `component_name`) improve readability and are validated against the actual feature during `tdt validate`. TDT can automatically sync values when they drift out of sync.
 
 ### AnalysisResults Object (Auto-calculated)
 
@@ -116,7 +125,11 @@ target:
 
 contributors:
   - name: "Housing Depth"
-    feature_id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE
+    feature:
+      id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTE
+      name: "Depth"                         # Cached from feature
+      component_id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTA
+      component_name: "Housing"             # Cached for readability
     direction: positive
     nominal: 50.0
     plus_tol: 0.1
@@ -125,7 +138,11 @@ contributors:
     source: "DWG-001 Rev A"
 
   - name: "Cover Height"
-    feature_id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTF
+    feature:
+      id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTF
+      name: "Height"
+      component_id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTB
+      component_name: "Cover"
     direction: negative
     nominal: 45.0
     plus_tol: 0.08
@@ -134,6 +151,7 @@ contributors:
     source: "DWG-002 Rev A"
 
   - name: "Gasket Thickness"
+    # No feature link - manually entered contributor
     direction: negative
     nominal: 2.0
     plus_tol: 0.15
@@ -142,6 +160,11 @@ contributors:
     source: "Vendor Spec"
 
   - name: "Bracket Height"
+    feature:
+      id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTG
+      name: "Height"
+      component_id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTC
+      component_name: "Bracket"
     direction: negative
     nominal: 2.0
     plus_tol: 0.05
@@ -439,31 +462,39 @@ tdt validate tolerances/stackups/TOL-01HC2JB7SMQX7RS1Y0GFKBHPTH.tdt.yaml
 2. **Title**: Required, 1-200 characters
 3. **Target**: Required with name, nominal, upper_limit, lower_limit
 4. **Contributors**: Must have name, nominal, plus_tol, minus_tol
-5. **Contributor Sync**: Contributors with `feature_id` must match linked feature's values
-6. **Direction**: Must be `positive` or `negative`
-7. **Distribution**: Must be `normal`, `uniform`, or `triangular`
-8. **Disposition**: Must be `under_review`, `approved`, or `rejected`
-9. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
-10. **No Additional Properties**: Unknown fields are not allowed
+5. **Feature Reference**: Contributors with `feature.id` must reference valid features
+6. **Dimensional Sync**: Contributor dimensions must match linked feature's primary dimension
+7. **Cached Info Sync**: Cached `feature.name` and `feature.component_id` must match actual values
+8. **Direction**: Must be `positive` or `negative`
+9. **Distribution**: Must be `normal`, `uniform`, or `triangular`
+10. **Disposition**: Must be `under_review`, `approved`, or `rejected`
+11. **Status**: Must be one of: `draft`, `review`, `approved`, `released`, `obsolete`
+12. **No Additional Properties**: Unknown fields are not allowed
 
 ### Syncing Contributors from Features
 
-When feature dimensions change, contributors linked via `feature_id` may become out of sync:
+When feature dimensions or metadata change, contributors may become out of sync:
 
 ```bash
 # Check for out-of-sync contributors
 tdt validate
 
-# Example warning:
-# ! TOL-01HC2... - 1 calculation warning(s)
+# Example warnings:
+# ! TOL-01HC2... - calculation warning(s)
 #     Contributor 'Housing Depth' out of sync with FEAT-...:
 #     stored (50.0000 +0.1000/-0.1000) vs feature (50.0000 +0.1500/-0.1000)
+#
+#     Contributor 'Housing Depth' has stale cached name 'Old Name' (feature is 'Depth')
 
-# Auto-sync contributor values from features
+# Auto-sync contributor values and cached info from features
 tdt validate --fix
 ```
 
-The `--fix` flag will update contributor values (`nominal`, `plus_tol`, `minus_tol`) to match their linked features. Note that this does NOT automatically re-run the analysis - use `tdt tol analyze` after fixing to recalculate results.
+The `--fix` flag will update:
+- Dimensional values (`nominal`, `plus_tol`, `minus_tol`) to match linked features
+- Cached feature info (`name`, `component_id`) to match actual values
+
+Note that this does NOT automatically re-run the analysis - use `tdt tol analyze` after fixing to recalculate results.
 
 ## JSON Schema
 

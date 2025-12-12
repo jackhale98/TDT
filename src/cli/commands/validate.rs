@@ -478,15 +478,17 @@ fn check_mate_values(
     project_root: &Path,
 ) -> Result<Vec<String>> {
     let mut issues = Vec::new();
+    let mut needs_fix = false;
 
     // Parse the mate
-    let mate: Mate = match serde_yml::from_str(content) {
+    let mut mate: Mate = match serde_yml::from_str(content) {
         Ok(m) => m,
         Err(_) => return Ok(issues), // Already reported by schema validation
     };
 
     // Load linked features
-    let feat_a = match load_feature(&mate.feature_a, project_root) {
+    let feat_a_id = mate.feature_a.id.to_string();
+    let feat_a = match load_feature(&feat_a_id, project_root) {
         Some(f) => f,
         None => {
             issues.push(format!("Cannot find feature_a: {}", mate.feature_a));
@@ -494,13 +496,70 @@ fn check_mate_values(
         }
     };
 
-    let feat_b = match load_feature(&mate.feature_b, project_root) {
+    // Validate cached info for feature_a
+    if let Some(ref cached_name) = mate.feature_a.name {
+        if cached_name != &feat_a.title {
+            if fix {
+                mate.feature_a.name = Some(feat_a.title.clone());
+                needs_fix = true;
+            } else {
+                issues.push(format!(
+                    "feature_a has stale cached name '{}' (feature is '{}')",
+                    cached_name, feat_a.title
+                ));
+            }
+        }
+    }
+    if let Some(ref cached_cmp_id) = mate.feature_a.component_id {
+        if cached_cmp_id != &feat_a.component {
+            if fix {
+                mate.feature_a.component_id = Some(feat_a.component.clone());
+                needs_fix = true;
+            } else {
+                issues.push(format!(
+                    "feature_a has stale cached component_id '{}' (feature belongs to '{}')",
+                    cached_cmp_id, feat_a.component
+                ));
+            }
+        }
+    }
+
+    let feat_b_id = mate.feature_b.id.to_string();
+    let feat_b = match load_feature(&feat_b_id, project_root) {
         Some(f) => f,
         None => {
             issues.push(format!("Cannot find feature_b: {}", mate.feature_b));
             return Ok(issues);
         }
     };
+
+    // Validate cached info for feature_b
+    if let Some(ref cached_name) = mate.feature_b.name {
+        if cached_name != &feat_b.title {
+            if fix {
+                mate.feature_b.name = Some(feat_b.title.clone());
+                needs_fix = true;
+            } else {
+                issues.push(format!(
+                    "feature_b has stale cached name '{}' (feature is '{}')",
+                    cached_name, feat_b.title
+                ));
+            }
+        }
+    }
+    if let Some(ref cached_cmp_id) = mate.feature_b.component_id {
+        if cached_cmp_id != &feat_b.component {
+            if fix {
+                mate.feature_b.component_id = Some(feat_b.component.clone());
+                needs_fix = true;
+            } else {
+                issues.push(format!(
+                    "feature_b has stale cached component_id '{}' (feature belongs to '{}')",
+                    cached_cmp_id, feat_b.component
+                ));
+            }
+        }
+    }
 
     // Get primary dimensions
     let dim_a = match feat_a.primary_dimension() {
@@ -544,37 +603,38 @@ fn check_mate_values(
         let max_diff = (actual.worst_case_max_clearance - expected_analysis.worst_case_max_clearance).abs();
 
         if min_diff > 1e-6 || max_diff > 1e-6 || actual.fit_result != expected_analysis.fit_result {
-            issues.push(format!(
-                "fit_analysis mismatch: stored ({:.4} to {:.4}, {}) but calculated ({:.4} to {:.4}, {})",
-                actual.worst_case_min_clearance,
-                actual.worst_case_max_clearance,
-                actual.fit_result,
-                expected_analysis.worst_case_min_clearance,
-                expected_analysis.worst_case_max_clearance,
-                expected_analysis.fit_result
-            ));
+            if fix {
+                mate.fit_analysis = Some(expected_analysis);
+                needs_fix = true;
+            } else {
+                issues.push(format!(
+                    "fit_analysis mismatch: stored ({:.4} to {:.4}, {}) but calculated ({:.4} to {:.4}, {})",
+                    actual.worst_case_min_clearance,
+                    actual.worst_case_max_clearance,
+                    actual.fit_result,
+                    expected_analysis.worst_case_min_clearance,
+                    expected_analysis.worst_case_max_clearance,
+                    expected_analysis.fit_result
+                ));
+            }
         }
     } else {
-        issues.push("fit_analysis not calculated".to_string());
+        if fix {
+            mate.fit_analysis = Some(expected_analysis);
+            needs_fix = true;
+        } else {
+            issues.push("fit_analysis not calculated".to_string());
+        }
     }
 
-    // Fix if requested and there are issues
-    if fix && !issues.is_empty() {
-        let mut value: serde_yml::Value = serde_yml::from_str(content)
-            .map_err(|e| miette::miette!("Failed to re-parse YAML: {}", e))?;
-
-        // Update fit_analysis
-        value["fit_analysis"] = serde_yml::to_value(&expected_analysis)
-            .map_err(|e| miette::miette!("Failed to serialize fit_analysis: {}", e))?;
-
-        // Write back
-        let updated_content = serde_yml::to_string(&value)
+    // Fix if requested and there are changes to make
+    if fix && needs_fix {
+        let updated_content = serde_yml::to_string(&mate)
             .map_err(|e| miette::miette!("Failed to serialize YAML: {}", e))?;
         fs::write(path, updated_content)
             .map_err(|e| miette::miette!("Failed to write file: {}", e))?;
 
         stats.files_fixed += 1;
-        issues.clear();
     }
 
     Ok(issues)
@@ -598,36 +658,71 @@ fn check_stackup_values(
 
     let mut any_synced = false;
 
-    // Check each contributor that has a feature_id
+    // Check each contributor that has a feature reference
     for contributor in stackup.contributors.iter_mut() {
-        if let Some(feature_id) = &contributor.feature_id {
-            if let Some(feature) = load_feature(feature_id, project_root) {
-                if contributor.is_out_of_sync(&feature) {
-                    if fix {
-                        contributor.sync_from_feature(&feature);
-                        any_synced = true;
-                    } else {
-                        if let Some(dim) = feature.primary_dimension() {
+        let feature_id = match &contributor.feature {
+            Some(f) => f.id.to_string(),
+            None => continue,
+        };
+
+        if let Some(feature) = load_feature(&feature_id, project_root) {
+            // Check dimensional sync
+            if contributor.is_out_of_sync(&feature) {
+                if fix {
+                    contributor.sync_from_feature(&feature);
+                    any_synced = true;
+                } else {
+                    if let Some(dim) = feature.primary_dimension() {
+                        issues.push(format!(
+                            "Contributor '{}' out of sync with {}: stored ({:.4} +{:.4}/-{:.4}) vs feature ({:.4} +{:.4}/-{:.4})",
+                            contributor.name,
+                            feature_id,
+                            contributor.nominal,
+                            contributor.plus_tol,
+                            contributor.minus_tol,
+                            dim.nominal,
+                            dim.plus_tol,
+                            dim.minus_tol
+                        ));
+                    }
+                }
+            }
+
+            // Check cached feature info
+            if let Some(ref mut feat_ref) = contributor.feature {
+                if let Some(ref cached_name) = feat_ref.name {
+                    if cached_name != &feature.title {
+                        if fix {
+                            feat_ref.name = Some(feature.title.clone());
+                            any_synced = true;
+                        } else {
                             issues.push(format!(
-                                "Contributor '{}' out of sync with {}: stored ({:.4} +{:.4}/-{:.4}) vs feature ({:.4} +{:.4}/-{:.4})",
-                                contributor.name,
-                                feature_id,
-                                contributor.nominal,
-                                contributor.plus_tol,
-                                contributor.minus_tol,
-                                dim.nominal,
-                                dim.plus_tol,
-                                dim.minus_tol
+                                "Contributor '{}' has stale cached name '{}' (feature is '{}')",
+                                contributor.name, cached_name, feature.title
                             ));
                         }
                     }
                 }
-            } else {
-                issues.push(format!(
-                    "Contributor '{}' references unknown feature: {}",
-                    contributor.name, feature_id
-                ));
+
+                if let Some(ref cached_cmp_id) = feat_ref.component_id {
+                    if cached_cmp_id != &feature.component {
+                        if fix {
+                            feat_ref.component_id = Some(feature.component.clone());
+                            any_synced = true;
+                        } else {
+                            issues.push(format!(
+                                "Contributor '{}' has stale cached component_id '{}' (feature belongs to '{}')",
+                                contributor.name, cached_cmp_id, feature.component
+                            ));
+                        }
+                    }
+                }
             }
+        } else {
+            issues.push(format!(
+                "Contributor '{}' references unknown feature: {}",
+                contributor.name, feature_id
+            ));
         }
     }
 
