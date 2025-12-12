@@ -1,0 +1,72 @@
+# Test: Housing Dimensional Inspection
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: TEST-01KC5X885MB8JKD6H8BDZX3JHC
+type: verification
+test_level: unit
+test_method: inspection
+title: "Housing Dimensional Inspection"
+
+category: "mechanical"
+tags: []
+
+objective: |
+  # What does this test verify or validate?
+  # Be specific about success criteria
+
+description: |
+  # Detailed description of the test
+  # Include any background or context
+
+# Prerequisites that must be met before testing
+preconditions:
+  - "Unit under test is at room temperature"
+  - "All required equipment is calibrated"
+
+# Equipment and tools required
+equipment:
+  - name: ""
+    specification: ""
+    calibration_required: false
+
+# Step-by-step test procedure
+procedure:
+  - step: 1
+    action: |
+      # What to do
+    expected: |
+      # What should happen
+    acceptance: |
+      # Pass/fail criteria
+
+# Overall pass/fail criteria
+acceptance_criteria:
+  - "All steps pass"
+
+# Sample size (for multi-sample tests)
+# sample_size:
+#   quantity: 3
+#   rationale: "Statistical confidence"
+#   sampling_method: "Random selection"
+
+# Environmental conditions
+environment:
+  temperature: "23 ± 2°C"
+  humidity: "50 ± 10% RH"
+  other: ""
+
+estimated_duration: "1 hour"
+
+priority: high
+status: draft
+
+links:
+  verifies: []    # REQ-xxx IDs this test verifies
+  validates: []   # User needs this test validates
+  mitigates: []   # RISK-xxx IDs whose mitigation this test verifies
+  depends_on: []  # TEST-xxx IDs that must pass first
+
+# Auto-managed metadata (do not edit manually)
+created: 2025-12-11T05:13:30.044482913+00:00
+author: Jack Hale
+revision: 1

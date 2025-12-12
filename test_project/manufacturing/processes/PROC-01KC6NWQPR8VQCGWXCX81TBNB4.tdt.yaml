@@ -1,0 +1,61 @@
+# Process: Housing CNC Machining
+# Created by TDT - Tessera Engineering Toolkit
+
+id: PROC-01KC6NWQPR8VQCGWXCX81TBNB4
+title: "Housing CNC Machining"
+
+description: |
+  # Detailed description of this manufacturing process
+  # Include key steps and requirements
+
+process_type: machining
+operation_number: "OP-010"
+
+# Equipment used in this process
+equipment: []
+# Example:
+#   - name: "Haas VF-2 CNC Mill"
+#     equipment_id: "EQ-001"
+#     capability: "3-axis milling"
+
+# Process parameters
+parameters: []
+# Example:
+#   - name: "Spindle Speed"
+#     value: 8000
+#     units: "RPM"
+#     min: 7500
+#     max: 8500
+
+# Timing
+cycle_time_minutes: null
+setup_time_minutes: null
+
+# Process capability (from capability study)
+capability: null
+# Example:
+#   cpk: 1.45
+#   sample_size: 50
+#   study_date: 2024-01-15
+
+operator_skill: intermediate
+
+# Safety requirements
+safety:
+  ppe: []
+  hazards: []
+
+tags: []
+status: draft
+
+links:
+  produces: []
+  controls: []
+  work_instructions: []
+  risks: []
+  related_to: []
+
+# Auto-managed metadata
+created: 2025-12-11T12:24:07.140304229+00:00
+author: Jack Hale
+entity_revision: 1

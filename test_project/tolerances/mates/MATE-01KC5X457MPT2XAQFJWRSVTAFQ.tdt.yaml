@@ -1,0 +1,20 @@
+id: MATE-01KC5X457MPT2XAQFJWRSVTAFQ
+title: Housing Bore to Bearing OD Fit
+description: |
+  # Detailed description of this mate
+  # Describe the contact and fit requirements
+feature_a: FEAT-01KC5X0B1B81PMZKBC0X4ZGMNZ
+feature_b: FEAT-01KC5X0S0BJK480FNTTPFHYRPH
+mate_type: clearance_fit
+fit_analysis:
+  worst_case_min_clearance: -0.15000000000000036
+  worst_case_max_clearance: 0.15000000000000036
+  fit_result: transition
+notes: |
+  # Additional assembly or fit notes
+tags: []
+status: draft
+links: {}
+created: '2025-12-11T05:11:15.964842472Z'
+author: Jack Hale
+entity_revision: 1

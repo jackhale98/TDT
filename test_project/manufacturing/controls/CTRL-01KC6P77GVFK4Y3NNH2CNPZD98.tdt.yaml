@@ -1,0 +1,59 @@
+# Control: Torque Verification
+# Created by TDT - Tessera Engineering Toolkit
+
+id: CTRL-01KC6P77GVFK4Y3NNH2CNPZD98
+title: "Torque Verification"
+
+description: |
+  # Detailed description of this control plan item
+  # Include what is being controlled and why
+
+control_type: inspection
+control_category: variable
+
+# Characteristic being controlled
+characteristic:
+  name: ""
+  nominal: 0.0
+  upper_limit: 0.0
+  lower_limit: 0.0
+  units: "mm"
+  critical: true
+
+# Measurement method
+measurement:
+  method: ""
+  equipment: ""
+  gage_rr_percent: null
+
+# Sampling plan
+sampling:
+  type: continuous
+  frequency: "5 parts"
+  sample_size: 1
+
+# Control limits (for SPC)
+control_limits: null
+# Example:
+#   ucl: 25.018
+#   lcl: 25.007
+#   target: 25.0125
+
+reaction_plan: |
+  # What to do when out of spec
+  1. Quarantine affected parts
+  2. Notify supervisor
+  3. Investigate root cause
+
+tags: []
+status: draft
+
+links:
+  process: PROC-01KC6NWX114KEDC4RV3QY0YNY6
+  feature: null  # Optional - link to feature being controlled
+  verifies: []
+
+# Auto-managed metadata
+created: 2025-12-11T12:29:51.011884682+00:00
+author: Jack Hale
+entity_revision: 1

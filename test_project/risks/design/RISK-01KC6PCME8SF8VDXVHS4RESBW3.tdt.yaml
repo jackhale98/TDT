@@ -1,0 +1,60 @@
+# Risk: Motor Overheating
+# Created by PDT - Plain-text Product Development Toolkit
+
+id: RISK-01KC6PCME8SF8VDXVHS4RESBW3
+type: design
+title: "Motor Overheating"
+
+category: "electrical"
+tags: []
+
+description: |
+  # Describe the risk scenario here
+  # What could go wrong? Under what conditions?
+
+# FMEA Fields (Failure Mode and Effects Analysis)
+failure_mode: |
+  # How does this failure manifest?
+
+cause: |
+  # What is the root cause or mechanism?
+
+effect: |
+  # What is the impact or consequence?
+
+# Risk Assessment (1-10 scale)
+# Severity: 1=minimal, 10=catastrophic
+# Occurrence: 1=rare, 10=almost certain
+# Detection: 1=always detected, 10=undetectable
+severity: 5
+occurrence: 4
+detection: 3
+rpn: 60
+
+# Initial assessment (before mitigations) - optional
+# initial_risk:
+#   severity: 5
+#   occurrence: 4
+#   detection: 3
+#   rpn: 60
+
+# Risk mitigations
+mitigations:
+  - action: ""
+    type: prevention  # prevention or detection
+    status: proposed  # proposed, in_progress, completed, verified
+    owner: ""
+    # due_date: 2024-12-31
+
+status: draft
+risk_level: medium
+
+links:
+  related_to: []
+  mitigated_by: []
+  verified_by: []
+
+# Auto-managed metadata (do not edit manually)
+created: 2025-12-11T12:32:48.080818852+00:00
+author: Jack Hale
+revision: 1

@@ -1,0 +1,61 @@
+# Stackup: Motor Shaft Alignment Stackup
+# Created by TDT - Tessera Engineering Toolkit
+
+id: TOL-01KC5X5S73WTNRM1YF4KDC999Y
+title: "Motor Shaft Alignment Stackup"
+
+description: |
+  # Detailed description of this tolerance stackup
+  # Include the tolerance chain being analyzed
+
+# Target specification
+target:
+  name: "Shaft Misalignment"
+  nominal: 0
+  upper_limit: 0.1
+  lower_limit: -0.1
+  units: "mm"
+  critical: false
+
+# Contributors to the stackup
+# Use plus_tol/minus_tol format (not +/- symbol)
+contributors:
+  - name: "Motor Mounting Position"
+    direction: positive
+    nominal: 0.0
+    plus_tol: 0.02
+    minus_tol: 0.02
+    distribution: normal
+    source: "DWG-003 Rev A"
+  - name: "Coupling Runout"
+    direction: positive
+    nominal: 0.0
+    plus_tol: 0.03
+    minus_tol: 0.0
+    distribution: uniform
+    source: "Coupling Spec"
+  - name: "Screw Runout"
+    direction: positive
+    nominal: 0.0
+    plus_tol: 0.02
+    minus_tol: 0.0
+    distribution: uniform
+    source: "THK Spec Sheet"
+
+# Analysis results (auto-calculated)
+# Run 'tdt tol analyze TOL@N' to calculate
+analysis_results: {}
+
+disposition: under_review
+
+tags: []
+status: draft
+
+links:
+  verifies: []
+  mates_used: []
+
+# Auto-managed metadata
+created: 2025-12-11T05:12:09.198611877+00:00
+author: Jack Hale
+entity_revision: 1
