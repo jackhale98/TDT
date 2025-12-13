@@ -7,6 +7,8 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
+use crate::core::CachedTest;
 use crate::core::entity::Priority;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
@@ -380,7 +382,123 @@ pub fn run(cmd: TestCommands, global: &GlobalOpts) -> Result<()> {
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
 
+    // Determine output format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
+    };
+
+    // Check if we can use the fast cache path:
+    // - No complex filters that require full YAML (orphans, tag, no_results, last_failed)
+    // - Not JSON/YAML output (which needs full entity serialization)
+    let can_use_cache = !args.orphans
+        && args.tag.is_none()
+        && !args.no_results
+        && !args.last_failed
+        && args.recent.is_none()
+        && !matches!(format, OutputFormat::Json | OutputFormat::Yaml);
+
+    if can_use_cache {
+        if let Ok(cache) = EntityCache::open(&project) {
+            // Convert filter enums to strings for cache query
+            let status_filter = match args.status {
+                StatusFilter::Draft => Some("draft"),
+                StatusFilter::Review => Some("review"),
+                StatusFilter::Approved => Some("approved"),
+                StatusFilter::Released => Some("released"),
+                StatusFilter::Obsolete => Some("obsolete"),
+                StatusFilter::Active | StatusFilter::All => None,
+            };
+            let type_filter = match args.r#type {
+                TestTypeFilter::Verification => Some("verification"),
+                TestTypeFilter::Validation => Some("validation"),
+                TestTypeFilter::All => None,
+            };
+            let level_filter = match args.level {
+                TestLevelFilter::Unit => Some("unit"),
+                TestLevelFilter::Integration => Some("integration"),
+                TestLevelFilter::System => Some("system"),
+                TestLevelFilter::Acceptance => Some("acceptance"),
+                TestLevelFilter::All => None,
+            };
+            let method_filter = match args.method {
+                TestMethodFilter::Inspection => Some("inspection"),
+                TestMethodFilter::Analysis => Some("analysis"),
+                TestMethodFilter::Demonstration => Some("demonstration"),
+                TestMethodFilter::Test => Some("test"),
+                TestMethodFilter::All => None,
+            };
+
+            let mut tests = cache.list_tests(
+                status_filter,
+                type_filter,
+                level_filter,
+                method_filter,
+                args.priority.as_deref(),
+                args.category.as_deref(),
+                args.author.as_deref(),
+                args.search.as_deref(),
+                None, // We'll apply limit after sorting
+            );
+
+            // Handle 'active' status filter (exclude obsolete)
+            if matches!(args.status, StatusFilter::Active) {
+                tests.retain(|t| t.status.to_lowercase() != "obsolete");
+            }
+
+            // Sort
+            match args.sort {
+                ListColumn::Id => tests.sort_by(|a, b| a.id.cmp(&b.id)),
+                ListColumn::Type => tests.sort_by(|a, b| {
+                    a.test_type.as_deref().unwrap_or("").cmp(b.test_type.as_deref().unwrap_or(""))
+                }),
+                ListColumn::Level => tests.sort_by(|a, b| {
+                    let level_order = |l: Option<&str>| match l {
+                        Some("unit") => 0,
+                        Some("integration") => 1,
+                        Some("system") => 2,
+                        Some("acceptance") => 3,
+                        _ => 4,
+                    };
+                    level_order(a.level.as_deref()).cmp(&level_order(b.level.as_deref()))
+                }),
+                ListColumn::Method => tests.sort_by(|a, b| {
+                    a.method.as_deref().unwrap_or("").cmp(b.method.as_deref().unwrap_or(""))
+                }),
+                ListColumn::Title => tests.sort_by(|a, b| a.title.cmp(&b.title)),
+                ListColumn::Status => tests.sort_by(|a, b| a.status.cmp(&b.status)),
+                ListColumn::Priority => tests.sort_by(|a, b| {
+                    let priority_order = |p: Option<&str>| match p {
+                        Some("critical") => 0,
+                        Some("high") => 1,
+                        Some("medium") => 2,
+                        Some("low") => 3,
+                        _ => 4,
+                    };
+                    priority_order(a.priority.as_deref()).cmp(&priority_order(b.priority.as_deref()))
+                }),
+                ListColumn::Category => tests.sort_by(|a, b| {
+                    a.category.as_deref().unwrap_or("").cmp(b.category.as_deref().unwrap_or(""))
+                }),
+                ListColumn::Author => tests.sort_by(|a, b| a.author.cmp(&b.author)),
+                ListColumn::Created => tests.sort_by(|a, b| a.created.cmp(&b.created)),
+            }
+
+            if args.reverse {
+                tests.reverse();
+            }
+
+            if let Some(limit) = args.limit {
+                tests.truncate(limit);
+            }
+
+            return output_cached_tests(&tests, &short_ids, &args, format);
+        }
+    }
+
+    // Fall back to full YAML loading for complex filters or JSON/YAML output
     // Pre-load results if needed for result-based filters
     let results: Vec<crate::entities::result::Result> = if args.no_results || args.last_failed {
         load_all_results(&project)
@@ -605,15 +723,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     }
 
     // Update short ID index with current tests (preserves other entity types)
-    let mut short_ids = ShortIdIndex::load(&project);
+    let mut short_ids = short_ids;
     short_ids.ensure_all(tests.iter().map(|t| t.id.to_string()));
     let _ = short_ids.save(&project);
-
-    // Output based on format
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Tsv,
-        f => f,
-    };
 
     match format {
         OutputFormat::Json => {
@@ -731,6 +843,157 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Auto => unreachable!(),
+    }
+
+    Ok(())
+}
+
+/// Output cached tests (fast path - no YAML parsing needed)
+fn output_cached_tests(
+    tests: &[CachedTest],
+    short_ids: &ShortIdIndex,
+    args: &ListArgs,
+    format: OutputFormat,
+) -> Result<()> {
+    if tests.is_empty() {
+        println!("No tests found.");
+        println!();
+        println!("Create one with: {}", style("tdt test new").yellow());
+        return Ok(());
+    }
+
+    if args.count {
+        println!("{}", tests.len());
+        return Ok(());
+    }
+
+    match format {
+        OutputFormat::Csv => {
+            println!("short_id,id,type,level,method,title,status,priority");
+            for test in tests {
+                let short_id = short_ids.get_short_id(&test.id).unwrap_or_default();
+                println!(
+                    "{},{},{},{},{},{},{},{}",
+                    short_id,
+                    test.id,
+                    test.test_type.as_deref().unwrap_or("-"),
+                    test.level.as_deref().unwrap_or("-"),
+                    test.method.as_deref().unwrap_or("-"),
+                    escape_csv(&test.title),
+                    test.status,
+                    test.priority.as_deref().unwrap_or("-")
+                );
+            }
+        }
+        OutputFormat::Tsv => {
+            // Dynamically build header based on selected columns
+            let mut header_parts = vec![style("SHORT").bold().dim().to_string()];
+            for col in &args.columns {
+                let col_name = match col {
+                    ListColumn::Id => "ID",
+                    ListColumn::Type => "TYPE",
+                    ListColumn::Level => "LEVEL",
+                    ListColumn::Method => "METHOD",
+                    ListColumn::Title => "TITLE",
+                    ListColumn::Status => "STATUS",
+                    ListColumn::Priority => "PRIO",
+                    ListColumn::Category => "CATEGORY",
+                    ListColumn::Author => "AUTHOR",
+                    ListColumn::Created => "CREATED",
+                };
+                header_parts.push(style(col_name).bold().to_string());
+            }
+            println!("{}", header_parts.join("  "));
+
+            // Calculate total width for separator
+            let total_width = 8
+                + args.columns.len() * 2
+                + args
+                    .columns
+                    .iter()
+                    .map(|col| match col {
+                        ListColumn::Id => 17,
+                        ListColumn::Type => 12,
+                        ListColumn::Level => 8,
+                        ListColumn::Method => 12,
+                        ListColumn::Title => 24,
+                        ListColumn::Status => 10,
+                        ListColumn::Priority => 8,
+                        ListColumn::Category => 12,
+                        ListColumn::Author => 16,
+                        ListColumn::Created => 16,
+                    })
+                    .sum::<usize>();
+            println!("{}", "-".repeat(total_width));
+
+            for test in tests {
+                let short_id = short_ids.get_short_id(&test.id).unwrap_or_default();
+                let mut row_parts = vec![format!("{:<8}", style(&short_id).cyan())];
+
+                for col in &args.columns {
+                    let value = match col {
+                        ListColumn::Id => format!("{:<17}", truncate_str(&test.id, 15)),
+                        ListColumn::Type => {
+                            format!("{:<12}", test.test_type.as_deref().unwrap_or("-"))
+                        }
+                        ListColumn::Level => {
+                            format!("{:<8}", test.level.as_deref().unwrap_or("-"))
+                        }
+                        ListColumn::Method => {
+                            format!("{:<12}", test.method.as_deref().unwrap_or("-"))
+                        }
+                        ListColumn::Title => format!("{:<24}", truncate_str(&test.title, 22)),
+                        ListColumn::Status => format!("{:<10}", test.status),
+                        ListColumn::Priority => {
+                            format!("{:<8}", test.priority.as_deref().unwrap_or("-"))
+                        }
+                        ListColumn::Category => {
+                            format!("{:<12}", test.category.as_deref().unwrap_or("-"))
+                        }
+                        ListColumn::Author => format!("{:<16}", truncate_str(&test.author, 14)),
+                        ListColumn::Created => {
+                            format!("{:<16}", test.created.format("%Y-%m-%d %H:%M"))
+                        }
+                    };
+                    row_parts.push(value);
+                }
+                println!("{}", row_parts.join("  "));
+            }
+
+            println!();
+            println!(
+                "{} test(s) found. Use {} to reference by short ID.",
+                style(tests.len()).cyan(),
+                style("TEST@N").cyan()
+            );
+        }
+        OutputFormat::Id => {
+            for test in tests {
+                println!("{}", test.id);
+            }
+        }
+        OutputFormat::Md => {
+            println!("| Short | ID | Type | Level | Method | Title | Status | Priority |");
+            println!("|---|---|---|---|---|---|---|---|");
+            for test in tests {
+                let short_id = short_ids.get_short_id(&test.id).unwrap_or_default();
+                println!(
+                    "| {} | {} | {} | {} | {} | {} | {} | {} |",
+                    short_id,
+                    truncate_str(&test.id, 15),
+                    test.test_type.as_deref().unwrap_or("-"),
+                    test.level.as_deref().unwrap_or("-"),
+                    test.method.as_deref().unwrap_or("-"),
+                    test.title,
+                    test.status,
+                    test.priority.as_deref().unwrap_or("-")
+                );
+            }
+        }
+        OutputFormat::Json | OutputFormat::Yaml | OutputFormat::Auto => {
+            // Should never reach here - JSON/YAML use full YAML path
+            unreachable!()
+        }
     }
 
     Ok(())

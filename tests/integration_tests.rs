@@ -2067,3 +2067,320 @@ fn test_global_format_flag_id() {
     // Should only have the ID, no other columns
     assert!(!output_str.contains("ID Test"));
 }
+
+// ============================================================================
+// Cache and Git Collaboration Tests
+// ============================================================================
+// These tests verify that the SQLite cache works correctly for decentralized
+// git collaboration where each user has their own local cache.
+
+#[test]
+fn test_cache_is_gitignored() {
+    let tmp = setup_test_project();
+
+    // Check that .gitignore includes cache files
+    let gitignore_path = tmp.path().join(".gitignore");
+    let gitignore_content = fs::read_to_string(&gitignore_path).unwrap();
+
+    assert!(
+        gitignore_content.contains("cache.db"),
+        ".gitignore should include cache.db"
+    );
+    assert!(
+        gitignore_content.contains("cache.db-journal"),
+        ".gitignore should include cache.db-journal"
+    );
+    assert!(
+        gitignore_content.contains("cache.db-wal"),
+        ".gitignore should include cache.db-wal"
+    );
+}
+
+#[test]
+fn test_entity_files_contain_full_ids_not_short_ids() {
+    let tmp = setup_test_project();
+
+    // Create an entity
+    create_test_requirement(&tmp, "Full ID Test", "input");
+
+    // Find the created file
+    let files: Vec<_> = fs::read_dir(tmp.path().join("requirements/inputs"))
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        .collect();
+    assert_eq!(files.len(), 1);
+
+    let content = fs::read_to_string(files[0].path()).unwrap();
+
+    // Entity file should contain full ULID-based ID
+    assert!(
+        content.contains("id: REQ-"),
+        "Entity file should have full ID"
+    );
+    // Entity file should NOT contain short ID syntax
+    assert!(
+        !content.contains("@1"),
+        "Entity file should NOT contain short ID syntax"
+    );
+    assert!(
+        !content.contains("REQ@"),
+        "Entity file should NOT contain short ID prefix"
+    );
+}
+
+#[test]
+fn test_cache_rebuild_after_external_changes() {
+    let tmp = setup_test_project();
+
+    // Create initial requirement
+    create_test_requirement(&tmp, "Initial Req", "input");
+
+    // List to generate short IDs
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("@1"));
+
+    // Simulate external change (like git pull) by creating a new file directly
+    // Use a valid ULID format (26 chars, base32 Crockford)
+    let new_req_content = r#"
+id: REQ-01HQ5V2KRMJ0B9XYZ3NTWPGQ4E
+type: input
+title: Externally Added Requirement
+text: This requirement was added by another user and pulled via git
+status: draft
+priority: medium
+created: 2024-01-15T10:30:00Z
+author: external_user
+"#;
+    fs::write(
+        tmp.path().join("requirements/inputs/REQ-01HQ5V2KRMJ0B9XYZ3NTWPGQ4E.tdt.yaml"),
+        new_req_content,
+    )
+    .unwrap();
+
+    // List should auto-sync cache and show both requirements with new short IDs
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Initial Req"))
+        .stdout(predicate::str::contains("Externally Added Requirement"))
+        .stdout(predicate::str::contains("2 requirement(s) found"));
+}
+
+#[test]
+fn test_cache_handles_deleted_entities() {
+    let tmp = setup_test_project();
+
+    // Create two requirements
+    create_test_requirement(&tmp, "Req to Keep", "input");
+    create_test_requirement(&tmp, "Req to Delete", "input");
+
+    // List to verify both exist
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("2 requirement(s) found"));
+
+    // Simulate external deletion (like git pull that removes a file)
+    let files: Vec<_> = fs::read_dir(tmp.path().join("requirements/inputs"))
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        .collect();
+
+    // Delete the second file
+    fs::remove_file(files[1].path()).unwrap();
+
+    // List should auto-sync cache and only show one requirement
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("1 requirement(s) found"));
+}
+
+#[test]
+fn test_short_ids_are_local_to_cache() {
+    // This test verifies that short IDs are derived from the local cache
+    // and are not stored in entity files (important for git collaboration)
+    let tmp = setup_test_project();
+
+    // Create requirements
+    create_test_requirement(&tmp, "First Req", "input");
+    create_test_requirement(&tmp, "Second Req", "input");
+
+    // Get short IDs from list
+    let output = tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let output_str = String::from_utf8_lossy(&output);
+    assert!(output_str.contains("@1"), "Should have short ID @1");
+    assert!(output_str.contains("@2"), "Should have short ID @2");
+
+    // Verify the entity files don't contain short IDs
+    for entry in fs::read_dir(tmp.path().join("requirements/inputs")).unwrap() {
+        let entry = entry.unwrap();
+        let content = fs::read_to_string(entry.path()).unwrap();
+        assert!(
+            !content.contains("@1") && !content.contains("@2"),
+            "Entity file should not contain short IDs: {}",
+            entry.path().display()
+        );
+    }
+}
+
+#[test]
+fn test_cache_clear_and_rebuild() {
+    let tmp = setup_test_project();
+
+    // Create some entities
+    create_test_requirement(&tmp, "Cache Test Req", "input");
+    create_test_risk(&tmp, "Cache Test Risk", "design");
+
+    // List to populate cache
+    tdt().current_dir(tmp.path()).args(["req", "list"]).assert().success();
+    tdt().current_dir(tmp.path()).args(["risk", "list"]).assert().success();
+
+    // Clear cache
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "clear"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cache cleared"));
+
+    // Verify cache is deleted
+    assert!(!tmp.path().join(".tdt/cache.db").exists());
+
+    // Rebuild cache
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cache rebuilt"));
+
+    // Verify cache works again
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "show", "REQ@1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cache Test Req"));
+}
+
+#[test]
+fn test_cache_status_command() {
+    let tmp = setup_test_project();
+
+    // Create some entities
+    create_test_requirement(&tmp, "Status Test 1", "input");
+    create_test_requirement(&tmp, "Status Test 2", "input");
+    create_test_risk(&tmp, "Status Test Risk", "design");
+
+    // Rebuild cache to ensure counts are accurate
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success();
+
+    // Check cache status
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "status"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Cache Status"))
+        .stdout(predicate::str::contains("Total entities:"))
+        .stdout(predicate::str::contains("3")); // 2 reqs + 1 risk
+}
+
+#[test]
+fn test_cache_sync_incremental() {
+    let tmp = setup_test_project();
+
+    // Create initial entity
+    create_test_requirement(&tmp, "Initial Req", "input");
+
+    // Rebuild cache
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success();
+
+    // Add another entity externally
+    // Use a valid ULID format (26 chars, base32 Crockford)
+    let new_req_content = r#"
+id: REQ-01HQ5V3ABCD1234EFGH5678JKM
+type: input
+title: Sync Test Requirement
+text: This requirement was synced from external changes
+status: draft
+priority: medium
+created: 2024-01-15T10:30:00Z
+author: test
+"#;
+    fs::write(
+        tmp.path().join("requirements/inputs/REQ-01HQ5V3ABCD1234EFGH5678JKM.tdt.yaml"),
+        new_req_content,
+    )
+    .unwrap();
+
+    // Sync cache (incremental update)
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "sync"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("synced").or(predicate::str::contains("Added")));
+
+    // Verify new entity is accessible
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Sync Test Requirement"))
+        .stdout(predicate::str::contains("2 requirement(s) found"));
+}
+
+#[test]
+fn test_cache_query_raw_sql() {
+    let tmp = setup_test_project();
+
+    // Create entities
+    create_test_requirement(&tmp, "Query Test Req", "input");
+    create_test_component(&tmp, "PN-QUERY", "Query Test Component");
+
+    // Rebuild to ensure cache is populated
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success();
+
+    // Query the cache with SQL
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "query", "SELECT id, title FROM entities WHERE prefix = 'REQ'"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Query Test Req"));
+}

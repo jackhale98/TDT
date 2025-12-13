@@ -47,5 +47,6 @@ fn main() -> Result<()> {
         Commands::Baseline(cmd) => tdt::cli::commands::baseline::run(cmd),
         Commands::Bulk(cmd) => tdt::cli::commands::bulk::run(cmd),
         Commands::Status(args) => tdt::cli::commands::status::run(args, &global),
+        Commands::Cache(cmd) => tdt::cli::commands::cache::run(cmd),
     }
 }

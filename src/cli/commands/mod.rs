@@ -4,6 +4,7 @@ pub mod asm;
 pub mod baseline;
 pub mod blame;
 pub mod bulk;
+pub mod cache;
 pub mod capa;
 pub mod cmp;
 pub mod ctrl;

@@ -7,6 +7,7 @@ use std::path::PathBuf;
 
 use crate::cli::helpers::{escape_csv, format_short_id, format_short_id_str, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
 use crate::core::identity::EntityPrefix;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -623,55 +624,75 @@ fn run_to(args: ToArgs) -> Result<()> {
 
 fn run_orphans(args: OrphansArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
-    let entities = load_all_entities(&project)?;
+
+    // Use cache for fast orphan detection (single SQL query instead of full filesystem scan)
+    let cache = EntityCache::open(&project)?;
 
     // Parse entity type filter if provided
-    let type_filter: Option<EntityPrefix> = args.entity_type.as_ref().and_then(|t| {
-        t.to_uppercase().parse().ok()
+    let type_filter: Option<&str> = args.entity_type.as_ref().map(|t| {
+        // Convert to uppercase prefix format
+        match t.to_uppercase().as_str() {
+            "REQ" => "REQ",
+            "RISK" => "RISK",
+            "TEST" => "TEST",
+            "RSLT" => "RSLT",
+            "CMP" => "CMP",
+            "ASM" => "ASM",
+            "QUOTE" => "QUOTE",
+            "SUP" => "SUP",
+            "PROC" => "PROC",
+            "CTRL" => "CTRL",
+            "WORK" => "WORK",
+            "NCR" => "NCR",
+            "CAPA" => "CAPA",
+            "FEAT" => "FEAT",
+            "MATE" => "MATE",
+            "TOL" => "TOL",
+            _ => t.as_str(),
+        }
     });
 
-    // Build incoming links map (what entities are linked TO)
-    let mut has_incoming: HashSet<String> = HashSet::new();
-    for entity in &entities {
-        for (_, target) in &entity.outgoing_links {
-            has_incoming.insert(target.clone());
-        }
-    }
-
-    let mut orphans: Vec<(&GenericEntity, &str)> = Vec::new();
-
-    for entity in &entities {
-        // Apply type filter
-        if let Some(filter) = type_filter {
-            if entity.prefix != filter {
-                continue;
-            }
-        }
-
-        let has_outgoing = !entity.outgoing_links.is_empty();
-        let has_inc = has_incoming.contains(&entity.id);
-
-        let is_orphan = if args.no_outgoing && args.no_incoming {
-            !has_outgoing && !has_inc
-        } else if args.no_outgoing {
-            !has_outgoing
-        } else if args.no_incoming {
-            !has_inc
-        } else {
-            !has_outgoing && !has_inc
-        };
-
-        if is_orphan {
-            let reason = if !has_outgoing && !has_inc {
-                "no links"
-            } else if !has_outgoing {
-                "no outgoing"
-            } else {
-                "no incoming"
-            };
-            orphans.push((entity, reason));
-        }
-    }
+    // Use cache's find_orphans for entities with NO links (either direction)
+    // For more specific filters (no_outgoing only, no_incoming only), we need custom logic
+    let orphans = if args.no_outgoing && !args.no_incoming {
+        // Entities with no outgoing links
+        let all_entities = cache.list_entities(&Default::default());
+        all_entities
+            .into_iter()
+            .filter(|e| {
+                if let Some(filter) = type_filter {
+                    if e.prefix != filter {
+                        return false;
+                    }
+                }
+                cache.get_links_from(&e.id).is_empty()
+            })
+            .map(|e| (e, "no outgoing"))
+            .collect::<Vec<_>>()
+    } else if args.no_incoming && !args.no_outgoing {
+        // Entities with no incoming links
+        let all_entities = cache.list_entities(&Default::default());
+        all_entities
+            .into_iter()
+            .filter(|e| {
+                if let Some(filter) = type_filter {
+                    if e.prefix != filter {
+                        return false;
+                    }
+                }
+                cache.get_links_to(&e.id).is_empty()
+            })
+            .map(|e| (e, "no incoming"))
+            .collect::<Vec<_>>()
+    } else {
+        // Default: entities with NO links at all (most common case)
+        // This uses an optimized SQL query in the cache
+        cache
+            .find_orphans(type_filter)
+            .into_iter()
+            .map(|e| (e, "no links"))
+            .collect::<Vec<_>>()
+    };
 
     // Output based on format
     match global.format {
@@ -683,10 +704,11 @@ fn run_orphans(args: OrphansArgs, global: &GlobalOpts) -> Result<()> {
                 title: String,
                 reason: String,
             }
-            let data: Vec<_> = orphans.iter()
+            let data: Vec<_> = orphans
+                .iter()
                 .map(|(entity, reason)| OrphanInfo {
                     id: entity.id.clone(),
-                    entity_type: entity.prefix.to_string(),
+                    entity_type: entity.prefix.clone(),
                     title: entity.title.clone(),
                     reason: reason.to_string(),
                 })
@@ -700,10 +722,11 @@ fn run_orphans(args: OrphansArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         _ => {
-            let type_label = type_filter
-                .map(|t| format!("{} ", t))
-                .unwrap_or_default();
-            println!("{}", style(format!("Orphaned {}Entities", type_label)).bold());
+            let type_label = type_filter.map(|t| format!("{} ", t)).unwrap_or_default();
+            println!(
+                "{}",
+                style(format!("Orphaned {}Entities", type_label)).bold()
+            );
             println!("{}", style("─".repeat(60)).dim());
 
             for (entity, reason) in &orphans {

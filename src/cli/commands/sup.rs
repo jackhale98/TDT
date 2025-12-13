@@ -7,11 +7,12 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
-use crate::entities::supplier::{Capability, Supplier};
+use crate::entities::supplier::Supplier;
 use crate::schema::template::{TemplateContext, TemplateGenerator};
 use crate::schema::wizard::SchemaWizard;
 
@@ -196,77 +197,48 @@ pub fn run(cmd: SupCommands, global: &GlobalOpts) -> Result<()> {
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
-    let sup_dir = project.root().join("bom/suppliers");
 
-    if !sup_dir.exists() {
-        if args.count {
-            println!("0");
-        } else {
-            println!("No suppliers found.");
-        }
-        return Ok(());
-    }
+    // Open cache (auto-syncs if files changed)
+    let cache = EntityCache::open(&project)?;
 
-    // Load and parse all suppliers
-    let mut suppliers: Vec<Supplier> = Vec::new();
+    // Convert filters to cache-compatible format
+    let status_filter = match args.status {
+        StatusFilter::Draft => Some("draft"),
+        StatusFilter::Review => Some("review"),
+        StatusFilter::Approved => Some("approved"),
+        StatusFilter::Released => Some("released"),
+        StatusFilter::Obsolete => Some("obsolete"),
+        StatusFilter::All => None,
+    };
 
-    for entry in fs::read_dir(&sup_dir).into_diagnostic()? {
-        let entry = entry.into_diagnostic()?;
-        let path = entry.path();
+    let capability_filter = match args.capability {
+        CapabilityFilter::Machining => Some("machining"),
+        CapabilityFilter::SheetMetal => Some("sheet_metal"),
+        CapabilityFilter::Casting => Some("casting"),
+        CapabilityFilter::Injection => Some("injection"),
+        CapabilityFilter::Extrusion => Some("extrusion"),
+        CapabilityFilter::Pcb => Some("pcb"),
+        CapabilityFilter::PcbAssembly => Some("pcb_assembly"),
+        CapabilityFilter::CableAssembly => Some("cable_assembly"),
+        CapabilityFilter::Assembly => Some("assembly"),
+        CapabilityFilter::Testing => Some("testing"),
+        CapabilityFilter::Finishing => Some("finishing"),
+        CapabilityFilter::Packaging => Some("packaging"),
+        CapabilityFilter::All => None,
+    };
 
-        if path.extension().map_or(false, |e| e == "yaml") {
-            let content = fs::read_to_string(&path).into_diagnostic()?;
-            if let Ok(sup) = serde_yml::from_str::<Supplier>(&content) {
-                suppliers.push(sup);
-            }
-        }
-    }
+    // Query from cache with filters (applies indexed SQL queries)
+    let suppliers = cache.list_suppliers(
+        status_filter,
+        capability_filter,
+        args.author.as_deref(),
+        args.search.as_deref(),
+        None, // We'll apply limit after sorting
+    );
 
-    // Apply filters
-    let suppliers: Vec<Supplier> = suppliers
+    // Apply post-filters that cache doesn't support (recent filter)
+    let mut suppliers: Vec<_> = suppliers
         .into_iter()
-        .filter(|s| match args.status {
-            StatusFilter::Draft => s.status == crate::core::entity::Status::Draft,
-            StatusFilter::Review => s.status == crate::core::entity::Status::Review,
-            StatusFilter::Approved => s.status == crate::core::entity::Status::Approved,
-            StatusFilter::Released => s.status == crate::core::entity::Status::Released,
-            StatusFilter::Obsolete => s.status == crate::core::entity::Status::Obsolete,
-            StatusFilter::All => true,
-        })
-        .filter(|s| match args.capability {
-            CapabilityFilter::Machining => s.capabilities.contains(&Capability::Machining),
-            CapabilityFilter::SheetMetal => s.capabilities.contains(&Capability::SheetMetal),
-            CapabilityFilter::Casting => s.capabilities.contains(&Capability::Casting),
-            CapabilityFilter::Injection => s.capabilities.contains(&Capability::Injection),
-            CapabilityFilter::Extrusion => s.capabilities.contains(&Capability::Extrusion),
-            CapabilityFilter::Pcb => s.capabilities.contains(&Capability::Pcb),
-            CapabilityFilter::PcbAssembly => s.capabilities.contains(&Capability::PcbAssembly),
-            CapabilityFilter::CableAssembly => s.capabilities.contains(&Capability::CableAssembly),
-            CapabilityFilter::Assembly => s.capabilities.contains(&Capability::Assembly),
-            CapabilityFilter::Testing => s.capabilities.contains(&Capability::Testing),
-            CapabilityFilter::Finishing => s.capabilities.contains(&Capability::Finishing),
-            CapabilityFilter::Packaging => s.capabilities.contains(&Capability::Packaging),
-            CapabilityFilter::All => true,
-        })
-        .filter(|s| {
-            if let Some(ref search) = args.search {
-                let search_lower = search.to_lowercase();
-                s.name.to_lowercase().contains(&search_lower)
-                    || s.short_name
-                        .as_ref()
-                        .map_or(false, |n| n.to_lowercase().contains(&search_lower))
-                    || s.notes
-                        .as_ref()
-                        .map_or(false, |n| n.to_lowercase().contains(&search_lower))
-            } else {
-                true
-            }
-        })
-        .filter(|s| {
-            args.author.as_ref().map_or(true, |author| {
-                s.author.to_lowercase().contains(&author.to_lowercase())
-            })
-        })
         .filter(|s| {
             args.recent.map_or(true, |days| {
                 let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
@@ -276,14 +248,11 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         .collect();
 
     // Sort
-    let mut suppliers = suppliers;
     match args.sort {
-        ListColumn::Id => suppliers.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string())),
+        ListColumn::Id => suppliers.sort_by(|a, b| a.id.cmp(&b.id)),
         ListColumn::Name => suppliers.sort_by(|a, b| a.name.cmp(&b.name)),
         ListColumn::ShortName => suppliers.sort_by(|a, b| a.short_name.cmp(&b.short_name)),
-        ListColumn::Status => {
-            suppliers.sort_by(|a, b| format!("{:?}", a.status).cmp(&format!("{:?}", b.status)))
-        }
+        ListColumn::Status => suppliers.sort_by(|a, b| a.status.cmp(&b.status)),
         ListColumn::Website => suppliers.sort_by(|a, b| a.website.cmp(&b.website)),
         ListColumn::Capabilities => suppliers.sort_by(|a, b| a.capabilities.len().cmp(&b.capabilities.len())),
         ListColumn::Author => suppliers.sort_by(|a, b| a.author.cmp(&b.author)),
@@ -313,7 +282,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
     // Update short ID index
     let mut short_ids = ShortIdIndex::load(&project);
-    short_ids.ensure_all(suppliers.iter().map(|s| s.id.to_string()));
+    short_ids.ensure_all(suppliers.iter().map(|s| s.id.clone()));
     let _ = short_ids.save(&project);
 
     // Output based on format
@@ -323,19 +292,30 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     };
 
     match format {
-        OutputFormat::Json => {
-            let json = serde_json::to_string_pretty(&suppliers).into_diagnostic()?;
-            println!("{}", json);
-        }
-        OutputFormat::Yaml => {
-            let yaml = serde_yml::to_string(&suppliers).into_diagnostic()?;
-            print!("{}", yaml);
+        OutputFormat::Json | OutputFormat::Yaml => {
+            // For full fidelity output, load complete entities from files
+            let full_suppliers: Vec<Supplier> = suppliers
+                .iter()
+                .filter_map(|s| {
+                    let full_path = project.root().join(&s.file_path);
+                    fs::read_to_string(&full_path)
+                        .ok()
+                        .and_then(|content| serde_yml::from_str(&content).ok())
+                })
+                .collect();
+
+            if format == OutputFormat::Json {
+                let json = serde_json::to_string_pretty(&full_suppliers).into_diagnostic()?;
+                println!("{}", json);
+            } else {
+                let yaml = serde_yml::to_string(&full_suppliers).into_diagnostic()?;
+                print!("{}", yaml);
+            }
         }
         OutputFormat::Csv => {
             println!("short_id,id,name,short_name,website,status,capabilities");
             for sup in &suppliers {
-                let short_id = short_ids.get_short_id(&sup.id.to_string()).unwrap_or_default();
-                let caps: Vec<_> = sup.capabilities.iter().map(|c| c.to_string()).collect();
+                let short_id = short_ids.get_short_id(&sup.id).unwrap_or_default();
                 println!(
                     "{},{},{},{},{},{},\"{}\"",
                     short_id,
@@ -344,7 +324,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                     sup.short_name.as_deref().unwrap_or(""),
                     sup.website.as_deref().unwrap_or(""),
                     sup.status,
-                    caps.join(";")
+                    sup.capabilities.join(";")
                 );
             }
         }
@@ -368,18 +348,18 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", "-".repeat(95));
 
             for sup in &suppliers {
-                let short_id = short_ids.get_short_id(&sup.id.to_string()).unwrap_or_default();
+                let short_id = short_ids.get_short_id(&sup.id).unwrap_or_default();
                 let mut row_parts = vec![format!("{:<8}", style(&short_id).cyan())];
 
                 for col in &args.columns {
                     let value = match col {
-                        ListColumn::Id => format!("{:<17}", format_short_id(&sup.id)),
+                        ListColumn::Id => format!("{:<17}", truncate_str(&sup.id, 15)),
                         ListColumn::Name => format!("{:<25}", truncate_str(&sup.name, 23)),
                         ListColumn::ShortName => format!("{:<12}", truncate_str(sup.short_name.as_deref().unwrap_or("-"), 10)),
                         ListColumn::Status => format!("{:<10}", sup.status),
                         ListColumn::Website => format!("{:<25}", truncate_str(sup.website.as_deref().unwrap_or("-"), 23)),
                         ListColumn::Capabilities => {
-                            let caps: Vec<_> = sup.capabilities.iter().take(2).map(|c| c.to_string()).collect();
+                            let caps: Vec<_> = sup.capabilities.iter().take(2).cloned().collect();
                             let caps_display = if sup.capabilities.len() > 2 {
                                 format!("{}+{}", caps.join(","), sup.capabilities.len() - 2)
                             } else {
@@ -411,16 +391,15 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!("| Short | ID | Name | Short | Status | Capabilities |");
             println!("|---|---|---|---|---|---|");
             for sup in &suppliers {
-                let short_id = short_ids.get_short_id(&sup.id.to_string()).unwrap_or_default();
-                let caps: Vec<_> = sup.capabilities.iter().map(|c| c.to_string()).collect();
+                let short_id = short_ids.get_short_id(&sup.id).unwrap_or_default();
                 println!(
                     "| {} | {} | {} | {} | {} | {} |",
                     short_id,
-                    format_short_id(&sup.id),
+                    truncate_str(&sup.id, 15),
                     sup.name,
                     sup.short_name.as_deref().unwrap_or("-"),
                     sup.status,
-                    caps.join(", ")
+                    sup.capabilities.join(", ")
                 );
             }
         }

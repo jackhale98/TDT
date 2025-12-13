@@ -7,6 +7,8 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
+use crate::core::CachedFeature;
 use crate::core::entity::Entity;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
@@ -207,6 +209,76 @@ pub fn run(cmd: FeatCommands, global: &GlobalOpts) -> Result<()> {
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Determine output format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
+    };
+
+    // Resolve component filter if provided
+    let component_filter = args.component.as_ref().map(|c| {
+        short_ids.resolve(c).unwrap_or_else(|| c.clone())
+    });
+
+    // Check if we can use the fast cache path:
+    // - No recent filter (would need time-based SQL)
+    // - Not JSON/YAML output (needs full entity serialization)
+    let can_use_cache = args.recent.is_none()
+        && !matches!(format, OutputFormat::Json | OutputFormat::Yaml);
+
+    if can_use_cache {
+        if let Ok(cache) = EntityCache::open(&project) {
+            let status_filter = match args.status {
+                StatusFilter::Draft => Some("draft"),
+                StatusFilter::Review => Some("review"),
+                StatusFilter::Approved => Some("approved"),
+                StatusFilter::Released => Some("released"),
+                StatusFilter::Obsolete => Some("obsolete"),
+                StatusFilter::All => None,
+            };
+
+            let type_filter = match args.feature_type {
+                TypeFilter::Internal => Some("internal"),
+                TypeFilter::External => Some("external"),
+                TypeFilter::All => None,
+            };
+
+            let mut features = cache.list_features(
+                status_filter,
+                type_filter,
+                component_filter.as_deref(),
+                args.author.as_deref(),
+                args.search.as_deref(),
+                None, // We'll apply limit after sorting
+            );
+
+            // Sort
+            match args.sort {
+                ListColumn::Id => features.sort_by(|a, b| a.id.cmp(&b.id)),
+                ListColumn::Title => features.sort_by(|a, b| a.title.cmp(&b.title)),
+                ListColumn::Description => features.sort_by(|a, b| a.id.cmp(&b.id)), // No desc in cache
+                ListColumn::FeatureType => features.sort_by(|a, b| a.feature_type.cmp(&b.feature_type)),
+                ListColumn::Component => features.sort_by(|a, b| a.component_id.cmp(&b.component_id)),
+                ListColumn::Status => features.sort_by(|a, b| a.status.cmp(&b.status)),
+                ListColumn::Author => features.sort_by(|a, b| a.author.cmp(&b.author)),
+                ListColumn::Created => features.sort_by(|a, b| a.created.cmp(&b.created)),
+            }
+
+            if args.reverse {
+                features.reverse();
+            }
+
+            if let Some(limit) = args.limit {
+                features.truncate(limit);
+            }
+
+            return output_cached_features(&features, &short_ids, &args, format);
+        }
+    }
+
+    // Fall back to full YAML loading
     let feat_dir = project.root().join("tolerances/features");
 
     if !feat_dir.exists() {
@@ -217,12 +289,6 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         }
         return Ok(());
     }
-
-    // Resolve component filter if provided
-    let short_ids = ShortIdIndex::load(&project);
-    let component_filter = args.component.as_ref().map(|c| {
-        short_ids.resolve(c).unwrap_or_else(|| c.clone())
-    });
 
     // Load and parse all features
     let mut features: Vec<Feature> = Vec::new();
@@ -327,15 +393,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     }
 
     // Update short ID index
-    let mut short_ids = ShortIdIndex::load(&project);
+    let mut short_ids = short_ids;
     short_ids.ensure_all(features.iter().map(|f| f.id.to_string()));
     let _ = short_ids.save(&project);
-
-    // Output based on format
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Tsv,
-        f => f,
-    };
 
     match format {
         OutputFormat::Json => {
@@ -441,6 +501,121 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Auto => unreachable!(),
+    }
+
+    Ok(())
+}
+
+/// Output cached features (fast path - no YAML parsing needed)
+fn output_cached_features(
+    features: &[CachedFeature],
+    short_ids: &ShortIdIndex,
+    args: &ListArgs,
+    format: OutputFormat,
+) -> Result<()> {
+    if features.is_empty() {
+        println!("No features found.");
+        return Ok(());
+    }
+
+    if args.count {
+        println!("{}", features.len());
+        return Ok(());
+    }
+
+    match format {
+        OutputFormat::Csv => {
+            println!("short_id,id,component,feature_type,title,status");
+            for feat in features {
+                let short_id = short_ids.get_short_id(&feat.id).unwrap_or_default();
+                println!(
+                    "{},{},{},{},{},{}",
+                    short_id,
+                    feat.id,
+                    truncate_str(&feat.component_id, 13),
+                    feat.feature_type,
+                    escape_csv(&feat.title),
+                    feat.status
+                );
+            }
+        }
+        OutputFormat::Tsv => {
+            // Build header based on selected columns
+            let mut header_parts = vec![format!("{:<8}", style("SHORT").bold().dim())];
+            let mut widths = vec![8usize];
+            for col in &args.columns {
+                let (header, width) = match col {
+                    ListColumn::Id => (style("ID").bold().to_string(), 17),
+                    ListColumn::Title => (style("TITLE").bold().to_string(), 20),
+                    ListColumn::Description => (style("DESCRIPTION").bold().to_string(), 30),
+                    ListColumn::FeatureType => (style("TYPE").bold().to_string(), 10),
+                    ListColumn::Component => (style("COMPONENT").bold().to_string(), 8),
+                    ListColumn::Status => (style("STATUS").bold().to_string(), 10),
+                    ListColumn::Author => (style("AUTHOR").bold().to_string(), 14),
+                    ListColumn::Created => (style("CREATED").bold().to_string(), 12),
+                };
+                header_parts.push(format!("{:<width$}", header, width = width));
+                widths.push(width);
+            }
+            println!("{}", header_parts.join(" "));
+            println!("{}", "-".repeat(widths.iter().sum::<usize>() + widths.len() - 1));
+
+            for feat in features {
+                let short_id = short_ids.get_short_id(&feat.id).unwrap_or_default();
+                let mut row_parts = vec![format!("{:<8}", style(&short_id).cyan())];
+
+                for (i, col) in args.columns.iter().enumerate() {
+                    let width = widths[i + 1];
+                    let value = match col {
+                        ListColumn::Id => format!("{:<width$}", truncate_str(&feat.id, width - 2), width = width),
+                        ListColumn::Title => format!("{:<width$}", truncate_str(&feat.title, width - 2), width = width),
+                        ListColumn::Description => format!("{:<width$}", "-", width = width), // No desc in cache
+                        ListColumn::FeatureType => format!("{:<width$}", feat.feature_type, width = width),
+                        ListColumn::Component => {
+                            let cmp_alias = short_ids.get_short_id(&feat.component_id).unwrap_or_else(|| truncate_str(&feat.component_id, width - 2).to_string());
+                            format!("{:<width$}", cmp_alias, width = width)
+                        }
+                        ListColumn::Status => format!("{:<width$}", feat.status, width = width),
+                        ListColumn::Author => format!("{:<width$}", truncate_str(&feat.author, width - 2), width = width),
+                        ListColumn::Created => format!("{:<width$}", feat.created.format("%Y-%m-%d"), width = width),
+                    };
+                    row_parts.push(value);
+                }
+                println!("{}", row_parts.join(" "));
+            }
+
+            println!();
+            println!(
+                "{} feature(s) found. Use {} to reference by short ID.",
+                style(features.len()).cyan(),
+                style("FEAT@N").cyan()
+            );
+        }
+        OutputFormat::Id => {
+            for feat in features {
+                println!("{}", feat.id);
+            }
+        }
+        OutputFormat::Md => {
+            println!("| Short | ID | Component | Type | Title | Status |");
+            println!("|---|---|---|---|---|---|");
+            for feat in features {
+                let short_id = short_ids.get_short_id(&feat.id).unwrap_or_default();
+                println!(
+                    "| {} | {} | {} | {} | {} | {} |",
+                    short_id,
+                    truncate_str(&feat.id, 15),
+                    truncate_str(&feat.component_id, 13),
+                    feat.feature_type,
+                    feat.title,
+                    feat.status
+                );
+            }
+        }
+        OutputFormat::Json | OutputFormat::Yaml | OutputFormat::Auto => {
+            // Should never reach here
+            unreachable!()
+        }
     }
 
     Ok(())

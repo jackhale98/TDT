@@ -7,6 +7,7 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -164,6 +165,71 @@ pub fn run(cmd: WorkCommands, global: &GlobalOpts) -> Result<()> {
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Determine output format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
+    };
+
+    // Check if we can use the fast cache path:
+    // - No process filter (link-based)
+    // - No recent filter
+    // - No search filter
+    // - Not JSON/YAML output
+    let can_use_cache = args.process.is_none()
+        && !args.recent
+        && args.search.is_none()
+        && !matches!(format, OutputFormat::Json | OutputFormat::Yaml);
+
+    if can_use_cache {
+        if let Ok(cache) = EntityCache::open(&project) {
+            let status_filter = match args.status {
+                StatusFilter::Draft => Some("draft"),
+                StatusFilter::Review => Some("review"),
+                StatusFilter::Approved => Some("approved"),
+                StatusFilter::Released => Some("released"),
+                StatusFilter::Obsolete => Some("obsolete"),
+                StatusFilter::All => None,
+            };
+
+            let filter = crate::core::cache::EntityFilter {
+                prefix: Some(EntityPrefix::Work),
+                status: status_filter.map(|s| s.to_string()),
+                author: args.author.clone(),
+                search: None,
+                limit: None,
+                priority: None,
+                entity_type: None,
+                category: None,
+            };
+
+            let mut entities = cache.list_entities(&filter);
+
+            // Sort
+            match args.sort {
+                ListColumn::Id => entities.sort_by(|a, b| a.id.cmp(&b.id)),
+                ListColumn::Title => entities.sort_by(|a, b| a.title.cmp(&b.title)),
+                ListColumn::DocNumber => entities.sort_by(|a, b| a.id.cmp(&b.id)), // Not in cache
+                ListColumn::Status => entities.sort_by(|a, b| a.status.cmp(&b.status)),
+                ListColumn::Author => entities.sort_by(|a, b| a.author.cmp(&b.author)),
+                ListColumn::Created => entities.sort_by(|a, b| a.created.cmp(&b.created)),
+            }
+
+            if args.reverse {
+                entities.reverse();
+            }
+
+            if let Some(limit) = args.limit {
+                entities.truncate(limit);
+            }
+
+            return output_cached_work_instructions(&entities, &short_ids, &args, format);
+        }
+    }
+
+    // Fall back to full YAML loading
     let work_dir = project.root().join("manufacturing/work_instructions");
 
     if !work_dir.exists() {
@@ -192,7 +258,6 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
     // Resolve process filter if provided
     let process_filter = if let Some(ref proc_id) = args.process {
-        let short_ids = ShortIdIndex::load(&project);
         Some(short_ids.resolve(proc_id).unwrap_or_else(|| proc_id.clone()))
     } else {
         None
@@ -288,15 +353,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     }
 
     // Update short ID index
-    let mut short_ids = ShortIdIndex::load(&project);
+    let mut short_ids = short_ids;
     short_ids.ensure_all(work_instructions.iter().map(|w| w.id.to_string()));
     let _ = short_ids.save(&project);
-
-    // Output based on format
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Tsv,
-        f => f,
-    };
 
     match format {
         OutputFormat::Json => {
@@ -429,6 +488,144 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Auto => unreachable!(),
+    }
+
+    Ok(())
+}
+
+/// Output cached work instructions (fast path - no YAML parsing needed)
+fn output_cached_work_instructions(
+    entities: &[crate::core::CachedEntity],
+    short_ids: &ShortIdIndex,
+    args: &ListArgs,
+    format: OutputFormat,
+) -> Result<()> {
+    if entities.is_empty() {
+        println!("No work instructions found.");
+        return Ok(());
+    }
+
+    if args.count {
+        println!("{}", entities.len());
+        return Ok(());
+    }
+
+    match format {
+        OutputFormat::Csv => {
+            println!("short_id,id,title,status");
+            for entity in entities {
+                let short_id = short_ids.get_short_id(&entity.id).unwrap_or_default();
+                println!(
+                    "{},{},{},{}",
+                    short_id,
+                    entity.id,
+                    escape_csv(&entity.title),
+                    entity.status
+                );
+            }
+        }
+        OutputFormat::Tsv => {
+            // Build header based on columns
+            let mut header_parts = Vec::new();
+            let mut widths = Vec::new();
+
+            for col in &args.columns {
+                match col {
+                    ListColumn::Id => {
+                        header_parts.push(format!("{:<20}", style("SHORT").bold()));
+                        widths.push(20);
+                    }
+                    ListColumn::Title => {
+                        header_parts.push(format!("{:<35}", style("TITLE").bold()));
+                        widths.push(35);
+                    }
+                    ListColumn::DocNumber => {
+                        header_parts.push(format!("{:<15}", style("DOC #").bold()));
+                        widths.push(15);
+                    }
+                    ListColumn::Status => {
+                        header_parts.push(format!("{:<10}", style("STATUS").bold()));
+                        widths.push(10);
+                    }
+                    ListColumn::Author => {
+                        header_parts.push(format!("{:<15}", style("AUTHOR").bold()));
+                        widths.push(15);
+                    }
+                    ListColumn::Created => {
+                        header_parts.push(format!("{:<20}", style("CREATED").bold()));
+                        widths.push(20);
+                    }
+                }
+            }
+
+            println!("{}", header_parts.join(" "));
+            println!("{}", "-".repeat(widths.iter().sum::<usize>() + widths.len() - 1));
+
+            for entity in entities {
+                let short_id = short_ids.get_short_id(&entity.id).unwrap_or_default();
+                let mut row_parts = Vec::new();
+
+                for (col, width) in args.columns.iter().zip(&widths) {
+                    let value = match col {
+                        ListColumn::Id => {
+                            let id_str = if short_id.is_empty() {
+                                truncate_str(&entity.id, *width)
+                            } else {
+                                short_id.clone()
+                            };
+                            format!("{:<width$}", style(&id_str).cyan(), width = width)
+                        }
+                        ListColumn::Title => {
+                            format!("{:<width$}", truncate_str(&entity.title, *width - 2), width = width)
+                        }
+                        ListColumn::DocNumber => {
+                            format!("{:<width$}", "-", width = width) // Not in cache
+                        }
+                        ListColumn::Status => {
+                            format!("{:<width$}", entity.status, width = width)
+                        }
+                        ListColumn::Author => {
+                            format!("{:<width$}", truncate_str(&entity.author, *width - 2), width = width)
+                        }
+                        ListColumn::Created => {
+                            format!("{:<width$}", entity.created.format("%Y-%m-%d %H:%M"), width = width)
+                        }
+                    };
+                    row_parts.push(value);
+                }
+
+                println!("{}", row_parts.join(" "));
+            }
+
+            println!();
+            println!(
+                "{} work instruction(s) found. Use {} to reference by short ID.",
+                style(entities.len()).cyan(),
+                style("WORK@N").cyan()
+            );
+        }
+        OutputFormat::Id => {
+            for entity in entities {
+                println!("{}", entity.id);
+            }
+        }
+        OutputFormat::Md => {
+            println!("| Short | ID | Title | Status |");
+            println!("|---|---|---|---|");
+            for entity in entities {
+                let short_id = short_ids.get_short_id(&entity.id).unwrap_or_default();
+                println!(
+                    "| {} | {} | {} | {} |",
+                    short_id,
+                    truncate_str(&entity.id, 15),
+                    entity.title,
+                    entity.status
+                );
+            }
+        }
+        OutputFormat::Json | OutputFormat::Yaml | OutputFormat::Auto => {
+            unreachable!()
+        }
     }
 
     Ok(())

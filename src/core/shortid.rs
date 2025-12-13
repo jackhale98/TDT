@@ -3,19 +3,26 @@
 //! Provides prefixed aliases that map to full entity IDs.
 //! Format: `REQ@1`, `RISK@2`, `TEST@3`
 //!
+//! IMPORTANT: Short IDs are user-local and stored in the SQLite cache.
+//! They should NEVER appear in entity YAML files - only full ULIDs.
+//!
 //! Aliases are stable - once assigned, an entity keeps its alias.
 //! New aliases are only added when new entities are created.
 
 use std::collections::HashMap;
 use std::fs;
 
+use crate::core::cache::EntityCache;
 use crate::core::identity::EntityId;
 use crate::core::project::Project;
 
-/// Index file location within a project
-const INDEX_FILE: &str = ".tdt/shortids.json";
+/// Legacy index file location (for migration)
+const LEGACY_INDEX_FILE: &str = ".tdt/shortids.json";
 
 /// A mapping of prefixed short IDs to full entity IDs
+///
+/// This is kept for backward compatibility with existing code and tests.
+/// For new code, prefer using `EntityCache` directly.
 #[derive(Debug, Default, serde::Serialize, serde::Deserialize)]
 pub struct ShortIdIndex {
     /// Maps "PREFIX@N" to full entity ID string (e.g., "REQ@1" -> "REQ-01ABC...")
@@ -37,30 +44,76 @@ impl ShortIdIndex {
         }
     }
 
-    /// Load the index from a project, or create empty if not found
+    /// Load the index from the cache, migrating from JSON if needed
+    ///
+    /// This now uses the SQLite cache as the primary storage.
+    /// If a legacy shortids.json exists, it will be migrated and deleted.
     pub fn load(project: &Project) -> Self {
-        let path = project.root().join(INDEX_FILE);
-        if path.exists() {
-            if let Ok(content) = fs::read_to_string(&path) {
-                if let Ok(mut index) = serde_json::from_str::<ShortIdIndex>(&content) {
-                    // Rebuild reverse lookup
-                    index.reverse = index
-                        .entries
-                        .iter()
-                        .map(|(k, v)| (v.clone(), k.clone()))
-                        .collect();
-                    return index;
+        // Try to open/create the cache
+        let cache = match EntityCache::open(project) {
+            Ok(c) => c,
+            Err(_) => return Self::new(),
+        };
+
+        // Build in-memory index from cache
+        let mut index = Self::new();
+
+        // Query all short IDs from cache
+        if let Ok(rows) = cache.query_raw("SELECT short_id, entity_id FROM short_ids") {
+            for row in rows {
+                if row.len() >= 2 {
+                    let short_id = &row[0];
+                    let entity_id = &row[1];
+                    index.entries.insert(short_id.clone(), entity_id.clone());
+                    index.reverse.insert(entity_id.clone(), short_id.clone());
+
+                    // Update next_ids
+                    if let Some(at_pos) = short_id.find('@') {
+                        let prefix = &short_id[..at_pos];
+                        if let Ok(num) = short_id[at_pos + 1..].parse::<u32>() {
+                            let next = index.next_ids.entry(prefix.to_string()).or_insert(1);
+                            if num >= *next {
+                                *next = num + 1;
+                            }
+                        }
+                    }
                 }
             }
         }
-        Self::new()
+
+        // Check for and migrate legacy JSON file
+        let legacy_path = project.root().join(LEGACY_INDEX_FILE);
+        if legacy_path.exists() {
+            if let Ok(content) = fs::read_to_string(&legacy_path) {
+                if let Ok(legacy_index) = serde_json::from_str::<ShortIdIndex>(&content) {
+                    // Merge legacy entries (cache takes precedence for conflicts)
+                    for (short_id, entity_id) in legacy_index.entries {
+                        if !index.entries.contains_key(&short_id) {
+                            index.entries.insert(short_id.clone(), entity_id.clone());
+                            index.reverse.insert(entity_id, short_id);
+                        }
+                    }
+                }
+            }
+            // Delete legacy file after migration
+            let _ = fs::remove_file(&legacy_path);
+        }
+
+        index
     }
 
-    /// Save the index to a project
+    /// Save the index - now delegates to cache
+    ///
+    /// Note: Short IDs are automatically saved to the SQLite cache.
+    /// This method is kept for backward compatibility but is mostly a no-op.
     pub fn save(&self, project: &Project) -> std::io::Result<()> {
-        let path = project.root().join(INDEX_FILE);
-        let content = serde_json::to_string_pretty(self)?;
-        fs::write(path, content)
+        // Open cache and ensure all our entries are saved
+        if let Ok(mut cache) = EntityCache::open(project) {
+            for (_short_id, entity_id) in &self.entries {
+                let _ = cache.ensure_short_id(entity_id);
+            }
+        }
+        Ok(())
     }
 
     /// Extract the prefix from an entity ID (e.g., "REQ" from "REQ-01ABC...")
@@ -105,7 +158,8 @@ impl ShortIdIndex {
             let prefix = &reference[..at_pos];
             if !prefix.is_empty() && prefix.chars().all(|c| c.is_ascii_alphabetic()) {
                 // Normalize to uppercase for lookup
-                let normalized = format!("{}@{}", prefix.to_ascii_uppercase(), &reference[at_pos + 1..]);
+                let normalized =
+                    format!("{}@{}", prefix.to_ascii_uppercase(), &reference[at_pos + 1..]);
                 return self.entries.get(&normalized).cloned();
             }
         }
@@ -121,9 +175,9 @@ impl ShortIdIndex {
 
     /// Get the numeric part of a short ID (for display)
     pub fn get_number(&self, entity_id: &str) -> Option<u32> {
-        self.reverse.get(entity_id).and_then(|s| {
-            s.split('@').nth(1).and_then(|n| n.parse().ok())
-        })
+        self.reverse
+            .get(entity_id)
+            .and_then(|s| s.split('@').nth(1).and_then(|n| n.parse().ok()))
     }
 
     /// Format an entity ID with its short ID prefix for display
@@ -148,9 +202,36 @@ impl ShortIdIndex {
 }
 
 /// Parse a reference that might be a short ID or a full/partial entity ID
+///
+/// This is the primary entry point for resolving entity references.
+/// It uses the SQLite cache for short ID resolution.
 pub fn parse_entity_reference(reference: &str, project: &Project) -> String {
-    let index = ShortIdIndex::load(project);
-    index.resolve(reference).unwrap_or_else(|| reference.to_string())
+    // Check for short ID format (PREFIX@N)
+    if reference.contains('@') {
+        // Use cache directly for better performance
+        if let Ok(cache) = EntityCache::open(project) {
+            if let Some(entity_id) = cache.resolve_short_id(reference) {
+                return entity_id;
+            }
+        }
+    }
+
+    // Not a short ID or not found - return as-is for partial matching downstream
+    reference.to_string()
+}
+
+/// Get the short ID for an entity, assigning one if needed
+///
+/// This is useful when displaying entities - ensures they have a short ID.
+pub fn get_or_create_short_id(entity_id: &str, project: &Project) -> Option<String> {
+    let mut cache = EntityCache::open(project).ok()?;
+    cache.ensure_short_id(entity_id).ok()
+}
+
+/// Get the short ID for an entity without creating one
+pub fn get_short_id(entity_id: &str, project: &Project) -> Option<String> {
+    let cache = EntityCache::open(project).ok()?;
+    cache.get_short_id(entity_id)
 }
 
 #[cfg(test)]
@@ -191,7 +272,10 @@ mod tests {
 
         // Non-short-ID references pass through
         assert_eq!(index.resolve("REQ-01ABC"), Some("REQ-01ABC".to_string()));
-        assert_eq!(index.resolve("temperature"), Some("temperature".to_string()));
+        assert_eq!(
+            index.resolve("temperature"),
+            Some("temperature".to_string())
+        );
     }
 
     #[test]

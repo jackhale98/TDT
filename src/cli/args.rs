@@ -8,6 +8,7 @@ use crate::cli::commands::{
     baseline::BaselineCommands,
     blame::BlameArgs,
     bulk::BulkCommands,
+    cache::CacheCommands,
     capa::CapaCommands,
     cmp::CmpCommands,
     ctrl::CtrlCommands,
@@ -89,6 +90,7 @@ VERSION CONTROL:
 
 UTILITIES:
   bulk        Bulk operations on multiple entities
+  cache       Entity cache management (rebuild, sync, status, query)
   help        Print this message or the help of the given subcommand(s)
 
 OPTIONS:
@@ -281,6 +283,10 @@ pub enum Commands {
     /// Bulk operations on multiple entities
     #[command(subcommand)]
     Bulk(BulkCommands),
+
+    /// Entity cache management (rebuild, sync, status, query)
+    #[command(subcommand)]
+    Cache(CacheCommands),
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]

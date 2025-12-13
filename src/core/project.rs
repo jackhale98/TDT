@@ -136,7 +136,13 @@ impl Project {
     fn default_gitignore() -> &'static str {
         r#"
 # TDT - Tessera Development Toolkit
-# Local short ID mappings (user-specific, regenerated automatically)
+# Local cache database (user-specific, auto-rebuilt from entity files)
+.tdt/cache.db
+.tdt/cache.db-journal
+.tdt/cache.db-wal
+.tdt/cache.db-shm
+
+# Legacy short ID file (migrated to cache.db)
 .tdt/shortids.json
 "#
     }

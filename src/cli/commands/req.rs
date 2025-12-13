@@ -7,6 +7,7 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
 use crate::core::entity::Priority;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
@@ -313,6 +314,20 @@ pub fn run(cmd: ReqCommands, global: &GlobalOpts) -> Result<()> {
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
+    // Determine if we need full entity loading (for complex filters or full output)
+    let output_format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
+    };
+    let needs_full_output = matches!(output_format, OutputFormat::Json | OutputFormat::Yaml);
+    let needs_complex_filters = args.search.is_some()  // search in text field
+        || args.orphans
+        || args.unverified
+        || args.untested
+        || args.failed
+        || args.passing;
+    let needs_full_entities = needs_full_output || needs_complex_filters;
+
     // Pre-load test results if we need verification status filters
     let results: Vec<crate::entities::result::Result> = if args.untested || args.failed || args.passing {
         load_all_results(&project)
@@ -320,7 +335,122 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         Vec::new()
     };
 
-    // Collect all requirement files
+    // Fast path: use cache directly for simple list outputs without complex filters
+    if !needs_full_entities {
+        let cache = EntityCache::open(&project)?;
+
+        // Convert filters to cache-compatible format
+        let status_filter = match args.status {
+            StatusFilter::Draft => Some("draft"),
+            StatusFilter::Review => Some("review"),
+            StatusFilter::Approved => Some("approved"),
+            StatusFilter::Obsolete => Some("obsolete"),
+            StatusFilter::Active | StatusFilter::All => None,
+        };
+
+        let priority_filter = match args.priority {
+            PriorityFilter::Low => Some("low"),
+            PriorityFilter::Medium => Some("medium"),
+            PriorityFilter::High => Some("high"),
+            PriorityFilter::Critical => Some("critical"),
+            PriorityFilter::Urgent | PriorityFilter::All => None,
+        };
+
+        let type_filter = match args.r#type {
+            ReqTypeFilter::Input => Some("input"),
+            ReqTypeFilter::Output => Some("output"),
+            ReqTypeFilter::All => None,
+        };
+
+        // Query cache with basic filters
+        let mut cached_reqs = cache.list_requirements(
+            status_filter,
+            priority_filter,
+            type_filter,
+            args.category.as_deref(),
+            args.author.as_deref(),
+            None,  // No search
+            None,  // No limit yet
+        );
+
+        // Apply post-filters for Active status and Urgent priority
+        cached_reqs.retain(|r| {
+            let status_match = match args.status {
+                StatusFilter::Active => r.status != "obsolete",
+                _ => true,
+            };
+            let priority_match = match args.priority {
+                PriorityFilter::Urgent => r.priority.as_deref() == Some("high") || r.priority.as_deref() == Some("critical"),
+                _ => true,
+            };
+            let tag_match = args.tag.as_ref().map_or(true, |tag| {
+                r.tags.iter().any(|t| t.to_lowercase() == tag.to_lowercase())
+            });
+            let recent_match = args.recent.map_or(true, |days| {
+                let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
+                r.created >= cutoff
+            });
+            let needs_review_match = if args.needs_review {
+                r.status == "draft" || r.status == "review"
+            } else {
+                true
+            };
+            status_match && priority_match && tag_match && recent_match && needs_review_match
+        });
+
+        // Handle count-only mode
+        if args.count {
+            println!("{}", cached_reqs.len());
+            return Ok(());
+        }
+
+        if cached_reqs.is_empty() {
+            println!("No requirements found matching filters.");
+            println!();
+            println!("Create one with: {}", style("tdt req new").yellow());
+            return Ok(());
+        }
+
+        // Sort
+        match args.sort {
+            ListColumn::Id => cached_reqs.sort_by(|a, b| a.id.cmp(&b.id)),
+            ListColumn::Type => cached_reqs.sort_by(|a, b| a.req_type.cmp(&b.req_type)),
+            ListColumn::Title => cached_reqs.sort_by(|a, b| a.title.cmp(&b.title)),
+            ListColumn::Status => cached_reqs.sort_by(|a, b| a.status.cmp(&b.status)),
+            ListColumn::Priority => {
+                let priority_order = |p: Option<&str>| match p {
+                    Some("critical") => 0,
+                    Some("high") => 1,
+                    Some("medium") => 2,
+                    Some("low") => 3,
+                    _ => 4,
+                };
+                cached_reqs.sort_by(|a, b| priority_order(a.priority.as_deref()).cmp(&priority_order(b.priority.as_deref())));
+            }
+            ListColumn::Category => cached_reqs.sort_by(|a, b| a.category.cmp(&b.category)),
+            ListColumn::Author => cached_reqs.sort_by(|a, b| a.author.cmp(&b.author)),
+            ListColumn::Created => cached_reqs.sort_by(|a, b| a.created.cmp(&b.created)),
+            ListColumn::Tags => cached_reqs.sort_by(|a, b| a.tags.join(",").cmp(&b.tags.join(","))),
+        }
+
+        if args.reverse {
+            cached_reqs.reverse();
+        }
+
+        if let Some(limit) = args.limit {
+            cached_reqs.truncate(limit);
+        }
+
+        // Update short ID index
+        let mut short_ids = ShortIdIndex::load(&project);
+        short_ids.ensure_all(cached_reqs.iter().map(|r| r.id.clone()));
+        let _ = short_ids.save(&project);
+
+        // Output from cached data (no YAML parsing needed!)
+        return output_cached_requirements(&cached_reqs, &short_ids, &args, output_format);
+    }
+
+    // Slow path: full entity loading for complex filters or JSON/YAML output
     let mut reqs: Vec<Requirement> = Vec::new();
 
     for path in project.iter_entity_files(EntityPrefix::Req) {
@@ -360,16 +490,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         }
     }
 
-    // Apply filters
+    // Apply filters that need full entity data
     reqs.retain(|req| {
-        // Type filter
+        // Type filter (for full entity mode)
         let type_match = match args.r#type {
             ReqTypeFilter::Input => req.req_type == RequirementType::Input,
             ReqTypeFilter::Output => req.req_type == RequirementType::Output,
             ReqTypeFilter::All => true,
         };
 
-        // Status filter
+        // Status filter (for full entity mode and Active filter)
         let status_match = match args.status {
             StatusFilter::Draft => req.status == crate::core::entity::Status::Draft,
             StatusFilter::Review => req.status == crate::core::entity::Status::Review,
@@ -379,7 +509,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             StatusFilter::All => true,
         };
 
-        // Priority filter
+        // Priority filter (for full entity mode and Urgent filter)
         let priority_match = match args.priority {
             PriorityFilter::Low => req.priority == Priority::Low,
             PriorityFilter::Medium => req.priority == Priority::Medium,
@@ -389,7 +519,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             PriorityFilter::All => true,
         };
 
-        // Category filter
+        // Category filter (for full entity mode)
         let category_match = args.category.as_ref().map_or(true, |cat| {
             req.category.as_ref().map_or(false, |c| c.to_lowercase() == cat.to_lowercase())
         });
@@ -399,7 +529,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             req.tags.iter().any(|t| t.to_lowercase() == tag.to_lowercase())
         });
 
-        // Author filter
+        // Author filter (for full entity mode)
         let author_match = args.author.as_ref().map_or(true, |author| {
             req.author.to_lowercase().contains(&author.to_lowercase())
         });
@@ -652,6 +782,106 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Auto => unreachable!(), // Already handled above
     }
 
+    Ok(())
+}
+
+/// Output requirements from cached data (fast path - no YAML parsing)
+fn output_cached_requirements(
+    reqs: &[crate::core::CachedRequirement],
+    short_ids: &ShortIdIndex,
+    args: &ListArgs,
+    format: OutputFormat,
+) -> Result<()> {
+    match format {
+        OutputFormat::Csv => {
+            println!("short_id,id,type,title,status,priority,category,author,created");
+            for req in reqs {
+                let short_id = short_ids.get_short_id(&req.id).unwrap_or_default();
+                println!(
+                    "{},{},{},{},{},{},{},{},{}",
+                    short_id,
+                    req.id,
+                    req.req_type.as_deref().unwrap_or("input"),
+                    escape_csv(&req.title),
+                    req.status,
+                    req.priority.as_deref().unwrap_or("medium"),
+                    req.category.as_deref().unwrap_or(""),
+                    req.author,
+                    req.created.format("%Y-%m-%dT%H:%M:%SZ")
+                );
+            }
+        }
+        OutputFormat::Tsv | OutputFormat::Auto => {
+            // Build header based on selected columns
+            let mut header_parts = vec![format!("{:<8}", style("SHORT").bold().dim())];
+            for col in &args.columns {
+                let header = match col {
+                    ListColumn::Id => format!("{:<16}", style("ID").bold()),
+                    ListColumn::Type => format!("{:<8}", style("TYPE").bold()),
+                    ListColumn::Title => format!("{:<34}", style("TITLE").bold()),
+                    ListColumn::Status => format!("{:<10}", style("STATUS").bold()),
+                    ListColumn::Priority => format!("{:<10}", style("PRIORITY").bold()),
+                    ListColumn::Category => format!("{:<16}", style("CATEGORY").bold()),
+                    ListColumn::Author => format!("{:<16}", style("AUTHOR").bold()),
+                    ListColumn::Created => format!("{:<12}", style("CREATED").bold()),
+                    ListColumn::Tags => format!("{:<20}", style("TAGS").bold()),
+                };
+                header_parts.push(header);
+            }
+            println!("{}", header_parts.join(" "));
+            println!("{}", "-".repeat(90));
+
+            for req in reqs {
+                let short_id = short_ids.get_short_id(&req.id).unwrap_or_default();
+                let mut row_parts = vec![format!("{:<8}", style(&short_id).cyan())];
+
+                for col in &args.columns {
+                    let value = match col {
+                        ListColumn::Id => format!("{:<16}", truncate_str(&req.id, 14)),
+                        ListColumn::Type => format!("{:<8}", req.req_type.as_deref().unwrap_or("input")),
+                        ListColumn::Title => format!("{:<34}", truncate_str(&req.title, 32)),
+                        ListColumn::Status => format!("{:<10}", req.status),
+                        ListColumn::Priority => format!("{:<10}", req.priority.as_deref().unwrap_or("medium")),
+                        ListColumn::Category => format!("{:<16}", truncate_str(req.category.as_deref().unwrap_or(""), 14)),
+                        ListColumn::Author => format!("{:<16}", truncate_str(&req.author, 14)),
+                        ListColumn::Created => format!("{:<12}", req.created.format("%Y-%m-%d")),
+                        ListColumn::Tags => format!("{:<20}", truncate_str(&req.tags.join(", "), 18)),
+                    };
+                    row_parts.push(value);
+                }
+                println!("{}", row_parts.join(" "));
+            }
+
+            println!();
+            println!(
+                "{} requirement(s) found. Use {} to reference by short ID.",
+                style(reqs.len()).cyan(),
+                style("REQ@N").cyan()
+            );
+        }
+        OutputFormat::Id => {
+            for req in reqs {
+                println!("{}", req.id);
+            }
+        }
+        OutputFormat::Md => {
+            println!("| Short | ID | Type | Title | Status | Priority |");
+            println!("|---|---|---|---|---|---|");
+            for req in reqs {
+                let short_id = short_ids.get_short_id(&req.id).unwrap_or_default();
+                println!(
+                    "| {} | {} | {} | {} | {} | {} |",
+                    short_id,
+                    truncate_str(&req.id, 14),
+                    req.req_type.as_deref().unwrap_or("input"),
+                    req.title,
+                    req.status,
+                    req.priority.as_deref().unwrap_or("medium")
+                );
+            }
+        }
+        OutputFormat::Json | OutputFormat::Yaml => unreachable!(), // These require full entities
+    }
     Ok(())
 }
 

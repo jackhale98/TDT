@@ -7,6 +7,7 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -297,54 +298,116 @@ pub fn run(cmd: RiskCommands, global: &GlobalOpts) -> Result<()> {
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
-    // Collect all risk files
-    let mut risks: Vec<Risk> = Vec::new();
+    // Determine if we need full entity loading (for complex filters)
+    let needs_full_entities = args.search.is_some()  // search in description
+        || args.unmitigated
+        || args.open_mitigations
+        || args.tag.is_some();
 
-    // Check design risks
-    let design_dir = project.root().join("risks/design");
-    if design_dir.exists() {
-        for entry in walkdir::WalkDir::new(&design_dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
-        {
-            match crate::yaml::parse_yaml_file::<Risk>(entry.path()) {
-                Ok(risk) => risks.push(risk),
-                Err(e) => {
-                    eprintln!(
-                        "{} Failed to parse {}: {}",
-                        style("!").yellow(),
-                        entry.path().display(),
-                        e
-                    );
+    // Collect risks - use cache for basic filtering, full load for complex
+    let mut risks: Vec<Risk> = if needs_full_entities {
+        // Full entity loading (original approach)
+        let mut risks: Vec<Risk> = Vec::new();
+
+        // Check design risks
+        let design_dir = project.root().join("risks/design");
+        if design_dir.exists() {
+            for entry in walkdir::WalkDir::new(&design_dir)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            {
+                match crate::yaml::parse_yaml_file::<Risk>(entry.path()) {
+                    Ok(risk) => risks.push(risk),
+                    Err(e) => {
+                        eprintln!(
+                            "{} Failed to parse {}: {}",
+                            style("!").yellow(),
+                            entry.path().display(),
+                            e
+                        );
+                    }
                 }
             }
         }
-    }
 
-    // Check process risks
-    let process_dir = project.root().join("risks/process");
-    if process_dir.exists() {
-        for entry in walkdir::WalkDir::new(&process_dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
-        {
-            match crate::yaml::parse_yaml_file::<Risk>(entry.path()) {
-                Ok(risk) => risks.push(risk),
-                Err(e) => {
-                    eprintln!(
-                        "{} Failed to parse {}: {}",
-                        style("!").yellow(),
-                        entry.path().display(),
-                        e
-                    );
+        // Check process risks
+        let process_dir = project.root().join("risks/process");
+        if process_dir.exists() {
+            for entry in walkdir::WalkDir::new(&process_dir)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            {
+                match crate::yaml::parse_yaml_file::<Risk>(entry.path()) {
+                    Ok(risk) => risks.push(risk),
+                    Err(e) => {
+                        eprintln!(
+                            "{} Failed to parse {}: {}",
+                            style("!").yellow(),
+                            entry.path().display(),
+                            e
+                        );
+                    }
                 }
             }
         }
-    }
+        risks
+    } else {
+        // Use cache for basic filtering (faster for large projects)
+        let cache = EntityCache::open(&project)?;
+
+        // Convert filters to cache-compatible format
+        let status_filter = match args.status {
+            StatusFilter::Draft => Some("draft"),
+            StatusFilter::Review => Some("review"),
+            StatusFilter::Approved => Some("approved"),
+            StatusFilter::Obsolete => Some("obsolete"),
+            StatusFilter::Active | StatusFilter::All => None,
+        };
+
+        let type_filter = match args.r#type {
+            RiskTypeFilter::Design => Some("design"),
+            RiskTypeFilter::Process => Some("process"),
+            RiskTypeFilter::All => None,
+        };
+
+        let level_filter = match args.level {
+            RiskLevelFilter::Low => Some("low"),
+            RiskLevelFilter::Medium => Some("medium"),
+            RiskLevelFilter::High => Some("high"),
+            RiskLevelFilter::Critical => Some("critical"),
+            RiskLevelFilter::Urgent | RiskLevelFilter::All => None,
+        };
+
+        // Effective min RPN
+        let min_rpn = args.above_rpn.or(args.min_rpn).map(|v| v as i32);
+
+        // Query cache with basic filters
+        let cached_risks = cache.list_risks(
+            status_filter,
+            type_filter,
+            level_filter,
+            args.category.as_deref(),
+            min_rpn,
+            args.author.as_deref(),
+            None,  // No search (would need description field)
+            None,  // No limit yet
+        );
+
+        // Load full entities from cached file paths
+        cached_risks
+            .iter()
+            .filter_map(|cr| {
+                let full_path = project.root().join(&cr.file_path);
+                fs::read_to_string(&full_path)
+                    .ok()
+                    .and_then(|content| serde_yml::from_str::<Risk>(&content).ok())
+            })
+            .collect()
+    };
 
     // Apply filters
     risks.retain(|r| {

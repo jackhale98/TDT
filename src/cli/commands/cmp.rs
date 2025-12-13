@@ -7,6 +7,7 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -288,6 +289,116 @@ pub fn run(cmd: CmpCommands, global: &GlobalOpts) -> Result<()> {
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+
+    // Determine if we need full entity loading (for complex filters or full output)
+    let output_format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
+    };
+    let needs_full_output = matches!(output_format, OutputFormat::Json | OutputFormat::Yaml);
+    let needs_complex_filters = args.search.is_some()  // search in description
+        || args.long_lead.is_some()  // needs supplier data
+        || args.single_source        // needs supplier data
+        || args.no_quote             // needs quote data
+        || args.high_cost.is_some(); // needs unit_cost
+    let needs_full_entities = needs_full_output || needs_complex_filters;
+
+    // Pre-load quotes if needed for no_quote filter
+    let quotes: Vec<crate::entities::quote::Quote> = if args.no_quote {
+        load_all_quotes(&project)
+    } else {
+        Vec::new()
+    };
+
+    // Fast path: use cache directly for simple list outputs
+    if !needs_full_entities {
+        let cache = EntityCache::open(&project)?;
+
+        // Convert filters to cache-compatible format
+        let status_filter = match args.status {
+            StatusFilter::Draft => Some("draft"),
+            StatusFilter::Review => Some("review"),
+            StatusFilter::Approved => Some("approved"),
+            StatusFilter::Released => Some("released"),
+            StatusFilter::Obsolete => Some("obsolete"),
+            StatusFilter::All => None,
+        };
+
+        let make_buy_filter = match args.make_buy {
+            MakeBuyFilter::Make => Some("make"),
+            MakeBuyFilter::Buy => Some("buy"),
+            MakeBuyFilter::All => None,
+        };
+
+        let category_filter = match args.category {
+            CategoryFilter::Mechanical => Some("mechanical"),
+            CategoryFilter::Electrical => Some("electrical"),
+            CategoryFilter::Software => Some("software"),
+            CategoryFilter::Fastener => Some("fastener"),
+            CategoryFilter::Consumable => Some("consumable"),
+            CategoryFilter::All => None,
+        };
+
+        // Query cache with basic filters
+        let mut cached_cmps = cache.list_components(
+            status_filter,
+            make_buy_filter,
+            category_filter,
+            args.author.as_deref(),
+            None,  // No search
+            None,  // No limit yet
+        );
+
+        // Apply post-filters
+        cached_cmps.retain(|c| {
+            args.recent.map_or(true, |days| {
+                let cutoff = chrono::Utc::now() - chrono::Duration::days(days as i64);
+                c.created >= cutoff
+            })
+        });
+
+        // Handle count-only mode
+        if args.count {
+            println!("{}", cached_cmps.len());
+            return Ok(());
+        }
+
+        if cached_cmps.is_empty() {
+            println!("No components found.");
+            return Ok(());
+        }
+
+        // Sort
+        match args.sort {
+            ListColumn::Id => cached_cmps.sort_by(|a, b| a.id.cmp(&b.id)),
+            ListColumn::PartNumber => cached_cmps.sort_by(|a, b| a.part_number.cmp(&b.part_number)),
+            ListColumn::Revision => cached_cmps.sort_by(|a, b| a.revision.cmp(&b.revision)),
+            ListColumn::Title => cached_cmps.sort_by(|a, b| a.title.cmp(&b.title)),
+            ListColumn::MakeBuy => cached_cmps.sort_by(|a, b| a.make_buy.cmp(&b.make_buy)),
+            ListColumn::Category => cached_cmps.sort_by(|a, b| a.category.cmp(&b.category)),
+            ListColumn::Status => cached_cmps.sort_by(|a, b| a.status.cmp(&b.status)),
+            ListColumn::Author => cached_cmps.sort_by(|a, b| a.author.cmp(&b.author)),
+            ListColumn::Created => cached_cmps.sort_by(|a, b| a.created.cmp(&b.created)),
+        }
+
+        if args.reverse {
+            cached_cmps.reverse();
+        }
+
+        if let Some(limit) = args.limit {
+            cached_cmps.truncate(limit);
+        }
+
+        // Update short ID index
+        let mut short_ids = ShortIdIndex::load(&project);
+        short_ids.ensure_all(cached_cmps.iter().map(|c| c.id.clone()));
+        let _ = short_ids.save(&project);
+
+        // Output from cached data
+        return output_cached_components(&cached_cmps, &short_ids, &args, output_format);
+    }
+
+    // Slow path: full entity loading
     let cmp_dir = project.root().join("bom/components");
 
     if !cmp_dir.exists() {
@@ -298,13 +409,6 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         }
         return Ok(());
     }
-
-    // Pre-load quotes if needed for no_quote filter
-    let quotes: Vec<crate::entities::quote::Quote> = if args.no_quote {
-        load_all_quotes(&project)
-    } else {
-        Vec::new()
-    };
 
     // Load and parse all components
     let mut components: Vec<Component> = Vec::new();
@@ -557,6 +661,105 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Auto => unreachable!(),
     }
 
+    Ok(())
+}
+
+/// Output components from cached data (fast path - no YAML parsing)
+fn output_cached_components(
+    cmps: &[crate::core::CachedComponent],
+    short_ids: &ShortIdIndex,
+    args: &ListArgs,
+    format: OutputFormat,
+) -> Result<()> {
+    match format {
+        OutputFormat::Csv => {
+            println!("short_id,id,part_number,revision,title,make_buy,category,status");
+            for cmp in cmps {
+                let short_id = short_ids.get_short_id(&cmp.id).unwrap_or_default();
+                println!(
+                    "{},{},{},{},{},{},{},{}",
+                    short_id,
+                    cmp.id,
+                    cmp.part_number.as_deref().unwrap_or(""),
+                    cmp.revision.as_deref().unwrap_or(""),
+                    escape_csv(&cmp.title),
+                    cmp.make_buy.as_deref().unwrap_or("buy"),
+                    cmp.category.as_deref().unwrap_or(""),
+                    cmp.status
+                );
+            }
+        }
+        OutputFormat::Tsv | OutputFormat::Auto => {
+            let mut header_parts = vec![format!("{:<8}", style("SHORT").bold().dim())];
+            for col in &args.columns {
+                let header = match col {
+                    ListColumn::Id => format!("{:<17}", style("ID").bold()),
+                    ListColumn::PartNumber => format!("{:<12}", style("PART #").bold()),
+                    ListColumn::Revision => format!("{:<8}", style("REV").bold()),
+                    ListColumn::Title => format!("{:<30}", style("TITLE").bold()),
+                    ListColumn::MakeBuy => format!("{:<6}", style("M/B").bold()),
+                    ListColumn::Category => format!("{:<12}", style("CATEGORY").bold()),
+                    ListColumn::Status => format!("{:<10}", style("STATUS").bold()),
+                    ListColumn::Author => format!("{:<16}", style("AUTHOR").bold()),
+                    ListColumn::Created => format!("{:<12}", style("CREATED").bold()),
+                };
+                header_parts.push(header);
+            }
+            println!("{}", header_parts.join(" "));
+            println!("{}", "-".repeat(100));
+
+            for cmp in cmps {
+                let short_id = short_ids.get_short_id(&cmp.id).unwrap_or_default();
+                let mut row_parts = vec![format!("{:<8}", style(&short_id).cyan())];
+
+                for col in &args.columns {
+                    let value = match col {
+                        ListColumn::Id => format!("{:<17}", truncate_str(&cmp.id, 15)),
+                        ListColumn::PartNumber => format!("{:<12}", truncate_str(cmp.part_number.as_deref().unwrap_or(""), 10)),
+                        ListColumn::Revision => format!("{:<8}", cmp.revision.as_deref().unwrap_or("-")),
+                        ListColumn::Title => format!("{:<30}", truncate_str(&cmp.title, 28)),
+                        ListColumn::MakeBuy => format!("{:<6}", cmp.make_buy.as_deref().unwrap_or("buy")),
+                        ListColumn::Category => format!("{:<12}", cmp.category.as_deref().unwrap_or("")),
+                        ListColumn::Status => format!("{:<10}", cmp.status),
+                        ListColumn::Author => format!("{:<16}", truncate_str(&cmp.author, 14)),
+                        ListColumn::Created => format!("{:<12}", cmp.created.format("%Y-%m-%d")),
+                    };
+                    row_parts.push(value);
+                }
+                println!("{}", row_parts.join(" "));
+            }
+
+            println!();
+            println!(
+                "{} component(s) found. Use {} to reference by short ID.",
+                style(cmps.len()).cyan(),
+                style("CMP@N").cyan()
+            );
+        }
+        OutputFormat::Id => {
+            for cmp in cmps {
+                println!("{}", cmp.id);
+            }
+        }
+        OutputFormat::Md => {
+            println!("| Short | ID | Part # | Title | M/B | Category | Status |");
+            println!("|---|---|---|---|---|---|---|");
+            for cmp in cmps {
+                let short_id = short_ids.get_short_id(&cmp.id).unwrap_or_default();
+                println!(
+                    "| {} | {} | {} | {} | {} | {} | {} |",
+                    short_id,
+                    truncate_str(&cmp.id, 15),
+                    cmp.part_number.as_deref().unwrap_or(""),
+                    cmp.title,
+                    cmp.make_buy.as_deref().unwrap_or("buy"),
+                    cmp.category.as_deref().unwrap_or(""),
+                    cmp.status
+                );
+            }
+        }
+        OutputFormat::Json | OutputFormat::Yaml => unreachable!(),
+    }
     Ok(())
 }
 

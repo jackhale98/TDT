@@ -7,6 +7,7 @@ use std::fs;
 use std::path::PathBuf;
 use walkdir::WalkDir;
 
+use crate::core::cache::EntityCache;
 use crate::core::project::Project;
 use crate::core::EntityPrefix;
 use crate::entities::feature::Feature;
@@ -58,15 +59,17 @@ struct ValidationStats {
     files_fixed: usize,
 }
 
-/// Cache for entities to avoid repeated file loading during validation
-/// This eliminates O(n²) behavior when validating mates and stackups
-struct EntityCache {
+/// Loader for full Feature entities needed for validation calculations
+/// This provides O(1) lookups for features needed in mate/stackup validation.
+/// Note: This is separate from the core EntityCache which stores minimal metadata.
+/// Validation needs full Feature data for FitAnalysis calculations.
+struct FeatureLoader {
     features: HashMap<String, Feature>,
 }
 
-impl EntityCache {
-    /// Build cache by loading all features once
-    fn build(project: &Project) -> Result<Self> {
+impl FeatureLoader {
+    /// Load all features once for efficient validation
+    fn load(project: &Project) -> Result<Self> {
         let mut features = HashMap::new();
 
         // Load all features
@@ -102,8 +105,11 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     let registry = SchemaRegistry::default();
     let validator = Validator::new(&registry);
 
-    // Build entity cache once to avoid O(n²) lookups
-    let cache = EntityCache::build(&project)?;
+    // Sync the core cache to ensure short IDs are up-to-date
+    let _ = EntityCache::open(&project);
+
+    // Load features for mate/stackup validation (needs full Feature data)
+    let feature_loader = FeatureLoader::load(&project)?;
 
     let mut stats = ValidationStats::default();
     let mut had_error = false;
@@ -196,10 +202,10 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                         check_risk_calculations(&content, path, args.fix, &mut stats)?
                     }
                     EntityPrefix::Mate => {
-                        check_mate_values(&content, path, args.fix, &mut stats, &cache)?
+                        check_mate_values(&content, path, args.fix, &mut stats, &feature_loader)?
                     }
                     EntityPrefix::Tol => {
-                        check_stackup_values(&content, path, args.fix, &mut stats, &cache)?
+                        check_stackup_values(&content, path, args.fix, &mut stats, &feature_loader)?
                     }
                     _ => vec![],
                 };
@@ -487,7 +493,7 @@ fn check_mate_values(
     path: &PathBuf,
     fix: bool,
     stats: &mut ValidationStats,
-    cache: &EntityCache,
+    features: &FeatureLoader,
 ) -> Result<Vec<String>> {
     let mut issues = Vec::new();
     let mut needs_fix = false;
@@ -498,9 +504,9 @@ fn check_mate_values(
         Err(_) => return Ok(issues), // Already reported by schema validation
     };
 
-    // Load linked features from cache (O(1) lookup instead of O(n) directory scan)
+    // Load linked features (O(1) lookup instead of O(n) directory scan)
     let feat_a_id = mate.feature_a.id.to_string();
-    let feat_a = match cache.get_feature(&feat_a_id) {
+    let feat_a = match features.get_feature(&feat_a_id) {
         Some(f) => f,
         None => {
             issues.push(format!("Cannot find feature_a: {}", mate.feature_a));
@@ -537,7 +543,7 @@ fn check_mate_values(
     }
 
     let feat_b_id = mate.feature_b.id.to_string();
-    let feat_b = match cache.get_feature(&feat_b_id) {
+    let feat_b = match features.get_feature(&feat_b_id) {
         Some(f) => f,
         None => {
             issues.push(format!("Cannot find feature_b: {}", mate.feature_b));
@@ -658,7 +664,7 @@ fn check_stackup_values(
     path: &PathBuf,
     fix: bool,
     stats: &mut ValidationStats,
-    cache: &EntityCache,
+    features: &FeatureLoader,
 ) -> Result<Vec<String>> {
     let mut issues = Vec::new();
 
@@ -678,7 +684,7 @@ fn check_stackup_values(
         };
 
         // O(1) lookup from cache instead of O(n) directory scan
-        if let Some(feature) = cache.get_feature(&feature_id) {
+        if let Some(feature) = features.get_feature(&feature_id) {
             // Check dimensional sync
             if contributor.is_out_of_sync(&feature) {
                 if fix {

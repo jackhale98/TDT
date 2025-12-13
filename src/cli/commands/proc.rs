@@ -7,6 +7,7 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::{CachedEntity, EntityCache, EntityFilter};
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -260,7 +261,77 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         return Ok(());
     }
 
-    // Load and parse all processes
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
+    };
+
+    // Fast path: use cache when no domain-specific filters
+    let can_use_cache = matches!(args.r#type, ProcessTypeFilter::All)
+        && !args.recent
+        && args.search.is_none()
+        && !matches!(format, OutputFormat::Json | OutputFormat::Yaml);
+
+    if can_use_cache {
+        if let Ok(cache) = EntityCache::open(&project) {
+            let status_filter = match args.status {
+                StatusFilter::Draft => Some("draft"),
+                StatusFilter::Review => Some("review"),
+                StatusFilter::Approved => Some("approved"),
+                StatusFilter::Released => Some("released"),
+                StatusFilter::Obsolete => Some("obsolete"),
+                StatusFilter::All => None,
+            };
+
+            let filter = EntityFilter {
+                prefix: Some(EntityPrefix::Proc),
+                status: status_filter.map(|s| s.to_string()),
+                author: args.author.clone(),
+                search: None,
+                limit: None,
+                priority: None,
+                entity_type: None,
+                category: None,
+            };
+
+            let mut entities = cache.list_entities(&filter);
+
+            // Sort
+            match args.sort {
+                ListColumn::Id => entities.sort_by(|a, b| a.id.cmp(&b.id)),
+                ListColumn::Title => entities.sort_by(|a, b| a.title.cmp(&b.title)),
+                ListColumn::ProcessType => {
+                    entities.sort_by(|a, b| {
+                        a.entity_type
+                            .as_deref()
+                            .unwrap_or("")
+                            .cmp(b.entity_type.as_deref().unwrap_or(""))
+                    })
+                }
+                ListColumn::Operation => {} // Not in cache
+                ListColumn::Status => entities.sort_by(|a, b| a.status.cmp(&b.status)),
+                ListColumn::Author => entities.sort_by(|a, b| a.author.cmp(&b.author)),
+                ListColumn::Created => entities.sort_by(|a, b| a.created.cmp(&b.created)),
+            }
+
+            if args.reverse {
+                entities.reverse();
+            }
+
+            if let Some(limit) = args.limit {
+                entities.truncate(limit);
+            }
+
+            // Update short ID index
+            let mut short_ids = ShortIdIndex::load(&project);
+            short_ids.ensure_all(entities.iter().map(|e| e.id.clone()));
+            let _ = short_ids.save(&project);
+
+            return output_cached_processes(&entities, &args, &short_ids, format);
+        }
+    }
+
+    // Slow path: load from files
     let mut processes: Vec<Process> = Vec::new();
 
     for entry in fs::read_dir(&proc_dir).into_diagnostic()? {
@@ -374,11 +445,6 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let _ = short_ids.save(&project);
 
     // Output based on format
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Tsv,
-        f => f,
-    };
-
     match format {
         OutputFormat::Json => {
             let json = serde_json::to_string_pretty(&processes).into_diagnostic()?;
@@ -762,6 +828,128 @@ fn run_edit(args: EditArgs) -> Result<()> {
     );
 
     config.run_editor(&path).into_diagnostic()?;
+
+    Ok(())
+}
+
+/// Output cached processes in the requested format
+fn output_cached_processes(
+    entities: &[CachedEntity],
+    args: &ListArgs,
+    short_ids: &ShortIdIndex,
+    format: OutputFormat,
+) -> Result<()> {
+    // Count only
+    if args.count {
+        println!("{}", entities.len());
+        return Ok(());
+    }
+
+    // No results
+    if entities.is_empty() {
+        println!("No processes found.");
+        return Ok(());
+    }
+
+    match format {
+        OutputFormat::Csv => {
+            println!("short_id,id,title,type,status");
+            for entity in entities {
+                let short_id = short_ids.get_short_id(&entity.id).unwrap_or_default();
+                println!(
+                    "{},{},{},{},{}",
+                    short_id,
+                    entity.id,
+                    escape_csv(&entity.title),
+                    entity.entity_type.as_deref().unwrap_or(""),
+                    entity.status
+                );
+            }
+        }
+        OutputFormat::Tsv => {
+            // Build header
+            let mut headers = vec![];
+            let mut widths = vec![];
+
+            for col in &args.columns {
+                let (header, width) = match col {
+                    ListColumn::Id => ("ID", 17),
+                    ListColumn::Title => ("TITLE", 30),
+                    ListColumn::ProcessType => ("TYPE", 12),
+                    ListColumn::Operation => ("OPERATION", 10),
+                    ListColumn::Status => ("STATUS", 10),
+                    ListColumn::Author => ("AUTHOR", 16),
+                    ListColumn::Created => ("CREATED", 20),
+                };
+                headers.push((header, *col));
+                widths.push(width);
+            }
+
+            // Print header
+            print!("{:<8} ", style("SHORT").bold().dim());
+            for (i, (header, _)) in headers.iter().enumerate() {
+                print!("{:<width$} ", style(header).bold(), width = widths[i]);
+            }
+            println!();
+            println!(
+                "{}",
+                "-".repeat(8 + widths.iter().sum::<usize>() + widths.len() * 1)
+            );
+
+            // Print rows
+            for entity in entities {
+                let short_id = short_ids.get_short_id(&entity.id).unwrap_or_default();
+                print!("{:<8} ", style(&short_id).cyan());
+
+                for (i, (_, col)) in headers.iter().enumerate() {
+                    let cell = match col {
+                        ListColumn::Id => truncate_str(&entity.id, widths[i] - 2),
+                        ListColumn::Title => truncate_str(&entity.title, widths[i] - 2),
+                        ListColumn::ProcessType => {
+                            entity.entity_type.as_deref().unwrap_or("").to_string()
+                        }
+                        ListColumn::Operation => "-".to_string(), // Not in cache
+                        ListColumn::Status => entity.status.clone(),
+                        ListColumn::Author => truncate_str(&entity.author, widths[i] - 2),
+                        ListColumn::Created => entity.created.format("%Y-%m-%d %H:%M").to_string(),
+                    };
+                    print!("{:<width$} ", cell, width = widths[i]);
+                }
+                println!();
+            }
+
+            println!();
+            println!(
+                "{} process(es) found. Use {} to reference by short ID.",
+                style(entities.len()).cyan(),
+                style("PROC@N").cyan()
+            );
+        }
+        OutputFormat::Id => {
+            for entity in entities {
+                println!("{}", entity.id);
+            }
+        }
+        OutputFormat::Md => {
+            println!("| Short | ID | Title | Type | Status |");
+            println!("|---|---|---|---|---|");
+            for entity in entities {
+                let short_id = short_ids.get_short_id(&entity.id).unwrap_or_default();
+                println!(
+                    "| {} | {} | {} | {} | {} |",
+                    short_id,
+                    truncate_str(&entity.id, 16),
+                    entity.title,
+                    entity.entity_type.as_deref().unwrap_or(""),
+                    entity.status
+                );
+            }
+        }
+        OutputFormat::Json | OutputFormat::Yaml | OutputFormat::Auto => {
+            // Should not reach here - cache bypassed for these formats
+            unreachable!();
+        }
+    }
 
     Ok(())
 }

@@ -7,6 +7,8 @@ use std::fs;
 
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
+use crate::core::cache::EntityCache;
+use crate::core::CachedQuote;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -259,6 +261,100 @@ pub fn run(cmd: QuoteCommands, global: &GlobalOpts) -> Result<()> {
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Determine output format
+    let format = match global.format {
+        OutputFormat::Auto => OutputFormat::Tsv,
+        f => f,
+    };
+
+    // Resolve supplier filter if provided
+    let supplier_filter = args.supplier.as_ref().map(|s| {
+        short_ids.resolve(s).unwrap_or_else(|| s.clone())
+    });
+
+    // Resolve component filter if provided
+    let component_filter = args.component.as_ref().map(|c| {
+        short_ids.resolve(c).unwrap_or_else(|| c.clone())
+    });
+
+    // Check if we can use the fast cache path:
+    // - No assembly filter (cache doesn't store this)
+    // - No recent filter (would need time-based SQL)
+    // - Not JSON/YAML output (needs full entity serialization)
+    let can_use_cache = args.assembly.is_none()
+        && args.recent.is_none()
+        && !matches!(format, OutputFormat::Json | OutputFormat::Yaml);
+
+    if can_use_cache {
+        if let Ok(cache) = EntityCache::open(&project) {
+            let status_filter = match args.status {
+                StatusFilter::Draft => Some("draft"),
+                StatusFilter::Review => Some("review"),
+                StatusFilter::Approved => Some("approved"),
+                StatusFilter::Released => Some("released"),
+                StatusFilter::Obsolete => Some("obsolete"),
+                StatusFilter::All => None,
+            };
+
+            let quote_status_filter = match args.quote_status {
+                QuoteStatusFilter::Pending => Some("pending"),
+                QuoteStatusFilter::Received => Some("received"),
+                QuoteStatusFilter::Accepted => Some("accepted"),
+                QuoteStatusFilter::Rejected => Some("rejected"),
+                QuoteStatusFilter::Expired => Some("expired"),
+                QuoteStatusFilter::All => None,
+            };
+
+            let mut quotes = cache.list_quotes(
+                status_filter,
+                quote_status_filter,
+                supplier_filter.as_deref(),
+                component_filter.as_deref(),
+                args.author.as_deref(),
+                args.search.as_deref(),
+                None, // We'll apply limit after sorting
+            );
+
+            // Sort
+            match args.sort {
+                ListColumn::Id => quotes.sort_by(|a, b| a.id.cmp(&b.id)),
+                ListColumn::Title => quotes.sort_by(|a, b| a.title.cmp(&b.title)),
+                ListColumn::Supplier => quotes.sort_by(|a, b| {
+                    a.supplier_id.as_deref().unwrap_or("").cmp(b.supplier_id.as_deref().unwrap_or(""))
+                }),
+                ListColumn::Component => quotes.sort_by(|a, b| {
+                    a.component_id.as_deref().unwrap_or("").cmp(b.component_id.as_deref().unwrap_or(""))
+                }),
+                ListColumn::Price => quotes.sort_by(|a, b| {
+                    let price_a = a.unit_price.unwrap_or(0.0);
+                    let price_b = b.unit_price.unwrap_or(0.0);
+                    price_a.partial_cmp(&price_b).unwrap_or(std::cmp::Ordering::Equal)
+                }),
+                ListColumn::QuoteStatus => {
+                    quotes.sort_by(|a, b| {
+                        a.quote_status.as_deref().unwrap_or("").cmp(b.quote_status.as_deref().unwrap_or(""))
+                    })
+                }
+                ListColumn::Status => quotes.sort_by(|a, b| a.status.cmp(&b.status)),
+                ListColumn::Author => quotes.sort_by(|a, b| a.author.cmp(&b.author)),
+                ListColumn::Created => quotes.sort_by(|a, b| a.created.cmp(&b.created)),
+            }
+
+            if args.reverse {
+                quotes.reverse();
+            }
+
+            if let Some(limit) = args.limit {
+                quotes.truncate(limit);
+            }
+
+            return output_cached_quotes(&quotes, &short_ids, &args, format);
+        }
+    }
+
+    // Fall back to full YAML loading
     let quote_dir = project.root().join("bom/quotes");
 
     if !quote_dir.exists() {
@@ -270,22 +366,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         return Ok(());
     }
 
-    // Load short IDs for resolving component references
-    let short_ids = ShortIdIndex::load(&project);
-
-    // Resolve component filter if provided
-    let component_filter = args.component.as_ref().map(|c| {
-        short_ids.resolve(c).unwrap_or_else(|| c.clone())
-    });
-
     // Resolve assembly filter if provided
     let assembly_filter = args.assembly.as_ref().map(|a| {
         short_ids.resolve(a).unwrap_or_else(|| a.clone())
-    });
-
-    // Resolve supplier filter if provided
-    let supplier_filter = args.supplier.as_ref().map(|s| {
-        short_ids.resolve(s).unwrap_or_else(|| s.clone())
     });
 
     // Load and parse all quotes
@@ -560,6 +643,150 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Auto => unreachable!(),
+    }
+
+    Ok(())
+}
+
+/// Output cached quotes (fast path - no YAML parsing needed)
+fn output_cached_quotes(
+    quotes: &[CachedQuote],
+    short_ids: &ShortIdIndex,
+    args: &ListArgs,
+    format: OutputFormat,
+) -> Result<()> {
+    if quotes.is_empty() {
+        println!("No quotes found.");
+        return Ok(());
+    }
+
+    if args.count {
+        println!("{}", quotes.len());
+        return Ok(());
+    }
+
+    match format {
+        OutputFormat::Csv => {
+            println!("short_id,id,title,supplier,linked_item,unit_price,lead_time,quote_status,status");
+            for quote in quotes {
+                let short_id = short_ids.get_short_id(&quote.id).unwrap_or_default();
+                let unit_price = quote.unit_price.map_or("".to_string(), |p| format!("{:.2}", p));
+                let lead_time = quote.lead_time_days.map_or("".to_string(), |d| d.to_string());
+                let linked_item = quote.component_id.as_deref().unwrap_or("-");
+                let supplier_short = quote.supplier_id.as_ref().map(|s| {
+                    short_ids.get_short_id(s).unwrap_or_else(|| s.clone())
+                }).unwrap_or_else(|| "-".to_string());
+                println!(
+                    "{},{},{},{},{},{},{},{},{}",
+                    short_id,
+                    quote.id,
+                    escape_csv(&quote.title),
+                    supplier_short,
+                    linked_item,
+                    unit_price,
+                    lead_time,
+                    quote.quote_status.as_deref().unwrap_or("-"),
+                    quote.status
+                );
+            }
+        }
+        OutputFormat::Tsv => {
+            // Build header based on selected columns
+            let mut header_parts = vec![format!("{:<8}", style("SHORT").bold().dim())];
+            for col in &args.columns {
+                let header = match col {
+                    ListColumn::Id => format!("{:<17}", style("ID").bold()),
+                    ListColumn::Title => format!("{:<20}", style("TITLE").bold()),
+                    ListColumn::Supplier => format!("{:<15}", style("SUPPLIER").bold()),
+                    ListColumn::Component => format!("{:<12}", style("FOR").bold()),
+                    ListColumn::Price => format!("{:<10}", style("PRICE").bold()),
+                    ListColumn::QuoteStatus => format!("{:<10}", style("Q-STATUS").bold()),
+                    ListColumn::Status => format!("{:<10}", style("STATUS").bold()),
+                    ListColumn::Author => format!("{:<14}", style("AUTHOR").bold()),
+                    ListColumn::Created => format!("{:<12}", style("CREATED").bold()),
+                };
+                header_parts.push(header);
+            }
+            println!("{}", header_parts.join(" "));
+            println!("{}", "-".repeat(110));
+
+            for quote in quotes {
+                let short_id = short_ids.get_short_id(&quote.id).unwrap_or_default();
+                let mut row_parts = vec![format!("{:<8}", style(&short_id).cyan())];
+
+                for col in &args.columns {
+                    let value = match col {
+                        ListColumn::Id => format!("{:<17}", truncate_str(&quote.id, 15)),
+                        ListColumn::Title => format!("{:<20}", truncate_str(&quote.title, 18)),
+                        ListColumn::Supplier => {
+                            let supplier_short = quote.supplier_id.as_ref().map(|s| {
+                                short_ids.get_short_id(s).unwrap_or_else(|| truncate_str(s, 13).to_string())
+                            }).unwrap_or_else(|| "-".to_string());
+                            format!("{:<15}", supplier_short)
+                        }
+                        ListColumn::Component => {
+                            let linked_item = quote.component_id.as_deref().unwrap_or("-");
+                            let item_short = short_ids.get_short_id(linked_item).unwrap_or_else(|| {
+                                truncate_str(linked_item, 10).to_string()
+                            });
+                            format!("{:<12}", item_short)
+                        }
+                        ListColumn::Price => {
+                            let unit_price = quote.unit_price.map_or("-".to_string(), |p| format!("{:.2}", p));
+                            format!("{:<10}", unit_price)
+                        }
+                        ListColumn::QuoteStatus => {
+                            format!("{:<10}", quote.quote_status.as_deref().unwrap_or("-"))
+                        }
+                        ListColumn::Status => format!("{:<10}", quote.status),
+                        ListColumn::Author => format!("{:<14}", truncate_str(&quote.author, 12)),
+                        ListColumn::Created => format!("{:<12}", quote.created.format("%Y-%m-%d")),
+                    };
+                    row_parts.push(value);
+                }
+                println!("{}", row_parts.join(" "));
+            }
+
+            println!();
+            println!(
+                "{} quote(s) found. Use {} to reference by short ID.",
+                style(quotes.len()).cyan(),
+                style("QUOT@N").cyan()
+            );
+        }
+        OutputFormat::Id => {
+            for quote in quotes {
+                println!("{}", quote.id);
+            }
+        }
+        OutputFormat::Md => {
+            println!("| Short | ID | Title | Supplier | For | Price | Lead | Q-Status |");
+            println!("|---|---|---|---|---|---|---|---|");
+            for quote in quotes {
+                let short_id = short_ids.get_short_id(&quote.id).unwrap_or_default();
+                let unit_price = quote.unit_price.map_or("-".to_string(), |p| format!("{:.2}", p));
+                let lead_time = quote.lead_time_days.map_or("-".to_string(), |d| format!("{}d", d));
+                let linked_item = quote.component_id.as_deref().unwrap_or("-");
+                let supplier_short = quote.supplier_id.as_ref().map(|s| {
+                    short_ids.get_short_id(s).unwrap_or_else(|| s.clone())
+                }).unwrap_or_else(|| "-".to_string());
+                println!(
+                    "| {} | {} | {} | {} | {} | {} | {} | {} |",
+                    short_id,
+                    truncate_str(&quote.id, 15),
+                    quote.title,
+                    supplier_short,
+                    linked_item,
+                    unit_price,
+                    lead_time,
+                    quote.quote_status.as_deref().unwrap_or("-")
+                );
+            }
+        }
+        OutputFormat::Json | OutputFormat::Yaml | OutputFormat::Auto => {
+            // Should never reach here - JSON/YAML use full YAML path
+            unreachable!()
+        }
     }
 
     Ok(())
