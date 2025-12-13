@@ -68,7 +68,7 @@ impl std::fmt::Display for FitResult {
 }
 
 /// Automatically calculated fit analysis
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FitAnalysis {
     /// Minimum clearance at worst-case (hole_min - shaft_max)
     /// Negative means interference

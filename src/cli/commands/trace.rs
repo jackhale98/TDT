@@ -363,6 +363,11 @@ fn run_from(args: FromArgs) -> Result<()> {
     );
     println!();
 
+    // Build ID to title map for display
+    let id_to_title: HashMap<String, String> = entities.iter()
+        .map(|e| (e.id.clone(), e.title.clone()))
+        .collect();
+
     // Build adjacency list for incoming links (what points TO each entity)
     let mut incoming: HashMap<String, Vec<(String, String)>> = HashMap::new();
     for entity in &entities {
@@ -397,7 +402,8 @@ fn run_from(args: FromArgs) -> Result<()> {
             } else {
                 format_id_short(&id)
             };
-            println!("{}← {}", indent, id_display);
+            let title = id_to_title.get(&id).map(|t| truncate(t, 40)).unwrap_or_default();
+            println!("{}← {} - {}", indent, style(&id_display).cyan(), title);
         }
 
         if let Some(deps) = incoming.get(&id) {
@@ -454,6 +460,11 @@ fn run_to(args: ToArgs) -> Result<()> {
     );
     println!();
 
+    // Build ID to title map for display
+    let id_to_title: HashMap<String, String> = entities.iter()
+        .map(|e| (e.id.clone(), e.title.clone()))
+        .collect();
+
     // Build adjacency list for outgoing links
     let mut outgoing: HashMap<String, Vec<(String, String)>> = HashMap::new();
     for entity in &entities {
@@ -485,7 +496,8 @@ fn run_to(args: ToArgs) -> Result<()> {
             } else {
                 format_id_short(&id)
             };
-            println!("{}→ {}", indent, id_display);
+            let title = id_to_title.get(&id).map(|t| truncate(t, 40)).unwrap_or_default();
+            println!("{}→ {} - {}", indent, style(&id_display).cyan(), title);
         }
 
         if let Some(deps) = outgoing.get(&id) {

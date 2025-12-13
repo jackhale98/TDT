@@ -32,6 +32,9 @@ pub enum MateCommands {
 
     /// Recalculate fit analysis from current feature dimensions
     Recalc(RecalcArgs),
+
+    /// Recalculate all mates (refresh cached data and fit analysis)
+    RecalcAll(RecalcAllArgs),
 }
 
 /// Mate type filter
@@ -181,6 +184,13 @@ pub struct RecalcArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct RecalcAllArgs {
+    /// Only show what would be updated (don't modify files)
+    #[arg(long)]
+    pub dry_run: bool,
+}
+
 /// Run a mate subcommand
 pub fn run(cmd: MateCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -189,6 +199,7 @@ pub fn run(cmd: MateCommands, global: &GlobalOpts) -> Result<()> {
         MateCommands::Show(args) => run_show(args, global),
         MateCommands::Edit(args) => run_edit(args),
         MateCommands::Recalc(args) => run_recalc(args),
+        MateCommands::RecalcAll(args) => run_recalc_all(args),
     }
 }
 
@@ -809,6 +820,201 @@ fn run_recalc(args: RecalcArgs) -> Result<()> {
         );
     } else {
         println!("   Could not calculate fit (features may not have dimensions)");
+    }
+
+    Ok(())
+}
+
+fn run_recalc_all(args: RecalcAllArgs) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let mate_dir = project.root().join("tolerances/mates");
+    let feat_dir = project.root().join("tolerances/features");
+
+    if !mate_dir.exists() {
+        println!("No mates directory found.");
+        return Ok(());
+    }
+
+    // Load all features into a map for quick lookup
+    let mut features: std::collections::HashMap<String, Feature> = std::collections::HashMap::new();
+    if feat_dir.exists() {
+        for entry in fs::read_dir(&feat_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let content = fs::read_to_string(&path).into_diagnostic()?;
+                if let Ok(feat) = serde_yml::from_str::<Feature>(&content) {
+                    features.insert(feat.id.to_string(), feat);
+                }
+            }
+        }
+    }
+
+    // Load all components for cached data
+    let cmp_dir = project.root().join("bom/components");
+    let mut components: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new(); // id -> (id, title)
+    if cmp_dir.exists() {
+        for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let content = fs::read_to_string(&path).into_diagnostic()?;
+                if let Ok(value) = serde_yml::from_str::<serde_yml::Value>(&content) {
+                    if let (Some(id), Some(title)) = (
+                        value.get("id").and_then(|v| v.as_str()),
+                        value.get("title").and_then(|v| v.as_str()),
+                    ) {
+                        components.insert(id.to_string(), (id.to_string(), title.to_string()));
+                    }
+                }
+            }
+        }
+    }
+
+    // Process all mates
+    let mut updated = 0;
+    let mut skipped = 0;
+    let mut errors = 0;
+
+    let short_ids = ShortIdIndex::load(&project);
+
+    for entry in fs::read_dir(&mate_dir).into_diagnostic()? {
+        let entry = entry.into_diagnostic()?;
+        let path = entry.path();
+
+        if !path.extension().map_or(false, |e| e == "yaml") {
+            continue;
+        }
+
+        let content = fs::read_to_string(&path).into_diagnostic()?;
+        let mut mate: Mate = match serde_yml::from_str(&content) {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!(
+                    "{} Failed to parse {}: {}",
+                    style("✗").red(),
+                    path.display(),
+                    e
+                );
+                errors += 1;
+                continue;
+            }
+        };
+
+        let short_id = short_ids
+            .get_short_id(&mate.id.to_string())
+            .unwrap_or_else(|| format_short_id(&mate.id));
+
+        // Look up features
+        let feat_a_id = mate.feature_a.id.to_string();
+        let feat_b_id = mate.feature_b.id.to_string();
+
+        let feat_a = features.get(&feat_a_id);
+        let feat_b = features.get(&feat_b_id);
+
+        if feat_a.is_none() || feat_b.is_none() {
+            if args.dry_run {
+                println!(
+                    "{} {} - missing feature(s)",
+                    style("⚠").yellow(),
+                    style(&short_id).cyan()
+                );
+            }
+            skipped += 1;
+            continue;
+        }
+
+        let feat_a = feat_a.unwrap();
+        let feat_b = feat_b.unwrap();
+
+        // Update cached feature data
+        let mut changed = false;
+
+        // Update feature_a cached data
+        if mate.feature_a.name.as_ref() != Some(&feat_a.title) {
+            mate.feature_a.name = Some(feat_a.title.clone());
+            changed = true;
+        }
+        let cmp_a_id = &feat_a.component;
+        if mate.feature_a.component_id.as_ref() != Some(cmp_a_id) {
+            mate.feature_a.component_id = Some(cmp_a_id.clone());
+            changed = true;
+        }
+        if let Some((_, cmp_title)) = components.get(cmp_a_id) {
+            if mate.feature_a.component_name.as_ref() != Some(cmp_title) {
+                mate.feature_a.component_name = Some(cmp_title.clone());
+                changed = true;
+            }
+        }
+
+        // Update feature_b cached data
+        if mate.feature_b.name.as_ref() != Some(&feat_b.title) {
+            mate.feature_b.name = Some(feat_b.title.clone());
+            changed = true;
+        }
+        let cmp_b_id = &feat_b.component;
+        if mate.feature_b.component_id.as_ref() != Some(cmp_b_id) {
+            mate.feature_b.component_id = Some(cmp_b_id.clone());
+            changed = true;
+        }
+        if let Some((_, cmp_title)) = components.get(cmp_b_id) {
+            if mate.feature_b.component_name.as_ref() != Some(cmp_title) {
+                mate.feature_b.component_name = Some(cmp_title.clone());
+                changed = true;
+            }
+        }
+
+        // Recalculate fit analysis
+        let new_fit = calculate_fit_from_features(feat_a, feat_b);
+        if mate.fit_analysis != new_fit {
+            mate.fit_analysis = new_fit;
+            changed = true;
+        }
+
+        if changed {
+            if args.dry_run {
+                println!(
+                    "{} {} - would update ({} <-> {})",
+                    style("→").blue(),
+                    style(&short_id).cyan(),
+                    feat_a.title,
+                    feat_b.title
+                );
+            } else {
+                // Write back
+                let yaml_content = serde_yml::to_string(&mate).into_diagnostic()?;
+                fs::write(&path, &yaml_content).into_diagnostic()?;
+                println!(
+                    "{} {} - updated ({} <-> {})",
+                    style("✓").green(),
+                    style(&short_id).cyan(),
+                    feat_a.title,
+                    feat_b.title
+                );
+            }
+            updated += 1;
+        } else {
+            skipped += 1;
+        }
+    }
+
+    println!();
+    if args.dry_run {
+        println!(
+            "{} {} mate(s) would be updated, {} already current, {} error(s)",
+            style("Dry run:").bold(),
+            style(updated).cyan(),
+            skipped,
+            errors
+        );
+    } else {
+        println!(
+            "{} Updated {} mate(s), {} already current, {} error(s)",
+            style("Done:").bold(),
+            style(updated).green(),
+            skipped,
+            errors
+        );
     }
 
     Ok(())

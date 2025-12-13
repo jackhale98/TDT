@@ -1282,19 +1282,19 @@
   <div class="marquee-section">
     <div class="marquee">
       <div class="marquee-item"><span>◆</span> Plain-Text YAML Files</div>
-      <div class="marquee-item"><span>◆</span> JSON Schema Validation</div>
+      <div class="marquee-item"><span>◆</span> Git Version Control</div>
       <div class="marquee-item"><span>◆</span> Full Traceability Matrices</div>
-      <div class="marquee-item"><span>◆</span> ULID-Based Unique IDs</div>
+      <div class="marquee-item"><span>◆</span> History & Blame</div>
       <div class="marquee-item"><span>◆</span> FMEA Risk Management</div>
-      <div class="marquee-item"><span>◆</span> Tolerance Analysis</div>
+      <div class="marquee-item"><span>◆</span> Release Baselines</div>
       <div class="marquee-item"><span>◆</span> BOM Management</div>
       <div class="marquee-item"><span>◆</span> Beautiful CLI Output</div>
       <div class="marquee-item"><span>◆</span> Plain-Text YAML Files</div>
-      <div class="marquee-item"><span>◆</span> JSON Schema Validation</div>
+      <div class="marquee-item"><span>◆</span> Git Version Control</div>
       <div class="marquee-item"><span>◆</span> Full Traceability Matrices</div>
-      <div class="marquee-item"><span>◆</span> ULID-Based Unique IDs</div>
+      <div class="marquee-item"><span>◆</span> History & Blame</div>
       <div class="marquee-item"><span>◆</span> FMEA Risk Management</div>
-      <div class="marquee-item"><span>◆</span> Tolerance Analysis</div>
+      <div class="marquee-item"><span>◆</span> Release Baselines</div>
       <div class="marquee-item"><span>◆</span> BOM Management</div>
       <div class="marquee-item"><span>◆</span> Beautiful CLI Output</div>
     </div>
@@ -1357,6 +1357,14 @@
           </div>
           <h3>Tolerance Analysis</h3>
           <p>Worst-case, RSS, and Monte Carlo analysis. Built for mechanical engineering.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+          </div>
+          <h3>Version Control</h3>
+          <p>Built-in git commands for history, blame, diff, and release baselines. Track every change.</p>
         </div>
       </div>
     </div>
@@ -1462,6 +1470,40 @@ RISK@2  Seal Issue     <span class="status-draft">medium</span>   <span class="s
 <span class="comment"># Check verification coverage</span>
 <span class="symbol">$</span> <span class="cmd">tdt trace coverage</span>
 <span class="output">Coverage: <span class="status-approved">92%</span> (22/24 verified)</span></pre>
+          </div>
+        </div>
+
+        <!-- Version Control -->
+        <div class="workflow-item">
+          <div class="workflow-header">
+            <div class="workflow-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+            </div>
+            <h3>Built-in Version Control</h3>
+          </div>
+          <p class="workflow-desc">Track changes to any entity with git-powered history, blame, and diff. Create baselines for releases and compare changes between versions.</p>
+          <div class="workflow-code">
+            <pre><span class="comment"># View change history for a requirement</span>
+<span class="symbol">$</span> <span class="cmd">tdt history REQ@1</span>
+<span class="output">a1b2c3d Update acceptance criteria
+f4e5d6c Add temperature range
+9g8h7i6 Initial requirement</span>
+
+<span class="comment"># See who changed what</span>
+<span class="symbol">$</span> <span class="cmd">tdt blame REQ@1</span>
+<span class="output">a1b2c3d (Sarah) title: "Operating Temp"
+f4e5d6c (Jack)  range: -40°C to 85°C</span>
+
+<span class="comment"># Create release baseline</span>
+<span class="symbol">$</span> <span class="cmd">tdt baseline create v1.0</span>
+<span class="output">✓ Validation passed
+✓ Created baseline <span class="highlight">v1.0</span></span>
+
+<span class="comment"># Compare baselines</span>
+<span class="symbol">$</span> <span class="cmd">tdt baseline compare v1.0 v2.0</span>
+<span class="output">Changed: REQ@3, REQ@7, RISK@2
+Added:   REQ@12, TEST@8
+Removed: (none)</span></pre>
           </div>
         </div>
       </div>
@@ -1737,6 +1779,21 @@ Coverage: <span class="status-approved">92%</span> █████████�
             <span class="terminal-cmd">tdt validate</span>
           </div>
           <div class="terminal-output"><span style="color: var(--success)">✓</span> All 37 files passed validation</div>
+
+          <div class="terminal-line">
+            <span class="terminal-prompt">❯</span>
+            <span class="terminal-cmd">tdt history REQ@1</span>
+          </div>
+          <div class="terminal-output table"><span style="color: #d29922">a3f7c21</span> Update acceptance criteria (2 days ago)
+<span style="color: #d29922">8b2e4d9</span> Add temperature specification (1 week ago)
+<span style="color: #d29922">c1a9f38</span> Initial requirement (2 weeks ago)</div>
+
+          <div class="terminal-line">
+            <span class="terminal-prompt">❯</span>
+            <span class="terminal-cmd">tdt baseline create v1.0</span>
+          </div>
+          <div class="terminal-output"><span style="color: var(--success)">✓</span> Validation passed (37 files)
+<span style="color: var(--success)">✓</span> Created baseline <span class="highlight">v1.0</span></div>
 
           <div class="terminal-line">
             <span class="terminal-prompt">❯</span>
