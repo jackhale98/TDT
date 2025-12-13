@@ -66,6 +66,10 @@ pub struct FromArgs {
     /// Maximum depth to trace (default: unlimited)
     #[arg(long, short = 'd')]
     pub depth: Option<usize>,
+
+    /// Show short ID aliases for each entity
+    #[arg(long, short = 'a')]
+    pub aliases: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -76,6 +80,10 @@ pub struct ToArgs {
     /// Maximum depth to trace (default: unlimited)
     #[arg(long, short = 'd')]
     pub depth: Option<usize>,
+
+    /// Show short ID aliases for each entity
+    #[arg(long, short = 'a')]
+    pub aliases: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -320,22 +328,37 @@ fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
 fn run_from(args: FromArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
-    // Resolve short ID if applicable
-    let short_ids = ShortIdIndex::load(&project);
-    let resolved_id = short_ids.resolve(&args.id).unwrap_or_else(|| args.id.clone());
-
-    // Load all entities
+    // Load all entities first
     let entities = load_all_entities(&project)?;
+
+    // Load short ID index and ensure all entities are indexed if aliases requested
+    let short_ids = if args.aliases {
+        let mut idx = ShortIdIndex::load(&project);
+        idx.ensure_all(entities.iter().map(|e| e.id.clone()));
+        let _ = idx.save(&project);
+        idx
+    } else {
+        ShortIdIndex::load(&project)
+    };
+
+    let resolved_id = short_ids.resolve(&args.id).unwrap_or_else(|| args.id.clone());
 
     // Find the starting entity
     let source = entities.iter()
         .find(|e| e.id.starts_with(&resolved_id) || e.title.to_lowercase().contains(&resolved_id.to_lowercase()))
         .ok_or_else(|| miette::miette!("Entity '{}' not found", args.id))?;
 
+    // Display source with alias if requested
+    let source_display = if args.aliases {
+        short_ids.get_short_id(&source.id).unwrap_or_else(|| source.id.clone())
+    } else {
+        source.id.clone()
+    };
+
     println!(
         "{} Tracing from: {} - {}",
         style("→").blue(),
-        style(&source.id).cyan(),
+        style(&source_display).cyan(),
         source.title
     );
     println!();
@@ -369,7 +392,12 @@ fn run_from(args: FromArgs) -> Result<()> {
 
         if depth > 0 {
             let indent = "  ".repeat(depth);
-            println!("{}← {}", indent, format_id_short(&id));
+            let id_display = if args.aliases {
+                short_ids.get_short_id(&id).unwrap_or_else(|| format_id_short(&id))
+            } else {
+                format_id_short(&id)
+            };
+            println!("{}← {}", indent, id_display);
         }
 
         if let Some(deps) = incoming.get(&id) {
@@ -391,22 +419,37 @@ fn run_from(args: FromArgs) -> Result<()> {
 fn run_to(args: ToArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
-    // Resolve short ID if applicable
-    let short_ids = ShortIdIndex::load(&project);
-    let resolved_id = short_ids.resolve(&args.id).unwrap_or_else(|| args.id.clone());
-
-    // Load all entities
+    // Load all entities first
     let entities = load_all_entities(&project)?;
+
+    // Load short ID index and ensure all entities are indexed if aliases requested
+    let short_ids = if args.aliases {
+        let mut idx = ShortIdIndex::load(&project);
+        idx.ensure_all(entities.iter().map(|e| e.id.clone()));
+        let _ = idx.save(&project);
+        idx
+    } else {
+        ShortIdIndex::load(&project)
+    };
+
+    let resolved_id = short_ids.resolve(&args.id).unwrap_or_else(|| args.id.clone());
 
     // Find the target entity
     let target = entities.iter()
         .find(|e| e.id.starts_with(&resolved_id) || e.title.to_lowercase().contains(&resolved_id.to_lowercase()))
         .ok_or_else(|| miette::miette!("Entity '{}' not found", args.id))?;
 
+    // Display target with alias if requested
+    let target_display = if args.aliases {
+        short_ids.get_short_id(&target.id).unwrap_or_else(|| target.id.clone())
+    } else {
+        target.id.clone()
+    };
+
     println!(
         "{} Tracing to: {} - {}",
         style("→").blue(),
-        style(&target.id).cyan(),
+        style(&target_display).cyan(),
         target.title
     );
     println!();
@@ -437,7 +480,12 @@ fn run_to(args: ToArgs) -> Result<()> {
 
         if depth > 0 {
             let indent = "  ".repeat(depth);
-            println!("{}→ {}", indent, format_id_short(&id));
+            let id_display = if args.aliases {
+                short_ids.get_short_id(&id).unwrap_or_else(|| format_id_short(&id))
+            } else {
+                format_id_short(&id)
+            };
+            println!("{}→ {}", indent, id_display);
         }
 
         if let Some(deps) = outgoing.get(&id) {

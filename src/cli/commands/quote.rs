@@ -160,23 +160,27 @@ pub struct NewArgs {
     pub supplier: Option<String>,
 
     /// Quote title
-    #[arg(long, short = 't')]
+    #[arg(long, short = 'T')]
     pub title: Option<String>,
 
-    /// Unit price (for qty 1)
+    /// Unit price (for qty 1, or use --breaks for multiple price breaks)
     #[arg(long, short = 'p')]
     pub price: Option<f64>,
+
+    /// Price breaks as QTY:PRICE:LEAD_TIME triplets (e.g., --breaks "100:5.00:14,500:4.50:10,1000:4.00:7")
+    #[arg(long, short = 'B', value_delimiter = ',')]
+    pub breaks: Vec<String>,
 
     /// Minimum order quantity
     #[arg(long)]
     pub moq: Option<u32>,
 
-    /// Lead time in days
-    #[arg(long)]
+    /// Lead time in days (for single price, or use --breaks)
+    #[arg(long, short = 'l')]
     pub lead_time: Option<u32>,
 
     /// Tooling cost
-    #[arg(long)]
+    #[arg(long, short = 't')]
     pub tooling: Option<f64>,
 
     /// Open in editor after creation
@@ -184,7 +188,7 @@ pub struct NewArgs {
     pub edit: bool,
 
     /// Skip opening in editor
-    #[arg(long)]
+    #[arg(long, short = 'n')]
     pub no_edit: bool,
 
     /// Interactive mode (prompt for fields)
@@ -208,6 +212,37 @@ pub struct EditArgs {
 pub struct CompareArgs {
     /// Component or Assembly ID to compare quotes for
     pub item: String,
+}
+
+/// Parse a price break triplet (QTY:PRICE:LEAD_TIME)
+/// Returns (min_qty, unit_price, lead_time_days)
+fn parse_price_break(input: &str) -> Result<(u32, f64, Option<u32>)> {
+    let parts: Vec<&str> = input.split(':').collect();
+
+    if parts.len() < 2 || parts.len() > 3 {
+        return Err(miette::miette!(
+            "Invalid price break format '{}'. Expected QTY:PRICE or QTY:PRICE:LEAD_TIME",
+            input
+        ));
+    }
+
+    let qty: u32 = parts[0].parse().map_err(|_| {
+        miette::miette!("Invalid quantity '{}' in price break", parts[0])
+    })?;
+
+    let price: f64 = parts[1].parse().map_err(|_| {
+        miette::miette!("Invalid price '{}' in price break", parts[1])
+    })?;
+
+    let lead_time = if parts.len() == 3 {
+        Some(parts[2].parse().map_err(|_| {
+            miette::miette!("Invalid lead time '{}' in price break", parts[2])
+        })?)
+    } else {
+        None
+    };
+
+    Ok((qty, price, lead_time))
 }
 
 /// Run a quote subcommand
@@ -669,10 +704,18 @@ fn run_new(args: NewArgs) -> Result<()> {
     // Override the ID to use the one we generated
     quote.id = id.clone();
 
-    // Add price break if provided
-    if let Some(price) = args.price {
+    // Add price breaks if provided
+    if !args.breaks.is_empty() {
+        // Multiple price breaks via --breaks
+        for break_str in &args.breaks {
+            let (qty, price, lead_time) = parse_price_break(break_str)?;
+            quote.add_price_break(qty, price, lead_time);
+        }
+    } else if let Some(price) = args.price {
+        // Single price via --price
         quote.add_price_break(1, price, args.lead_time);
     }
+
     if let Some(moq) = args.moq {
         quote.moq = Some(moq);
     }
@@ -719,16 +762,34 @@ fn run_new(args: NewArgs) -> Result<()> {
         style(linked_item).dim()
     );
 
-    if let Some(price) = args.price {
+    // Show price info
+    if !args.breaks.is_empty() {
         println!(
-            "   Price: {} | Lead: {}d",
+            "   {} Price break{}:",
+            style(args.breaks.len()).cyan(),
+            if args.breaks.len() == 1 { "" } else { "s" }
+        );
+        for break_str in &args.breaks {
+            if let Ok((qty, price, lead)) = parse_price_break(break_str) {
+                let lead_str = lead.map(|l| format!(" ({}d)", l)).unwrap_or_default();
+                println!(
+                    "     {} @ ${:.2}{}",
+                    style(format!("{}+", qty)).white(),
+                    price,
+                    style(lead_str).dim()
+                );
+            }
+        }
+    } else if let Some(price) = args.price {
+        println!(
+            "   Price: ${:.2} | Lead: {}d",
             style(format!("{:.2}", price)).green(),
             style(args.lead_time.unwrap_or(0)).white()
         );
     }
 
     // Open in editor if requested
-    if args.edit || (!args.no_edit && !args.interactive) {
+    if args.edit || (!args.no_edit && !args.interactive && args.breaks.is_empty() && args.price.is_none()) {
         println!();
         println!("Opening in {}...", style(config.editor()).yellow());
 

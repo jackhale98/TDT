@@ -66,8 +66,13 @@ TDT commands support both long flags (readable) and short flags (efficient):
 | `--no-edit` | `-n` | Skip editor, create immediately |
 | `--verifies` | `-R` | Requirements a test verifies |
 | `--mitigates` | `-M` | Risks a test mitigates |
+| `--bom` | `-b` | BOM items for assembly (ID:QTY pairs) |
+| `--breaks` | `-B` | Price breaks for quote (QTY:PRICE:LEAD) |
 
-Some commands also accept **positional arguments** for common operations. Both forms are shown in this tutorial.
+Some commands also accept **positional arguments** for common operations:
+- `tdt mate new FEAT@1 FEAT@2` - Features as positional args
+- `tdt link add SRC DST link_type` - Link type as 3rd arg
+- `tdt asm add ASM@1 CMP@1:2 CMP@2:1` - Multiple ID:QTY pairs
 
 ---
 
@@ -251,14 +256,16 @@ tdt sup new --name "PowerCell Supply" --short-name "PowerCell" \
 ### Create Quotes
 
 ```bash
-# Quote for LED module
-tdt quote new --title "LED Module Quote" --supplier SUP@1 \
-  --component CMP@2 --unit-price 3.50 --moq 100 --lead-time 14 --no-edit
+# Simple quote with single price
+tdt quote new -T "LED Module Quote" -s SUP@1 -c CMP@2 \
+  -p 3.50 --moq 100 -l 14 -n
 
-# Quote for battery holder
-tdt quote new --title "Battery Holder Quote" --supplier SUP@2 \
-  --component CMP@3 --unit-price 0.85 --moq 500 --lead-time 7 --no-edit
+# Quote with multiple price breaks (QTY:PRICE:LEAD_TIME)
+tdt quote new -T "Battery Holder Quote" -s SUP@2 -c CMP@3 \
+  --breaks "100:0.95:14,500:0.85:10,1000:0.75:7" -n
 ```
+
+> **Price breaks**: Use `--breaks` with comma-separated `QTY:PRICE:LEAD_TIME` triplets for volume pricing.
 
 ### View Quotes
 
@@ -758,16 +765,30 @@ RSLT@3   TEST@3   fail         draft      Test Engineer
 
 Define how components come together.
 
-### Create Assembly
+### Create Assembly with BOM
 
 ```bash
-tdt asm new --title "LED Flashlight Assembly" \
-  --part-number "FL-ASM-001" --no-edit
+# Create assembly with BOM items in one command
+tdt asm new -p "FL-ASM-001" -T "LED Flashlight Assembly" \
+  --bom "CMP@1:1,CMP@2:1,CMP@3:1,CMP@4:1,CMP@5:1,CMP@6:1" -n
+
+# Or create empty and add components later
+tdt asm new -p "FL-ASM-001" -T "LED Flashlight Assembly" -n
 ```
 
-### Add Bill of Materials
+### Add Components to BOM
 
-Edit the assembly to add BOM:
+```bash
+# Add multiple components at once (ID:QTY format)
+tdt asm add ASM@1 CMP@1:1 CMP@2:1 CMP@3:2 CMP@4:1
+
+# Add single component with details
+tdt asm add ASM@1 CMP@5 --qty 2 -r "U1,U2" --notes "Apply thread locker"
+```
+
+> **Tip**: Use `ID:QTY` pairs for quick bulk additions, or flags for detailed single-component entries.
+
+### Edit BOM Details
 
 ```bash
 tdt asm edit ASM@1
@@ -782,22 +803,14 @@ description: |
 bom:
   - component_id: CMP-01KCA...  # Housing
     quantity: 1
-    reference: "1"
+    reference_designators: ["1"]
   - component_id: CMP-01KCA...  # LED Module
     quantity: 1
-    reference: "2"
-  - component_id: CMP-01KCA...  # Battery Holder
-    quantity: 1
-    reference: "3"
-  - component_id: CMP-01KCA...  # Lens
-    quantity: 1
-    reference: "4"
+    reference_designators: ["2"]
   - component_id: CMP-01KCA...  # O-Ring
-    quantity: 1
-    reference: "5"
-  - component_id: CMP-01KCA...  # End Cap
-    quantity: 1
-    reference: "6"
+    quantity: 2
+    reference_designators: ["5A", "5B"]
+    notes: "Lubricate with silicone grease"
 revision: "A"
 status: draft
 ```

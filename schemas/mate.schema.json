@@ -22,14 +22,70 @@
       "description": "Detailed description"
     },
     "feature_a": {
-      "type": "string",
-      "pattern": "^FEAT-[0-9A-Z]{26}$",
-      "description": "First feature ID (typically hole/bore)"
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^FEAT-[0-9A-Z]{26}$"
+        },
+        {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^FEAT-[0-9A-Z]{26}$",
+              "description": "Feature entity ID"
+            },
+            "name": {
+              "type": "string",
+              "description": "Feature name (cached)"
+            },
+            "component_id": {
+              "type": "string",
+              "description": "Component ID owning this feature (cached)"
+            },
+            "component_name": {
+              "type": "string",
+              "description": "Component name (cached)"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "description": "First feature reference (typically hole/bore)"
     },
     "feature_b": {
-      "type": "string",
-      "pattern": "^FEAT-[0-9A-Z]{26}$",
-      "description": "Second feature ID (typically shaft/pin)"
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^FEAT-[0-9A-Z]{26}$"
+        },
+        {
+          "type": "object",
+          "required": ["id"],
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^FEAT-[0-9A-Z]{26}$",
+              "description": "Feature entity ID"
+            },
+            "name": {
+              "type": "string",
+              "description": "Feature name (cached)"
+            },
+            "component_id": {
+              "type": "string",
+              "description": "Component ID owning this feature (cached)"
+            },
+            "component_name": {
+              "type": "string",
+              "description": "Component name (cached)"
+            }
+          },
+          "additionalProperties": false
+        }
+      ],
+      "description": "Second feature reference (typically shaft/pin)"
     },
     "mate_type": {
       "type": "string",

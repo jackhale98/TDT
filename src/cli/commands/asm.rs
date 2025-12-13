@@ -132,19 +132,23 @@ pub struct NewArgs {
     pub part_number: Option<String>,
 
     /// Title/description
-    #[arg(long, short = 't')]
+    #[arg(long, short = 'T')]
     pub title: Option<String>,
 
     /// Part revision
     #[arg(long)]
     pub revision: Option<String>,
 
+    /// BOM items as ID:QTY pairs (e.g., --bom "CMP@1:2,CMP@2:1,ASM@1:1")
+    #[arg(long, short = 'b', value_delimiter = ',')]
+    pub bom: Vec<String>,
+
     /// Open in editor after creation
     #[arg(long, short = 'e')]
     pub edit: bool,
 
     /// Skip opening in editor
-    #[arg(long)]
+    #[arg(long, short = 'n')]
     pub no_edit: bool,
 
     /// Interactive mode (prompt for fields)
@@ -179,19 +183,20 @@ pub struct AddComponentArgs {
     /// Assembly ID or short ID (ASM@N)
     pub assembly: String,
 
-    /// Component ID or short ID (CMP@N)
-    pub component: String,
+    /// Components as ID:QTY pairs (e.g., CMP@1:2 CMP@2:1) or single ID
+    #[arg(value_name = "COMPONENT")]
+    pub components: Vec<String>,
 
-    /// Quantity (default: 1)
-    #[arg(long, default_value = "1")]
+    /// Quantity for single component (ignored if using ID:QTY format)
+    #[arg(long, short = 'q', default_value = "1")]
     pub qty: u32,
 
-    /// Reference designators (comma-separated, e.g., "U1,U2,U3")
+    /// Reference designators (comma-separated, e.g., "U1,U2,U3") - only for single component
     #[arg(long, short = 'r', value_delimiter = ',')]
     pub refs: Vec<String>,
 
-    /// Notes about this BOM line item
-    #[arg(long, short = 'n')]
+    /// Notes about this BOM line item - only for single component
+    #[arg(long)]
     pub notes: Option<String>,
 }
 
@@ -222,6 +227,19 @@ pub struct MassArgs {
     /// Show breakdown by component
     #[arg(long)]
     pub breakdown: bool,
+}
+
+/// Parse an ID:QTY pair (e.g., "CMP@1:2" or "CMP-xxx:3")
+/// Returns (id, quantity). If no quantity specified, defaults to 1.
+fn parse_bom_item(input: &str) -> Result<(String, u32)> {
+    if let Some((id, qty_str)) = input.rsplit_once(':') {
+        // Check if qty_str is a valid number (not part of an ID like CMP-xxx)
+        if let Ok(qty) = qty_str.parse::<u32>() {
+            return Ok((id.to_string(), qty));
+        }
+    }
+    // No colon or not a valid quantity, treat whole thing as ID with qty 1
+    Ok((input.to_string(), 1))
 }
 
 /// Run an assembly subcommand
@@ -493,6 +511,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 }
 
 fn run_new(args: NewArgs) -> Result<()> {
+    use crate::entities::assembly::BomItem;
+
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let config = Config::load();
 
@@ -519,7 +539,7 @@ fn run_new(args: NewArgs) -> Result<()> {
             .ok_or_else(|| miette::miette!("Part number is required (use --part-number or -p)"))?;
         title = args
             .title
-            .ok_or_else(|| miette::miette!("Title is required (use --title or -t)"))?;
+            .ok_or_else(|| miette::miette!("Title is required (use --title or -T)"))?;
     }
 
     // Generate ID
@@ -558,7 +578,7 @@ fn run_new(args: NewArgs) -> Result<()> {
     println!(
         "{} Created assembly {}",
         style("✓").green(),
-        style(short_id.unwrap_or_else(|| format_short_id(&id))).cyan()
+        style(short_id.clone().unwrap_or_else(|| format_short_id(&id))).cyan()
     );
     println!("   {}", style(file_path.display()).dim());
     println!(
@@ -567,8 +587,45 @@ fn run_new(args: NewArgs) -> Result<()> {
         style(&title).white()
     );
 
+    // Handle BOM items if provided
+    if !args.bom.is_empty() {
+        // Load the assembly we just created
+        let content = fs::read_to_string(&file_path).into_diagnostic()?;
+        let mut assembly: Assembly = serde_yml::from_str(&content).into_diagnostic()?;
+
+        let mut added_count = 0;
+        for item_str in &args.bom {
+            let (component_id, qty) = parse_bom_item(item_str)?;
+
+            // Resolve short ID
+            let resolved_id = short_ids
+                .resolve(&component_id)
+                .unwrap_or_else(|| component_id.clone());
+
+            // Add to BOM
+            assembly.bom.push(BomItem {
+                component_id: resolved_id.clone(),
+                quantity: qty,
+                reference_designators: Vec::new(),
+                notes: None,
+            });
+            added_count += 1;
+        }
+
+        // Save the updated assembly
+        let updated_yaml = serde_yml::to_string(&assembly).into_diagnostic()?;
+        fs::write(&file_path, updated_yaml).into_diagnostic()?;
+
+        println!(
+            "   {} Added {} BOM item{}",
+            style("→").dim(),
+            style(added_count).cyan(),
+            if added_count == 1 { "" } else { "s" }
+        );
+    }
+
     // Open in editor if requested
-    if args.edit || (!args.no_edit && !args.interactive) {
+    if args.edit || (!args.no_edit && !args.interactive && args.bom.is_empty()) {
         println!();
         println!("Opening in {}...", style(config.editor()).yellow());
 
@@ -820,46 +877,18 @@ fn run_add_component(args: AddComponentArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let short_ids = ShortIdIndex::load(&project);
 
+    if args.components.is_empty() {
+        return Err(miette::miette!(
+            "At least one component is required.\n\
+             Usage: tdt asm add ASM@1 CMP@1:2 CMP@2:1\n\
+                    tdt asm add ASM@1 CMP@1 --qty 2"
+        ));
+    }
+
     // Resolve assembly ID
     let asm_id = short_ids
         .resolve(&args.assembly)
         .unwrap_or_else(|| args.assembly.clone());
-
-    // Resolve component ID
-    let cmp_id = short_ids
-        .resolve(&args.component)
-        .unwrap_or_else(|| args.component.clone());
-
-    // Validate component exists
-    let cmp_dir = project.root().join("bom/components");
-    let mut component_found = false;
-    let mut component_info: Option<Component> = None;
-
-    if cmp_dir.exists() {
-        for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
-            let entry = entry.into_diagnostic()?;
-            let path = entry.path();
-
-            if path.extension().map_or(false, |e| e == "yaml") {
-                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
-                if filename.contains(&cmp_id) || filename.starts_with(&cmp_id) {
-                    let content = fs::read_to_string(&path).into_diagnostic()?;
-                    if let Ok(cmp) = serde_yml::from_str::<Component>(&content) {
-                        component_found = true;
-                        component_info = Some(cmp);
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    if !component_found {
-        return Err(miette::miette!(
-            "Component '{}' not found. Create it first with: tdt cmp new",
-            args.component
-        ));
-    }
 
     // Find and load the assembly
     let asm_dir = project.root().join("bom/assemblies");
@@ -893,58 +922,135 @@ fn run_add_component(args: AddComponentArgs) -> Result<()> {
     })?;
     let path = found_path.unwrap();
 
-    // Get the full component ID
-    let full_cmp_id = component_info.as_ref().map(|c| c.id.to_string()).unwrap_or(cmp_id);
+    // Determine if we're in single-component mode (with --qty, --refs, --notes) or multi-component mode
+    let single_component_mode = args.components.len() == 1 && !args.components[0].contains(':');
 
-    // Check if component already exists in BOM
-    if let Some(existing) = assembly.bom.iter_mut().find(|item| item.component_id == full_cmp_id) {
-        // Update existing entry
-        existing.quantity += args.qty;
-        if !args.refs.is_empty() {
-            existing.reference_designators.extend(args.refs.clone());
-        }
-        if args.notes.is_some() {
-            existing.notes = args.notes.clone();
-        }
+    let mut added_count = 0;
+    let mut updated_count = 0;
 
-        println!(
-            "{} Updated {} in {} (qty now: {})",
-            style("✓").green(),
-            style(&args.component).cyan(),
-            style(&args.assembly).yellow(),
-            existing.quantity
-        );
-    } else {
-        // Add new BOM item
-        let bom_item = BomItem {
-            component_id: full_cmp_id.clone(),
-            quantity: args.qty,
-            reference_designators: args.refs.clone(),
-            notes: args.notes.clone(),
+    for component_arg in &args.components {
+        // Parse component:qty or use --qty for single component
+        let (component_input, qty) = if single_component_mode {
+            (component_arg.clone(), args.qty)
+        } else {
+            parse_bom_item(component_arg)?
         };
-        assembly.bom.push(bom_item);
 
-        let cmp_info = component_info.as_ref();
-        println!(
-            "{} Added {} to {}",
-            style("✓").green(),
-            style(&args.component).cyan(),
-            style(&args.assembly).yellow()
-        );
-        println!(
-            "   Component: {} | {}",
-            style(cmp_info.map(|c| c.part_number.as_str()).unwrap_or("-")).white(),
-            style(cmp_info.map(|c| c.title.as_str()).unwrap_or("-")).dim()
-        );
-        println!("   Quantity: {}", args.qty);
-        if !args.refs.is_empty() {
-            println!("   References: {}", args.refs.join(", "));
+        // Resolve component ID
+        let cmp_id = short_ids
+            .resolve(&component_input)
+            .unwrap_or_else(|| component_input.clone());
+
+        // Try to validate component exists and get info
+        let cmp_dir = project.root().join("bom/components");
+        let mut component_info: Option<Component> = None;
+
+        if cmp_dir.exists() {
+            for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
+                let entry = entry.into_diagnostic()?;
+                let entry_path = entry.path();
+
+                if entry_path.extension().map_or(false, |e| e == "yaml") {
+                    let filename = entry_path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                    if filename.contains(&cmp_id) || filename.starts_with(&cmp_id) {
+                        let content = fs::read_to_string(&entry_path).into_diagnostic()?;
+                        if let Ok(cmp) = serde_yml::from_str::<Component>(&content) {
+                            component_info = Some(cmp);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Get the full component ID (use resolved or original)
+        let full_cmp_id = component_info
+            .as_ref()
+            .map(|c| c.id.to_string())
+            .unwrap_or_else(|| cmp_id.clone());
+
+        // Check if component already exists in BOM
+        if let Some(existing) = assembly.bom.iter_mut().find(|item| item.component_id == full_cmp_id) {
+            // Update existing entry
+            existing.quantity += qty;
+            if single_component_mode {
+                if !args.refs.is_empty() {
+                    existing.reference_designators.extend(args.refs.clone());
+                }
+                if args.notes.is_some() {
+                    existing.notes = args.notes.clone();
+                }
+            }
+            updated_count += 1;
+
+            println!(
+                "{} Updated {} (qty now: {})",
+                style("✓").green(),
+                style(&component_input).cyan(),
+                existing.quantity
+            );
+        } else {
+            // Add new BOM item
+            let bom_item = BomItem {
+                component_id: full_cmp_id.clone(),
+                quantity: qty,
+                reference_designators: if single_component_mode { args.refs.clone() } else { Vec::new() },
+                notes: if single_component_mode { args.notes.clone() } else { None },
+            };
+            assembly.bom.push(bom_item);
+            added_count += 1;
+
+            if single_component_mode {
+                let cmp_info = component_info.as_ref();
+                println!(
+                    "{} Added {} to {}",
+                    style("✓").green(),
+                    style(&component_input).cyan(),
+                    style(&args.assembly).yellow()
+                );
+                if let Some(info) = cmp_info {
+                    println!(
+                        "   Component: {} | {}",
+                        style(&info.part_number).white(),
+                        style(&info.title).dim()
+                    );
+                }
+                println!("   Quantity: {}", qty);
+                if !args.refs.is_empty() {
+                    println!("   References: {}", args.refs.join(", "));
+                }
+            } else {
+                println!(
+                    "{} Added {}:{} to BOM",
+                    style("✓").green(),
+                    style(&component_input).cyan(),
+                    qty
+                );
+            }
         }
     }
 
     // Save the updated assembly
     let yaml = serde_yml::to_string(&assembly).into_diagnostic()?;
     fs::write(&path, yaml).into_diagnostic()?;
+
+    if !single_component_mode {
+        println!();
+        if added_count > 0 {
+            println!(
+                "   Added {} new component{}",
+                style(added_count).cyan(),
+                if added_count == 1 { "" } else { "s" }
+            );
+        }
+        if updated_count > 0 {
+            println!(
+                "   Updated {} existing component{}",
+                style(updated_count).yellow(),
+                if updated_count == 1 { "" } else { "s" }
+            );
+        }
+    }
 
     println!(
         "   BOM now has {} line items ({} total components)",

@@ -834,9 +834,16 @@
                 <tr><td><code>--no-edit</code></td><td><code>-n</code></td><td>Skip editor, create immediately</td></tr>
                 <tr><td><code>--verifies</code></td><td><code>-R</code></td><td>Requirements a test verifies</td></tr>
                 <tr><td><code>--mitigates</code></td><td><code>-M</code></td><td>Risks a test mitigates</td></tr>
+                <tr><td><code>--bom</code></td><td><code>-b</code></td><td>BOM items for assembly (ID:QTY pairs)</td></tr>
+                <tr><td><code>--breaks</code></td><td><code>-B</code></td><td>Price breaks for quote (QTY:PRICE:LEAD)</td></tr>
               </tbody>
             </table>
-            <p>Some commands also accept <strong>positional arguments</strong> for common operations. Both forms are shown in this tutorial.</p>
+            <p>Some commands also accept <strong>positional arguments</strong> for common operations:</p>
+            <ul>
+              <li><code>tdt mate new FEAT@1 FEAT@2</code> - Features as positional args</li>
+              <li><code>tdt link add SRC DST link_type</code> - Link type as 3rd arg</li>
+              <li><code>tdt asm add ASM@1 CMP@1:2 CMP@2:1</code> - Multiple ID:QTY pairs</li>
+            </ul>
           </section>
 
           <!-- Section 2: Requirements -->
@@ -1022,13 +1029,17 @@
 
             <div class="code-block">
               <div class="code-header"><span class="code-lang">bash</span></div>
-              <pre><code><span class="comment"># Quote for LED module</span>
-<span class="cmd">tdt quote new</span> --title <span class="string">"LED Module Quote"</span> --supplier SUP@1 \
-  --component CMP@2 --unit-price <span class="number">3.50</span> --moq <span class="number">100</span> --lead-time <span class="number">14</span> --no-edit
+              <pre><code><span class="comment"># Simple quote with single price</span>
+<span class="cmd">tdt quote new</span> -T <span class="string">"LED Module Quote"</span> -s SUP@1 -c CMP@2 \
+  -p <span class="number">3.50</span> --moq <span class="number">100</span> -l <span class="number">14</span> -n
 
-<span class="comment"># Quote for battery holder</span>
-<span class="cmd">tdt quote new</span> --title <span class="string">"Battery Holder Quote"</span> --supplier SUP@2 \
-  --component CMP@3 --unit-price <span class="number">0.85</span> --moq <span class="number">500</span> --lead-time <span class="number">7</span> --no-edit</code></pre>
+<span class="comment"># Quote with multiple price breaks (QTY:PRICE:LEAD_TIME)</span>
+<span class="cmd">tdt quote new</span> -T <span class="string">"Battery Holder Quote"</span> -s SUP@2 -c CMP@3 \
+  --breaks <span class="string">"100:0.95:14,500:0.85:10,1000:0.75:7"</span> -n</code></pre>
+            </div>
+
+            <div class="tip-box">
+              <strong>Price breaks:</strong> Use <code>--breaks</code> with comma-separated <code>QTY:PRICE:LEAD_TIME</code> triplets for volume pricing.
             </div>
 
             <h3>View Quotes</h3>
@@ -1562,16 +1573,34 @@
 
             <p>Define how components come together.</p>
 
-            <h3>Create Assembly</h3>
+            <h3>Create Assembly with BOM</h3>
 
             <div class="code-block">
               <div class="code-header"><span class="code-lang">bash</span></div>
-              <pre><code><span class="cmd">tdt asm new</span> --title <span class="string">"LED Flashlight Assembly"</span> \
-  --part-number <span class="string">"FL-ASM-001"</span> --no-edit</code></pre>
+              <pre><code><span class="comment"># Create assembly with BOM items in one command</span>
+<span class="cmd">tdt asm new</span> -p <span class="string">"FL-ASM-001"</span> -T <span class="string">"LED Flashlight Assembly"</span> \
+  --bom <span class="string">"CMP@1:1,CMP@2:1,CMP@3:1,CMP@4:1,CMP@5:1,CMP@6:1"</span> -n
+
+<span class="comment"># Or create empty and add components later</span>
+<span class="cmd">tdt asm new</span> -p <span class="string">"FL-ASM-001"</span> -T <span class="string">"LED Flashlight Assembly"</span> -n</code></pre>
             </div>
 
-            <h3>Add Bill of Materials</h3>
-            <p>Edit the assembly to add BOM:</p>
+            <h3>Add Components to BOM</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Add multiple components at once (ID:QTY format)</span>
+<span class="cmd">tdt asm add</span> ASM@1 CMP@1:1 CMP@2:1 CMP@3:2 CMP@4:1
+
+<span class="comment"># Add single component with details</span>
+<span class="cmd">tdt asm add</span> ASM@1 CMP@5 --qty <span class="number">2</span> -r <span class="string">"U1,U2"</span> --notes <span class="string">"Apply thread locker"</span></code></pre>
+            </div>
+
+            <div class="tip-box">
+              <strong>Tip:</strong> Use <code>ID:QTY</code> pairs for quick bulk additions, or flags for detailed single-component entries.
+            </div>
+
+            <h3>Edit BOM Details</h3>
 
             <div class="code-block">
               <div class="code-header"><span class="code-lang">bash</span></div>
@@ -1588,22 +1617,11 @@
 <span class="key">bom:</span>
   - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># Housing</span>
     <span class="key">quantity:</span> <span class="number">1</span>
-    <span class="key">reference:</span> <span class="string">"1"</span>
-  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># LED Module</span>
-    <span class="key">quantity:</span> <span class="number">1</span>
-    <span class="key">reference:</span> <span class="string">"2"</span>
-  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># Battery Holder</span>
-    <span class="key">quantity:</span> <span class="number">1</span>
-    <span class="key">reference:</span> <span class="string">"3"</span>
-  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># Lens</span>
-    <span class="key">quantity:</span> <span class="number">1</span>
-    <span class="key">reference:</span> <span class="string">"4"</span>
+    <span class="key">reference_designators:</span> [<span class="string">"1"</span>]
   - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># O-Ring</span>
-    <span class="key">quantity:</span> <span class="number">1</span>
-    <span class="key">reference:</span> <span class="string">"5"</span>
-  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># End Cap</span>
-    <span class="key">quantity:</span> <span class="number">1</span>
-    <span class="key">reference:</span> <span class="string">"6"</span>
+    <span class="key">quantity:</span> <span class="number">2</span>
+    <span class="key">reference_designators:</span> [<span class="string">"5A"</span>, <span class="string">"5B"</span>]
+    <span class="key">notes:</span> <span class="string">"Lubricate with silicone grease"</span>
 <span class="key">revision:</span> <span class="string">"A"</span>
 <span class="key">status:</span> draft</code></pre>
             </div>
