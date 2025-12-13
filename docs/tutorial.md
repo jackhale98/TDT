@@ -20,7 +20,9 @@ This tutorial walks you through creating a complete TDT project from scratch. We
 14. [Handling Issues (NCRs & CAPAs)](#14-handling-issues-ncrs--capas)
 15. [Project Status & Validation](#15-project-status--validation)
 16. [Traceability](#16-traceability)
-17. [Bulk Operations & Unix Pipelines](#17-bulk-operations--unix-pipelines)
+17. [Version Control Integration](#17-version-control-integration)
+18. [Baseline Management](#18-baseline-management)
+19. [Bulk Operations & Unix Pipelines](#19-bulk-operations--unix-pipelines)
 
 ---
 
@@ -166,11 +168,14 @@ Then link it to the parent requirement:
 
 ```bash
 # Positional syntax (link type as 3rd argument)
-tdt link add REQ@5 REQ@1 derives_from
+# Use -r to add reciprocal link (REQ@1 gets derived_by -> REQ@5)
+tdt link add REQ@5 REQ@1 derives_from -r
 
 # Long form - equivalent
-tdt link add REQ@5 REQ@1 --link-type derives_from
+tdt link add REQ@5 REQ@1 --link-type derives_from --reciprocal
 ```
+
+> **Tip**: The `-r` flag adds the reverse link automatically, maintaining bidirectional traceability.
 
 ---
 
@@ -266,13 +271,44 @@ tdt quote new -T "Battery Holder Quote" -s SUP@2 -c CMP@3 \
   --breaks "100:0.95:14,500:0.85:10,1000:0.75:7" -n
 ```
 
-> **Price breaks**: Use `--breaks` with comma-separated `QTY:PRICE:LEAD_TIME` triplets for volume pricing.
+> **Price breaks**: Use `--breaks` with comma-separated `QTY:PRICE:LEAD_TIME` triplets for volume pricing. When calculating BOM costs, TDT automatically selects the best price break based on purchase quantity.
 
-### View Quotes
+### View and Compare Quotes
 
 ```bash
+# List all quotes
 tdt quote list
+
+# Compare quotes for a specific component
+tdt quote compare CMP@2
 ```
+
+The compare command shows all quotes for a component side-by-side, sorted by price:
+
+```
+Comparing 2 quotes for CMP@2
+
+SHORT    TITLE                SUPPLIER   PRICE    MOQ    LEAD    TOOLING  STATUS
+---------------------------------------------------------------------------------
+QUOT@1   LED Module Quote     SUP@1      $3.50    100    14d     -        pending
+QUOT@3   LED Alt Quote        SUP@3      $3.75    50     7d      -        pending
+
+★ Lowest price: $3.50 from SUP@1
+```
+
+### Select a Quote for Costing
+
+Link a quote to its component for BOM cost calculations:
+
+```bash
+# Set which quote to use for a component's pricing
+tdt cmp set-quote CMP@2 QUOT@1
+
+# Clear the selection (revert to manual unit_cost)
+tdt cmp clear-quote CMP@2
+```
+
+When a quote is selected, `tdt asm cost` will use that quote's price breaks instead of the component's manual `unit_cost` field.
 
 ---
 
@@ -563,9 +599,14 @@ tdt proc new --title "Final Assembly" --type assembly \
 ### Link Processes to Components and Risks
 
 ```bash
+# Link process to component it produces
 tdt link add PROC@1 CMP@1 produces
-tdt link add PROC@1 RISK@2 risks
+
+# Link process to associated risks (bidirectional)
+tdt link add PROC@1 RISK@2 risks -r
 ```
+
+The `-r` flag ensures RISK@2 also links back to PROC@1 via its `affects` link.
 
 ---
 
@@ -824,10 +865,54 @@ tdt asm bom ASM@1
 
 Shows indented BOM with costs and masses rolled up.
 
-### Calculate Assembly Cost/Mass
+### Calculate Assembly Cost
 
 ```bash
+# Basic cost calculation
 tdt asm cost ASM@1
+
+# With line-by-line breakdown
+tdt asm cost ASM@1 --breakdown
+
+# Cost for producing 1000 units (uses price breaks)
+tdt asm cost ASM@1 --breakdown --qty 1000
+```
+
+The `--qty` parameter specifies how many assemblies you're building. TDT multiplies each BOM quantity by the production quantity to determine purchase quantities, then looks up the appropriate price break from each component's selected quote.
+
+Example output with `--breakdown`:
+
+```
+Assembly: LED Flashlight Assembly
+Part Number: FL-ASM-001
+Production Qty: 1000
+
+ID         TITLE                      QTY   UNIT       LINE       SOURCE
+---------------------------------------------------------------------------
+CMP@1      Flashlight Housing         1     $12.50     $12.50     unit_cost
+CMP@2      LED Module                 1     $3.50      $3.50      quote@1000
+CMP@3      Battery Holder             1     $0.75      $0.75      quote@1000
+CMP@4      Optical Lens               1     $2.00      $2.00      unit_cost
+CMP@5      Housing O-Ring             2     $0.15      $0.30      quote@2000
+CMP@6      End Cap                    1     $4.50      $4.50      unit_cost
+---------------------------------------------------------------------------
+Total Cost: $23.55
+
+Note: Some components have quotes but no selected quote:
+   • Optical Lens (2 quotes) - use: tdt cmp set-quote CMP@4 <quote-id>
+   Run 'tdt quote compare <component>' to see available quotes
+```
+
+**Price source column:**
+- `quote@N` - Using selected quote's price for purchase quantity N
+- `unit_cost` - Using component's manual unit_cost field
+- `none` - No pricing available
+
+> **Tip**: If you see components with quotes but no selected quote, TDT reminds you to set one using `tdt cmp set-quote`.
+
+### Calculate Assembly Mass
+
+```bash
 tdt asm mass ASM@1
 ```
 
@@ -880,8 +965,11 @@ links:
 ### Link NCR to Test Result
 
 ```bash
-tdt link add NCR@1 RSLT@3 --link-type from_result
+# Link NCR to the failing test result (bidirectional)
+tdt link add NCR@1 RSLT@3 from_result -r
 ```
+
+This creates both the `from_result` link on the NCR and a `created_ncr` link on the result.
 
 ### Create a CAPA
 
@@ -934,7 +1022,7 @@ links:
 ### Link CAPA to NCR
 
 ```bash
-tdt link add CAPA@1 NCR@1 --link-type ncrs
+tdt link add CAPA@1 NCR@1 ncrs
 ```
 
 ---
@@ -992,7 +1080,66 @@ Uncovered Requirements:
 
 ## 16. Traceability
 
-TDT maintains full traceability across all entities.
+TDT maintains full traceability across all entities through explicit links.
+
+### Creating Links
+
+Links connect entities to establish traceability:
+
+```bash
+# Basic syntax: source, target, link_type
+tdt link add REQ@1 TEST@1 verified_by
+
+# Use -r for reciprocal links (recommended)
+tdt link add REQ@1 TEST@1 verified_by -r
+```
+
+The `-r` flag adds the reverse link automatically. For `verified_by`, this means TEST@1 also gets a `verifies` link back to REQ@1.
+
+### Common Link Types
+
+| From | To | Link Type | Reverse Link |
+|------|-----|-----------|--------------|
+| REQ | TEST | `verified_by` | `verifies` |
+| REQ | REQ | `derives_from` | `derived_by` |
+| REQ | FEAT | `allocated_to` | `allocated_from` |
+| RISK | CMP/PROC/FEAT | `affects` | `risks` |
+| NCR | RSLT | `from_result` | `created_ncr` |
+| CAPA | NCR | `ncrs` | - |
+| CAPA | PROC | `processes_modified` | `modified_by_capa` |
+
+Run `tdt link add --help` to see all available link types with descriptions.
+
+### Viewing Links
+
+```bash
+# Show all links for an entity
+tdt link show REQ@1
+
+# Show only outgoing links
+tdt link show REQ@1 --outgoing
+
+# Show only incoming links
+tdt link show REQ@1 --incoming
+```
+
+### Removing Links
+
+```bash
+tdt link remove REQ@1 TEST@1 verified_by
+```
+
+### Finding Broken Links
+
+Check for links that reference non-existent entities:
+
+```bash
+# Find broken links
+tdt link check
+
+# Find and fix broken links (removes them)
+tdt link check --fix
+```
 
 ### View Traceability Matrix
 
@@ -1033,9 +1180,165 @@ Entities with no links (potential gaps):
 tdt trace orphans
 ```
 
+### Where-Used Analysis
+
+Find everywhere an entity is referenced:
+
+```bash
+# Find all references to a component
+tdt where-used CMP@1
+
+# Direct references only (not transitive)
+tdt where-used CMP@1 --direct-only
+```
+
+Example output:
+```
+Where CMP@1 (Flashlight Housing) is used:
+
+In Assemblies:
+  • ASM@1 - LED Flashlight Assembly (bom item, qty: 1)
+
+In Features:
+  • FEAT@1 - LED Mounting Bore (component)
+  • FEAT@2 - End Cap Thread (component)
+
+In Processes:
+  • PROC@1 - Housing CNC Machining (produces)
+
+In Quotes:
+  • QUOT@5 - Housing Quote (component)
+```
+
+This is especially useful for impact analysis before making changes.
+
 ---
 
-## 17. Bulk Operations & Unix Pipelines
+## 17. Version Control Integration
+
+TDT integrates with git to provide entity-level version control commands.
+
+### View Entity History
+
+```bash
+# Show commit history for an entity
+tdt history REQ@1
+
+# Limit to last 5 commits
+tdt history REQ@1 -n 5
+
+# Show full commit messages
+tdt history REQ@1 --full
+
+# Show with patches (actual changes)
+tdt history REQ@1 --patch
+
+# Filter by date range
+tdt history REQ@1 --since 2024-01-01 --until 2024-06-30
+```
+
+### View Entity Blame
+
+See who changed each line and when:
+
+```bash
+# Full blame
+tdt blame REQ@1
+
+# Specific line range
+tdt blame REQ@1 --lines 10-20
+```
+
+### View Entity Diff
+
+Compare entity changes:
+
+```bash
+# Show uncommitted changes
+tdt diff REQ@1
+
+# Show staged changes only
+tdt diff REQ@1 --staged
+
+# Compare to previous commit
+tdt diff REQ@1 HEAD~1
+
+# Compare between revisions
+tdt diff REQ@1 v1.0..v2.0
+
+# Show summary stats
+tdt diff REQ@1 HEAD~1 --stat
+```
+
+---
+
+## 18. Baseline Management
+
+Baselines capture the state of your project at key milestones (design reviews, releases, etc.).
+
+### Create a Baseline
+
+```bash
+# Create baseline (validates first)
+tdt baseline create v1.0 -m "Initial release candidate"
+
+# Skip validation (not recommended)
+tdt baseline create v1.0-draft --skip-validation
+```
+
+Baselines are stored as git tags prefixed with `tdt-`.
+
+### List Baselines
+
+```bash
+tdt baseline list
+```
+
+```
+BASELINE        DATE         COMMIT   MESSAGE
+-------------------------------------------------
+tdt-v1.0        2024-01-15   a1b2c3d  Initial release candidate
+tdt-v0.9        2024-01-01   e4f5g6h  Design review baseline
+tdt-v0.5        2023-12-01   i7j8k9l  Preliminary design
+```
+
+### Compare Baselines
+
+See what changed between baselines:
+
+```bash
+tdt baseline compare v0.9 v1.0
+```
+
+```
+Changes from tdt-v0.9 to tdt-v1.0:
+
+Added (3):
+  + REQ@5 - LED Selection (requirements)
+  + TEST@4 - Drop Test (tests)
+  + CTRL@2 - Thread Depth Check (controls)
+
+Modified (5):
+  ~ REQ@1 - Light Output (requirements)
+  ~ CMP@1 - Flashlight Housing (components)
+  ~ RISK@1 - LED Overheating (risks)
+  ~ PROC@1 - Housing CNC Machining (processes)
+  ~ ASM@1 - LED Flashlight Assembly (assemblies)
+
+Removed (1):
+  - FEAT@7 - Unused Feature (features)
+```
+
+### View Changes Since Baseline
+
+```bash
+# What's changed since v1.0?
+tdt baseline changed v1.0
+```
+
+---
+
+## 19. Bulk Operations & Unix Pipelines
 
 TDT follows Unix philosophy: commands can be chained together using pipes.
 
@@ -1123,8 +1426,9 @@ You've now created a complete TDT project with:
 
 1. **Requirements → Tests → Results**: Verify requirements are met
 2. **Components → Features → Mates → Stackups**: Ensure parts fit
-3. **Risks → Mitigations → Controls**: Manage product/process risks
-4. **NCRs → CAPAs**: Handle quality issues systematically
+3. **Suppliers → Quotes → Components → Assemblies**: Track pricing through BOM
+4. **Risks → Mitigations → Controls**: Manage product/process risks
+5. **NCRs → CAPAs**: Handle quality issues systematically
 
 ### Tips
 
