@@ -1053,7 +1053,7 @@ fn test_feat_new_creates_file() {
         .args([
             "feat", "new",
             "--component", "CMP@1",
-            "--feature-type", "hole",
+            "--feature-type", "internal",
             "--title", "Mounting Hole",
             "--no-edit",
         ])
@@ -1070,7 +1070,7 @@ fn test_feat_new_creates_file() {
 
     let content = fs::read_to_string(files[0].path()).unwrap();
     assert!(content.contains("Mounting Hole"));
-    assert!(content.contains("feature_type: hole"));
+    assert!(content.contains("feature_type: internal"));
 }
 
 #[test]
@@ -1092,7 +1092,7 @@ fn test_feat_list_shows_features() {
     create_test_component(&tmp, "PN-F", "Feature Component");
     tdt().current_dir(tmp.path()).args(["cmp", "list"]).output().unwrap();
 
-    create_test_feature(&tmp, "CMP@1", "hole", "Hole Feature");
+    create_test_feature(&tmp, "CMP@1", "internal", "Hole Feature");
     create_test_feature(&tmp, "CMP@1", "boss", "Boss Feature");
 
     tdt()
@@ -1135,7 +1135,7 @@ fn test_mate_new_creates_file() {
     create_test_component(&tmp, "PN-PIN", "Pin Component");
     tdt().current_dir(tmp.path()).args(["cmp", "list"]).output().unwrap();
 
-    create_test_feature(&tmp, "CMP@1", "hole", "Mounting Hole");
+    create_test_feature(&tmp, "CMP@1", "internal", "Mounting Hole");
     create_test_feature(&tmp, "CMP@2", "boss", "Mounting Pin");
     tdt().current_dir(tmp.path()).args(["feat", "list"]).output().unwrap();
 
@@ -1180,7 +1180,7 @@ fn test_mate_list_shows_mates() {
     create_test_component(&tmp, "PN-M2", "Component 2");
     tdt().current_dir(tmp.path()).args(["cmp", "list"]).output().unwrap();
 
-    create_test_feature(&tmp, "CMP@1", "hole", "Hole A");
+    create_test_feature(&tmp, "CMP@1", "internal", "Hole A");
     create_test_feature(&tmp, "CMP@2", "boss", "Pin A");
     tdt().current_dir(tmp.path()).args(["feat", "list"]).output().unwrap();
 

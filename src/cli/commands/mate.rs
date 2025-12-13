@@ -667,25 +667,100 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No mate found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse mate
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let mate: Mate = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let mate: Mate = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&mate).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", mate.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&mate.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&mate.title).yellow()
+            );
+            println!("{}: {}", style("Type").bold(), mate.mate_type);
+            println!("{}: {}", style("Status").bold(), mate.status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Features
+            println!();
+            println!("{}", style("Mating Features:").bold());
+            let feat_a_display = short_ids.get_short_id(&mate.feature_a.id.to_string())
+                .unwrap_or_else(|| format_short_id(&mate.feature_a.id));
+            let feat_b_display = short_ids.get_short_id(&mate.feature_b.id.to_string())
+                .unwrap_or_else(|| format_short_id(&mate.feature_b.id));
+
+            println!("  Feature A: {} - {}",
+                style(&feat_a_display).cyan(),
+                mate.feature_a.name.as_deref().unwrap_or(""));
+            if let Some(ref cmp_name) = mate.feature_a.component_name {
+                println!("             ({})", style(cmp_name).dim());
+            }
+
+            println!("  Feature B: {} - {}",
+                style(&feat_b_display).cyan(),
+                mate.feature_b.name.as_deref().unwrap_or(""));
+            if let Some(ref cmp_name) = mate.feature_b.component_name {
+                println!("             ({})", style(cmp_name).dim());
+            }
+
+            // Fit Analysis
+            if let Some(ref fit) = mate.fit_analysis {
+                println!();
+                println!("{}", style("Fit Analysis:").bold());
+                let fit_color = match fit.fit_result {
+                    crate::entities::mate::FitResult::Clearance => style("CLEARANCE").green(),
+                    crate::entities::mate::FitResult::Interference => style("INTERFERENCE").red(),
+                    crate::entities::mate::FitResult::Transition => style("TRANSITION").yellow(),
+                };
+                println!("  {}: {}", style("Fit Type").dim(), fit_color);
+                println!("  {}: {:.4} mm", style("Min Clearance").dim(), fit.worst_case_min_clearance);
+                println!("  {}: {:.4} mm", style("Max Clearance").dim(), fit.worst_case_max_clearance);
+            }
+
+            // Tags
+            if !mate.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), mate.tags.join(", "));
+            }
+
+            // Description
+            if let Some(ref desc) = mate.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                mate.author,
+                style("Created").dim(),
+                mate.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                mate.entity_revision
+            );
         }
     }
 

@@ -829,25 +829,101 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No quote found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse quote
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let quote: Quote = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let quote: Quote = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&quote).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", quote.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&quote.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&quote.title).yellow()
+            );
+            if let Some(ref cmp) = quote.component {
+                let cmp_display = short_ids.get_short_id(cmp)
+                    .unwrap_or_else(|| cmp.clone());
+                println!("{}: {}", style("Component").bold(), style(&cmp_display).cyan());
+            }
+            if let Some(ref asm) = quote.assembly {
+                let asm_display = short_ids.get_short_id(asm)
+                    .unwrap_or_else(|| asm.clone());
+                println!("{}: {}", style("Assembly").bold(), style(&asm_display).cyan());
+            }
+            let sup_display = short_ids.get_short_id(&quote.supplier)
+                .unwrap_or_else(|| quote.supplier.clone());
+            println!("{}: {}", style("Supplier").bold(), style(&sup_display).cyan());
+            println!("{}: {}", style("Status").bold(), quote.status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Price Breaks
+            if !quote.price_breaks.is_empty() {
+                println!();
+                println!("{}", style("Price Breaks:").bold());
+                for pb in &quote.price_breaks {
+                    print!("  Qty {}: ${:.2}", pb.min_qty, pb.unit_price);
+                    if let Some(lead) = pb.lead_time_days {
+                        print!(" ({} day lead)", lead);
+                    }
+                    println!();
+                }
+            }
+
+            // Quote Details
+            if let Some(ref qn) = quote.quote_ref {
+                println!();
+                println!("{}: {}", style("Quote Ref").bold(), qn);
+            }
+            if let Some(ref date) = quote.quote_date {
+                println!("{}: {}", style("Quote Date").bold(), date);
+            }
+            if let Some(ref valid) = quote.valid_until {
+                println!("{}: {}", style("Valid Until").bold(), valid);
+            }
+
+            // Tags
+            if !quote.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), quote.tags.join(", "));
+            }
+
+            // Description
+            if let Some(ref desc) = quote.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                quote.author,
+                style("Created").dim(),
+                quote.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                quote.entity_revision
+            );
         }
     }
 

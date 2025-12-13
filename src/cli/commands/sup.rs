@@ -546,25 +546,119 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No supplier found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse supplier
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let sup: Supplier = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let sup: Supplier = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&sup).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", sup.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&sup.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Name").bold(),
+                style(&sup.name).yellow()
+            );
+            println!("{}: {}", style("Status").bold(), sup.status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Contact Info
+            if !sup.contacts.is_empty() {
+                println!();
+                println!("{} ({}):", style("Contacts").bold(), sup.contacts.len());
+                for contact in &sup.contacts {
+                    let primary = if contact.primary { " (primary)" } else { "" };
+                    print!("  • {}", contact.name);
+                    if let Some(ref role) = contact.role {
+                        print!(" - {}", role);
+                    }
+                    println!("{}", primary);
+                    if let Some(ref email) = contact.email {
+                        println!("    Email: {}", email);
+                    }
+                    if let Some(ref phone) = contact.phone {
+                        println!("    Phone: {}", phone);
+                    }
+                }
+            }
+
+            // Addresses
+            if !sup.addresses.is_empty() {
+                println!();
+                println!("{} ({}):", style("Addresses").bold(), sup.addresses.len());
+                for addr in &sup.addresses {
+                    print!("  • {:?}", addr.address_type);
+                    if let Some(ref city) = addr.city {
+                        print!(": {}", city);
+                    }
+                    if let Some(ref country) = addr.country {
+                        print!(", {}", country);
+                    }
+                    println!();
+                }
+            }
+
+            // Capabilities
+            if !sup.capabilities.is_empty() {
+                println!();
+                let cap_strs: Vec<String> = sup.capabilities.iter().map(|c| c.to_string()).collect();
+                println!("{}: {}", style("Capabilities").bold(), cap_strs.join(", "));
+            }
+
+            // Certifications
+            if !sup.certifications.is_empty() {
+                println!();
+                println!("{} ({}):", style("Certifications").bold(), sup.certifications.len());
+                for cert in &sup.certifications {
+                    print!("  • {}", cert.name);
+                    if let Some(expiry) = cert.expiry {
+                        print!(" (expires: {})", expiry);
+                    }
+                    println!();
+                }
+            }
+
+            // Tags
+            if !sup.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), sup.tags.join(", "));
+            }
+
+            // Notes
+            if let Some(ref notes) = sup.notes {
+                if !notes.is_empty() && !notes.starts_with('#') {
+                    println!();
+                    println!("{}", style("Notes:").bold());
+                    println!("{}", notes);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                sup.author,
+                style("Created").dim(),
+                sup.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                sup.entity_revision
+            );
         }
     }
 

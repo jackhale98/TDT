@@ -925,7 +925,7 @@ mod tests {
         use crate::entities::feature::{Feature, FeatureType};
 
         // Create a feature with a dimension
-        let mut feature = Feature::new("CMP-001", FeatureType::Hole, "Test Hole", "Author");
+        let mut feature = Feature::new("CMP-001", FeatureType::Internal, "Test Hole", "Author");
         feature.add_dimension("diameter", 10.0, 0.1, 0.05, true);
 
         // Create a contributor with outdated values

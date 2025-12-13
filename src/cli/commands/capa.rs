@@ -592,25 +592,91 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No CAPA found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse CAPA
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let capa: Capa = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let capa: Capa = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&capa).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", capa.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&capa.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&capa.title).yellow()
+            );
+            println!("{}: {}", style("CAPA Type").bold(), capa.capa_type);
+            println!("{}: {}", style("Status").bold(), capa.capa_status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Problem Statement
+            if let Some(ref ps) = capa.problem_statement {
+                if !ps.is_empty() && !ps.starts_with('#') {
+                    println!();
+                    println!("{}", style("Problem Statement:").bold());
+                    println!("{}", ps);
+                }
+            }
+
+            // Root Cause Analysis
+            if let Some(ref rca) = capa.root_cause_analysis {
+                if let Some(ref rc) = rca.root_cause {
+                    if !rc.is_empty() && !rc.starts_with('#') {
+                        println!();
+                        println!("{}: {}", style("RCA Method").bold(), rca.method);
+                        println!("{}", style("Root Cause:").bold());
+                        println!("{}", rc);
+                    }
+                }
+            }
+
+            // Actions
+            if !capa.actions.is_empty() {
+                println!();
+                println!("{} ({}):", style("Actions").bold(), capa.actions.len());
+                for action in &capa.actions {
+                    let status_style = match action.status {
+                        crate::entities::capa::ActionStatus::Completed |
+                        crate::entities::capa::ActionStatus::Verified => style(action.status.to_string()).green(),
+                        crate::entities::capa::ActionStatus::InProgress => style(action.status.to_string()).yellow(),
+                        _ => style(action.status.to_string()).dim(),
+                    };
+                    println!("  {}. {} [{}]", action.action_number, action.description, status_style);
+                }
+            }
+
+            // Tags
+            if !capa.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), capa.tags.join(", "));
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                capa.author,
+                style("Created").dim(),
+                capa.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                capa.entity_revision
+            );
         }
     }
 

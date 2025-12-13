@@ -11,8 +11,10 @@ use crate::entities::stackup::Distribution;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FeatureType {
-    Hole,
-    Shaft,
+    /// Internal feature (hole, bore, pocket) - material is removed
+    Internal,
+    /// External feature (shaft, boss) - material remains
+    External,
     PlanarSurface,
     Slot,
     Thread,
@@ -26,15 +28,15 @@ pub enum FeatureType {
 
 impl Default for FeatureType {
     fn default() -> Self {
-        FeatureType::Hole
+        FeatureType::Internal
     }
 }
 
 impl std::fmt::Display for FeatureType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FeatureType::Hole => write!(f, "hole"),
-            FeatureType::Shaft => write!(f, "shaft"),
+            FeatureType::Internal => write!(f, "internal"),
+            FeatureType::External => write!(f, "external"),
             FeatureType::PlanarSurface => write!(f, "planar_surface"),
             FeatureType::Slot => write!(f, "slot"),
             FeatureType::Thread => write!(f, "thread"),
@@ -361,9 +363,9 @@ mod tests {
 
     #[test]
     fn test_feature_creation() {
-        let feat = Feature::new("CMP-123", FeatureType::Hole, "Mounting Hole A", "Test Author");
+        let feat = Feature::new("CMP-123", FeatureType::Internal, "Mounting Hole A", "Test Author");
         assert_eq!(feat.component, "CMP-123");
-        assert_eq!(feat.feature_type, FeatureType::Hole);
+        assert_eq!(feat.feature_type, FeatureType::Internal);
         assert_eq!(feat.title, "Mounting Hole A");
         assert_eq!(feat.author, "Test Author");
         assert_eq!(feat.status, Status::Draft);
@@ -407,7 +409,7 @@ mod tests {
 
     #[test]
     fn test_add_dimension() {
-        let mut feat = Feature::new("CMP-123", FeatureType::Hole, "Test Hole", "Author");
+        let mut feat = Feature::new("CMP-123", FeatureType::Internal, "Test Hole", "Author");
         feat.add_dimension("diameter", 10.0, 0.1, 0.05, true); // internal=true for hole
 
         assert_eq!(feat.dimensions.len(), 1);
@@ -418,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_entity_trait_implementation() {
-        let feat = Feature::new("CMP-123", FeatureType::Shaft, "Test Shaft", "Author");
+        let feat = Feature::new("CMP-123", FeatureType::External, "Test Shaft", "Author");
         assert!(feat.id().to_string().starts_with("FEAT-"));
         assert_eq!(feat.title(), "Test Shaft");
         assert_eq!(feat.author(), "Author");
@@ -428,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_feature_roundtrip() {
-        let mut feat = Feature::new("CMP-123", FeatureType::Hole, "Mounting Hole", "Author");
+        let mut feat = Feature::new("CMP-123", FeatureType::Internal, "Mounting Hole", "Author");
         feat.description = Some("Primary mounting hole".to_string());
         feat.add_dimension("diameter", 10.0, 0.1, 0.05, true); // internal=true for hole
         feat.gdt.push(GdtControl {
@@ -449,7 +451,7 @@ mod tests {
         let parsed: Feature = serde_yml::from_str(&yaml).unwrap();
 
         assert_eq!(parsed.component, "CMP-123");
-        assert_eq!(parsed.feature_type, FeatureType::Hole);
+        assert_eq!(parsed.feature_type, FeatureType::Internal);
         assert_eq!(parsed.dimensions.len(), 1);
         assert_eq!(parsed.gdt.len(), 1);
         assert_eq!(parsed.gdt[0].symbol, GdtSymbol::Position);
@@ -470,7 +472,7 @@ mod tests {
     #[test]
     fn test_tolerance_format() {
         // Verify that tolerances use plus_tol/minus_tol format (not +/- symbol)
-        let mut feat = Feature::new("CMP-123", FeatureType::Hole, "Test Hole", "Author");
+        let mut feat = Feature::new("CMP-123", FeatureType::Internal, "Test Hole", "Author");
         feat.add_dimension("diameter", 10.0, 0.1, 0.05, true);
 
         let yaml = serde_yml::to_string(&feat).unwrap();

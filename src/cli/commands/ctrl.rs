@@ -597,25 +597,103 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No control found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse control
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let ctrl: Control = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let ctrl: Control = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&ctrl).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", ctrl.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&ctrl.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&ctrl.title).yellow()
+            );
+            println!("{}: {}", style("Control Type").bold(), ctrl.control_type);
+            println!("{}: {}", style("Status").bold(), ctrl.status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Sampling info
+            if let Some(ref sampling) = ctrl.sampling {
+                println!();
+                println!("{}", style("Sampling:").bold());
+                println!("  Type: {:?}", sampling.sampling_type);
+                if let Some(ref freq) = sampling.frequency {
+                    println!("  Frequency: {}", freq);
+                }
+                if let Some(size) = sampling.sample_size {
+                    println!("  Sample Size: {}", size);
+                }
+            }
+
+            // Measurement info
+            if let Some(ref meas) = ctrl.measurement {
+                println!();
+                println!("{}", style("Measurement:").bold());
+                if let Some(ref method) = meas.method {
+                    println!("  Method: {}", method);
+                }
+                if let Some(ref equip) = meas.equipment {
+                    println!("  Equipment: {}", equip);
+                }
+            }
+
+            // Characteristic
+            if !ctrl.characteristic.name.is_empty() {
+                println!();
+                println!("{}", style("Characteristic:").bold());
+                println!("  Name: {}", ctrl.characteristic.name);
+                if let Some(nom) = ctrl.characteristic.nominal {
+                    print!("  Nominal: {}", nom);
+                    if let Some(ref units) = ctrl.characteristic.units {
+                        print!(" {}", units);
+                    }
+                    println!();
+                }
+            }
+
+            // Tags
+            if !ctrl.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), ctrl.tags.join(", "));
+            }
+
+            // Description
+            if let Some(ref desc) = ctrl.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                ctrl.author,
+                style("Created").dim(),
+                ctrl.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                ctrl.entity_revision
+            );
         }
     }
 

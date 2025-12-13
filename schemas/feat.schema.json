@@ -18,7 +18,7 @@
     },
     "feature_type": {
       "type": "string",
-      "enum": ["hole", "shaft", "planar_surface", "slot", "thread", "counterbore", "countersink", "boss", "pocket", "edge", "other"],
+      "enum": ["internal", "external", "planar_surface", "slot", "thread", "counterbore", "countersink", "boss", "pocket", "edge", "other"],
       "description": "Feature type classification"
     },
     "title": {

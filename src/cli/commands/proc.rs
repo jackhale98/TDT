@@ -576,25 +576,102 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No process found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse process
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let proc: Process = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let proc: Process = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&proc).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", proc.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&proc.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&proc.title).yellow()
+            );
+            if let Some(ref op) = proc.operation_number {
+                println!("{}: {}", style("Operation #").bold(), op);
+            }
+            println!("{}: {}", style("Process Type").bold(), proc.process_type);
+            println!("{}: {}", style("Skill Level").bold(), proc.operator_skill);
+            println!("{}: {}", style("Status").bold(), proc.status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Setup and Cycle Time
+            if proc.setup_time_minutes.is_some() || proc.cycle_time_minutes.is_some() {
+                println!();
+                println!("{}", style("Time Estimates:").bold());
+                if let Some(setup) = proc.setup_time_minutes {
+                    println!("  Setup: {} min", setup);
+                }
+                if let Some(cycle) = proc.cycle_time_minutes {
+                    println!("  Cycle: {} min", cycle);
+                }
+            }
+
+            // Equipment
+            if !proc.equipment.is_empty() {
+                println!();
+                println!("{} ({}):", style("Equipment").bold(), proc.equipment.len());
+                for equip in &proc.equipment {
+                    println!("  • {}", equip.name);
+                }
+            }
+
+            // Parameters
+            if !proc.parameters.is_empty() {
+                println!();
+                println!("{} ({}):", style("Parameters").bold(), proc.parameters.len());
+                for param in &proc.parameters {
+                    print!("  • {}: {}", param.name, param.value);
+                    if let Some(ref units) = param.units {
+                        print!(" {}", units);
+                    }
+                    println!();
+                }
+            }
+
+            // Tags
+            if !proc.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), proc.tags.join(", "));
+            }
+
+            // Description
+            if let Some(ref desc) = proc.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                proc.author,
+                style("Created").dim(),
+                proc.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                proc.entity_revision
+            );
         }
     }
 

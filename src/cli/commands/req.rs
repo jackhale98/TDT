@@ -743,13 +743,8 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     // Find the requirement by ID prefix match
     let req = find_requirement(&project, &args.id)?;
 
-    // Output based on format
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml, // Default to YAML for show
-        f => f,
-    };
-
-    match format {
+    // Output based on format (pretty is default, yaml/json explicit)
+    match global.format {
         OutputFormat::Json => {
             let json = serde_json::to_string_pretty(&req).into_diagnostic()?;
             println!("{}", json);

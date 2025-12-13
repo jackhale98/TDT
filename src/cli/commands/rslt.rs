@@ -708,13 +708,8 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     // Find the result by ID prefix match
     let result = find_result(&project, &args.id)?;
 
-    // Output based on format
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    // Output based on format (pretty is default)
+    match global.format {
         OutputFormat::Json => {
             let json = serde_json::to_string_pretty(&result).into_diagnostic()?;
             println!("{}", json);

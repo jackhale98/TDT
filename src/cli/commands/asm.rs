@@ -665,20 +665,104 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No assembly found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse assembly
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let asm: Assembly = serde_yml::from_str(&content).into_diagnostic()?;
 
     match global.format {
-        OutputFormat::Yaml | OutputFormat::Auto => {
+        OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let asm: Assembly = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&asm).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", asm.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&asm.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&asm.title).yellow()
+            );
+            if !asm.part_number.is_empty() {
+                println!("{}: {}", style("Part Number").bold(), asm.part_number);
+            }
+            if let Some(ref rev) = asm.revision {
+                if !rev.is_empty() {
+                    println!("{}: {}", style("Revision").bold(), rev);
+                }
+            }
+            println!("{}: {}", style("Status").bold(), asm.status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // BOM
+            if !asm.bom.is_empty() {
+                println!();
+                println!("{}", style("Bill of Materials:").bold());
+                for item in &asm.bom {
+                    let cmp_display = short_ids.get_short_id(&item.component_id)
+                        .unwrap_or_else(|| item.component_id.clone());
+                    println!("  • {} x{}", style(&cmp_display).cyan(), item.quantity);
+                }
+            }
+
+            // Subassemblies
+            if !asm.subassemblies.is_empty() {
+                println!();
+                println!("{}", style("Subassemblies:").bold());
+                for sub in &asm.subassemblies {
+                    let sub_display = short_ids.get_short_id(sub)
+                        .unwrap_or_else(|| sub.clone());
+                    println!("  • {}", style(&sub_display).cyan());
+                }
+            }
+
+            // Documents
+            if !asm.documents.is_empty() && asm.documents.iter().any(|d| !d.path.is_empty()) {
+                println!();
+                println!("{}", style("Documents:").bold());
+                for doc in &asm.documents {
+                    if !doc.path.is_empty() {
+                        println!("  • [{}] {}", doc.doc_type, doc.path);
+                    }
+                }
+            }
+
+            // Tags
+            if !asm.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), asm.tags.join(", "));
+            }
+
+            // Description
+            if let Some(ref desc) = asm.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                asm.author,
+                style("Created").dim(),
+                asm.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                asm.entity_revision
+            );
         }
     }
 

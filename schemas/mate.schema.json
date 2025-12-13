@@ -52,7 +52,7 @@
           "additionalProperties": false
         }
       ],
-      "description": "First feature reference (typically hole/bore)"
+      "description": "First feature reference (typically internal feature)"
     },
     "feature_b": {
       "oneOf": [
@@ -85,7 +85,7 @@
           "additionalProperties": false
         }
       ],
-      "description": "Second feature reference (typically shaft/pin)"
+      "description": "Second feature reference (typically external feature)"
     },
     "mate_type": {
       "type": "string",

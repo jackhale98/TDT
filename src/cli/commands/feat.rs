@@ -33,8 +33,8 @@ pub enum FeatCommands {
 /// Feature type filter
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum TypeFilter {
-    Hole,
-    Shaft,
+    Internal,
+    External,
     PlanarSurface,
     Slot,
     Thread,
@@ -146,7 +146,7 @@ pub struct NewArgs {
     pub component: String,
 
     /// Feature type
-    #[arg(long, short = 't', default_value = "hole")]
+    #[arg(long, short = 't', default_value = "internal")]
     pub feature_type: String,
 
     /// Title/description
@@ -233,8 +233,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         })
         .filter(|f| match args.feature_type {
-            TypeFilter::Hole => f.feature_type == FeatureType::Hole,
-            TypeFilter::Shaft => f.feature_type == FeatureType::Shaft,
+            TypeFilter::Internal => f.feature_type == FeatureType::Internal,
+            TypeFilter::External => f.feature_type == FeatureType::External,
             TypeFilter::PlanarSurface => f.feature_type == FeatureType::PlanarSurface,
             TypeFilter::Slot => f.feature_type == FeatureType::Slot,
             TypeFilter::Thread => f.feature_type == FeatureType::Thread,
@@ -486,7 +486,7 @@ fn run_new(args: NewArgs) -> Result<()> {
         feature_type = result
             .get_string("feature_type")
             .map(String::from)
-            .unwrap_or_else(|| "hole".to_string());
+            .unwrap_or_else(|| "internal".to_string());
     } else {
         title = args.title.ok_or_else(|| miette::miette!("Title is required (use --title or -i for interactive)"))?;
         feature_type = args.feature_type;
@@ -574,20 +574,88 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No feature found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse feature
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let feat: Feature = serde_yml::from_str(&content).into_diagnostic()?;
 
     match global.format {
-        OutputFormat::Yaml | OutputFormat::Auto => {
+        OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let feat: Feature = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&feat).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", feat.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&feat.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&feat.title).yellow()
+            );
+            println!("{}: {}", style("Type").bold(), feat.feature_type);
+            let cmp_display = short_ids.get_short_id(&feat.component)
+                .unwrap_or_else(|| feat.component.clone());
+            println!("{}: {}", style("Component").bold(), style(&cmp_display).cyan());
+            println!("{}: {}", style("Status").bold(), feat.status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Dimensions
+            if !feat.dimensions.is_empty() {
+                println!();
+                println!("{}", style("Dimensions:").bold());
+                for dim in &feat.dimensions {
+                    let int_ext = if dim.internal { "internal" } else { "external" };
+                    println!("  {} ({})", style(&dim.name).cyan(), int_ext);
+                    println!("    Nominal: {} {}", dim.nominal, dim.units);
+                    println!("    Tolerance: +{} / -{}", dim.plus_tol, dim.minus_tol);
+                }
+            }
+
+            // GD&T
+            if !feat.gdt.is_empty() {
+                println!();
+                println!("{}", style("GD&T Controls:").bold());
+                for gdt in &feat.gdt {
+                    println!("  • {:?} {} {}", gdt.symbol, gdt.value, gdt.datum_refs.join("-"));
+                }
+            }
+
+            // Tags
+            if !feat.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), feat.tags.join(", "));
+            }
+
+            // Description
+            if let Some(ref desc) = feat.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                feat.author,
+                style("Created").dim(),
+                feat.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                feat.entity_revision
+            );
         }
     }
 

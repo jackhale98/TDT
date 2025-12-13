@@ -56,6 +56,10 @@ pub struct MatrixArgs {
     /// Show short ID aliases (e.g., REQ@1, TEST@2) instead of truncated full IDs
     #[arg(long, short = 'a')]
     pub aliases: bool,
+
+    /// Show Requirements Verification Matrix (requirements as source, what verifies them)
+    #[arg(long)]
+    pub rvm: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -125,11 +129,12 @@ pub fn run(cmd: TraceCommands, global: &GlobalOpts) -> Result<()> {
 fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
-    // Load short ID index if aliases requested
-    let short_ids = if args.aliases {
+    // Load all entities generically
+    let entities = load_all_entities(&project)?;
+
+    // Load short ID index if aliases requested or for RVM
+    let short_ids = if args.aliases || args.rvm {
         let mut idx = ShortIdIndex::load(&project);
-        // Ensure all entities are indexed
-        let entities = load_all_entities(&project)?;
         idx.ensure_all(entities.iter().map(|e| e.id.clone()));
         let _ = idx.save(&project);
         Some(idx)
@@ -137,8 +142,10 @@ fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
         None
     };
 
-    // Load all entities generically
-    let entities = load_all_entities(&project)?;
+    // Handle RVM (Requirements Verification Matrix) mode
+    if args.rvm {
+        return run_rvm(&entities, short_ids.as_ref(), global);
+    }
 
     // Parse source/target type filters
     let source_filter: Option<EntityPrefix> = args.source_type.as_ref().and_then(|t| {
@@ -321,6 +328,103 @@ fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
             println!("  {}", style("No links found in project").dim());
         }
     }
+
+    Ok(())
+}
+
+/// Requirements Verification Matrix - shows requirements as source with what verifies them
+fn run_rvm(entities: &[GenericEntity], short_ids: Option<&ShortIdIndex>, _global: &GlobalOpts) -> Result<()> {
+    // Build reverse lookup: target_id -> Vec<(source_id, link_type)>
+    // This shows what entities point TO each entity
+    let mut incoming_links: HashMap<String, Vec<(String, String)>> = HashMap::new();
+    for entity in entities {
+        for (link_type, target) in &entity.outgoing_links {
+            incoming_links
+                .entry(target.clone())
+                .or_default()
+                .push((entity.id.clone(), link_type.clone()));
+        }
+    }
+
+    // Get all requirements
+    let requirements: Vec<&GenericEntity> = entities.iter()
+        .filter(|e| e.prefix == EntityPrefix::Req)
+        .collect();
+
+    if requirements.is_empty() {
+        println!("{}", style("No requirements found in project").dim());
+        return Ok(());
+    }
+
+    println!("{}", style("Requirements Verification Matrix").bold());
+    println!("{}", "═".repeat(76));
+    println!(
+        "{:<12} {:<32} {:<12} {:<16}",
+        style("REQ").bold(),
+        style("TITLE").bold(),
+        style("STATUS").bold(),
+        style("VERIFIED BY").bold()
+    );
+    println!("{}", "-".repeat(76));
+
+    let mut verified_count = 0;
+    let mut total_count = 0;
+
+    for req in &requirements {
+        total_count += 1;
+
+        let req_display = if let Some(idx) = short_ids {
+            idx.get_short_id(&req.id).unwrap_or_else(|| format_id_short(&req.id))
+        } else {
+            format_id_short(&req.id)
+        };
+
+        let title = truncate(&req.title, 30);
+
+        // Find all entities that verify this requirement
+        let verifiers: Vec<String> = incoming_links.get(&req.id)
+            .map(|links| {
+                links.iter()
+                    .filter(|(_, link_type)| link_type == "verifies")
+                    .map(|(source_id, _)| {
+                        if let Some(idx) = short_ids {
+                            idx.get_short_id(source_id).unwrap_or_else(|| format_id_short(source_id))
+                        } else {
+                            format_id_short(source_id)
+                        }
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
+        let (status, verifier_str) = if verifiers.is_empty() {
+            (style("unverified").yellow(), style("-").dim().to_string())
+        } else {
+            verified_count += 1;
+            (style("verified").green(), verifiers.join(", "))
+        };
+
+        println!(
+            "{:<12} {:<32} {:<12} {}",
+            style(&req_display).cyan(),
+            title,
+            status,
+            verifier_str
+        );
+    }
+
+    println!("{}", "-".repeat(76));
+    let coverage_pct = if total_count > 0 {
+        (verified_count as f64 / total_count as f64 * 100.0) as u32
+    } else {
+        0
+    };
+    println!(
+        "Coverage: {} ({}/{})",
+        style(format!("{}%", coverage_pct)).cyan(),
+        verified_count,
+        total_count
+    );
 
     Ok(())
 }

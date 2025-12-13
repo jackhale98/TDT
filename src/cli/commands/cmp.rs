@@ -636,20 +636,129 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse component
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let cmp: Component = serde_yml::from_str(&content).into_diagnostic()?;
 
     match global.format {
-        OutputFormat::Yaml | OutputFormat::Auto => {
+        OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let cmp: Component = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&cmp).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", cmp.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&cmp.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&cmp.title).yellow()
+            );
+            if !cmp.part_number.is_empty() {
+                println!("{}: {}", style("Part Number").bold(), cmp.part_number);
+            }
+            if let Some(ref rev) = cmp.revision {
+                if !rev.is_empty() {
+                    println!("{}: {}", style("Revision").bold(), rev);
+                }
+            }
+            println!("{}: {}", style("Status").bold(), cmp.status);
+            println!(
+                "{}: {}",
+                style("Make/Buy").bold(),
+                match cmp.make_buy {
+                    crate::entities::component::MakeBuy::Make => style("MAKE").green(),
+                    crate::entities::component::MakeBuy::Buy => style("BUY").blue(),
+                }
+            );
+            println!("{}: {}", style("Category").bold(), cmp.category);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Material and physical
+            if let Some(ref mat) = cmp.material {
+                if !mat.is_empty() {
+                    println!();
+                    println!("{}", style("Physical Properties:").bold());
+                    println!("  {}: {}", style("Material").dim(), mat);
+                    if let Some(mass) = cmp.mass_kg {
+                        println!("  {}: {} kg", style("Mass").dim(), mass);
+                    }
+                    if let Some(cost) = cmp.unit_cost {
+                        println!("  {}: ${:.2}", style("Unit Cost").dim(), cost);
+                    }
+                }
+            }
+
+            // Suppliers
+            if !cmp.suppliers.is_empty() && cmp.suppliers.iter().any(|s| !s.name.is_empty()) {
+                println!();
+                println!("{}", style("Suppliers:").bold());
+                for sup in &cmp.suppliers {
+                    if !sup.name.is_empty() {
+                        print!("  • {}", sup.name);
+                        if let Some(ref pn) = sup.supplier_pn {
+                            if !pn.is_empty() {
+                                print!(" ({})", pn);
+                            }
+                        }
+                        if let Some(lead) = sup.lead_time_days {
+                            print!(" - {} day lead", lead);
+                        }
+                        if let Some(cost) = sup.unit_cost {
+                            print!(" @ ${:.2}", cost);
+                        }
+                        println!();
+                    }
+                }
+            }
+
+            // Documents
+            if !cmp.documents.is_empty() && cmp.documents.iter().any(|d| !d.path.is_empty()) {
+                println!();
+                println!("{}", style("Documents:").bold());
+                for doc in &cmp.documents {
+                    if !doc.path.is_empty() {
+                        println!("  • [{}] {}", doc.doc_type, doc.path);
+                    }
+                }
+            }
+
+            // Tags
+            if !cmp.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), cmp.tags.join(", "));
+            }
+
+            // Description
+            if let Some(ref desc) = cmp.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                cmp.author,
+                style("Created").dim(),
+                cmp.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                cmp.entity_revision
+            );
         }
     }
 

@@ -543,25 +543,99 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let path =
         found_path.ok_or_else(|| miette::miette!("No work instruction found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse work instruction
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let work: WorkInstruction = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let work: WorkInstruction = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&work).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", work.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&work.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&work.title).yellow()
+            );
+            if let Some(ref doc) = work.document_number {
+                if !doc.is_empty() {
+                    println!("{}: {}", style("Document #").bold(), doc);
+                }
+            }
+            println!("{}: {}", style("Status").bold(), work.status);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Procedure Steps
+            if !work.procedure.is_empty() {
+                println!();
+                println!("{} ({}):", style("Procedure Steps").bold(), work.procedure.len());
+                for step in &work.procedure {
+                    print!("  {}. {}", step.step, step.action);
+                    if let Some(ref caution) = step.caution {
+                        print!(" ⚠ {}", caution);
+                    }
+                    println!();
+                }
+            }
+
+            // Tools Required
+            if !work.tools_required.is_empty() {
+                println!();
+                println!("{} ({}):", style("Tools Required").bold(), work.tools_required.len());
+                for tool in &work.tools_required {
+                    println!("  • {}", tool.name);
+                }
+            }
+
+            // Materials Required
+            if !work.materials_required.is_empty() {
+                println!();
+                println!("{} ({}):", style("Materials Required").bold(), work.materials_required.len());
+                for mat in &work.materials_required {
+                    println!("  • {}", mat.name);
+                }
+            }
+
+            // Tags
+            if !work.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), work.tags.join(", "));
+            }
+
+            // Description
+            if let Some(ref desc) = work.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                work.author,
+                style("Created").dim(),
+                work.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                work.entity_revision
+            );
         }
     }
 

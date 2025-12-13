@@ -764,25 +764,97 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let path =
         found_path.ok_or_else(|| miette::miette!("No stackup found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse stackup
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let stackup: Stackup = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let stackup: Stackup = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&stackup).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", stackup.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&stackup.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&stackup.title).yellow()
+            );
+            println!("{}: {}", style("Status").bold(), stackup.status);
+            println!("{}: {}", style("Disposition").bold(), stackup.disposition);
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Target
+            println!();
+            println!("{}", style("Target:").bold());
+            println!("  {}: {} {} (+{} / -{})",
+                style(&stackup.target.name).cyan(),
+                stackup.target.nominal,
+                stackup.target.units,
+                stackup.target.upper_limit - stackup.target.nominal,
+                stackup.target.nominal - stackup.target.lower_limit
+            );
+
+            // Contributors
+            if !stackup.contributors.is_empty() {
+                println!();
+                println!("{} ({}):", style("Contributors").bold(), stackup.contributors.len());
+                for c in &stackup.contributors {
+                    let dir = if c.direction == crate::entities::stackup::Direction::Positive { "+" } else { "-" };
+                    println!("  {} {} {} ±{:.4}", dir, style(&c.name).cyan(), c.nominal, (c.plus_tol + c.minus_tol) / 2.0);
+                }
+            }
+
+            // Analysis Results
+            let results = &stackup.analysis_results;
+            if results.worst_case.is_some() || results.rss.is_some() || results.monte_carlo.is_some() {
+                println!();
+                println!("{}", style("Analysis Results:").bold());
+                if let Some(ref wc) = results.worst_case {
+                    let result_color = match wc.result {
+                        crate::entities::stackup::AnalysisResult::Pass => style("PASS").green(),
+                        crate::entities::stackup::AnalysisResult::Fail => style("FAIL").red(),
+                        crate::entities::stackup::AnalysisResult::Marginal => style("MARGINAL").yellow(),
+                    };
+                    println!("  Worst Case: {} (margin: {:.4})", result_color, wc.margin);
+                }
+                if let Some(ref rss) = results.rss {
+                    println!("  RSS: Cpk={:.2}, Yield={:.1}%", rss.cpk, rss.yield_percent);
+                }
+                if let Some(ref mc) = results.monte_carlo {
+                    println!("  Monte Carlo: {} iter, Yield={:.1}%", mc.iterations, mc.yield_percent);
+                }
+            }
+
+            // Tags
+            if !stackup.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), stackup.tags.join(", "));
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                stackup.author,
+                style("Created").dim(),
+                stackup.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                stackup.entity_revision
+            );
         }
     }
 

@@ -585,25 +585,109 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
     let path = found_path.ok_or_else(|| miette::miette!("No NCR found matching '{}'", args.id))?;
 
-    // Read and display
+    // Read and parse NCR
     let content = fs::read_to_string(&path).into_diagnostic()?;
+    let ncr: Ncr = serde_yml::from_str(&content).into_diagnostic()?;
 
-    let format = match global.format {
-        OutputFormat::Auto => OutputFormat::Yaml,
-        f => f,
-    };
-
-    match format {
+    match global.format {
         OutputFormat::Yaml => {
             print!("{}", content);
         }
         OutputFormat::Json => {
-            let ncr: Ncr = serde_yml::from_str(&content).into_diagnostic()?;
             let json = serde_json::to_string_pretty(&ncr).into_diagnostic()?;
             println!("{}", json);
         }
+        OutputFormat::Id => {
+            println!("{}", ncr.id);
+        }
         _ => {
-            print!("{}", content);
+            // Pretty format (default)
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {}",
+                style("ID").bold(),
+                style(&ncr.id.to_string()).cyan()
+            );
+            println!(
+                "{}: {}",
+                style("Title").bold(),
+                style(&ncr.title).yellow()
+            );
+            println!("{}: {}", style("NCR Type").bold(), ncr.ncr_type);
+            let severity_style = match ncr.severity {
+                crate::entities::ncr::NcrSeverity::Critical => style(ncr.severity.to_string()).red().bold(),
+                crate::entities::ncr::NcrSeverity::Major => style(ncr.severity.to_string()).red(),
+                crate::entities::ncr::NcrSeverity::Minor => style(ncr.severity.to_string()).yellow(),
+            };
+            println!("{}: {}", style("Severity").bold(), severity_style);
+            println!("{}: {}", style("NCR Status").bold(), ncr.ncr_status);
+            if let Some(ref disp) = ncr.disposition {
+                if let Some(decision) = disp.decision {
+                    println!("{}: {}", style("Disposition").bold(), decision);
+                }
+            }
+            println!("{}", style("─".repeat(60)).dim());
+
+            // Description
+            if let Some(ref desc) = ncr.description {
+                if !desc.is_empty() && !desc.starts_with('#') {
+                    println!();
+                    println!("{}", style("Description:").bold());
+                    println!("{}", desc);
+                }
+            }
+
+            // Detection info
+            if let Some(ref det) = ncr.detection {
+                println!();
+                println!("{}", style("Detection:").bold());
+                println!("  Found at: {:?}", det.found_at);
+                if let Some(ref by) = det.found_by {
+                    println!("  Found by: {}", by);
+                }
+            }
+
+            // Affected Items
+            if let Some(ref items) = ncr.affected_items {
+                println!();
+                println!("{}", style("Affected Items:").bold());
+                if let Some(ref pn) = items.part_number {
+                    println!("  Part Number: {}", pn);
+                }
+                if let Some(ref lot) = items.lot_number {
+                    println!("  Lot: {}", lot);
+                }
+                if let Some(qty) = items.quantity_affected {
+                    println!("  Quantity: {}", qty);
+                }
+            }
+
+            // Containment
+            if !ncr.containment.is_empty() {
+                println!();
+                println!("{} ({}):", style("Containment Actions").bold(), ncr.containment.len());
+                for action in &ncr.containment {
+                    println!("  • {} [{:?}]", action.action, action.status);
+                }
+            }
+
+            // Tags
+            if !ncr.tags.is_empty() {
+                println!();
+                println!("{}: {}", style("Tags").bold(), ncr.tags.join(", "));
+            }
+
+            // Footer
+            println!("{}", style("─".repeat(60)).dim());
+            println!(
+                "{}: {} | {}: {} | {}: {}",
+                style("Author").dim(),
+                ncr.author,
+                style("Created").dim(),
+                ncr.created.format("%Y-%m-%d %H:%M"),
+                style("Revision").dim(),
+                ncr.entity_revision
+            );
         }
     }
 
