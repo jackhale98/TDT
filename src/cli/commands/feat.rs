@@ -63,6 +63,7 @@ pub enum StatusFilter {
 pub enum ListColumn {
     Id,
     Title,
+    Description,
     FeatureType,
     Component,
     Status,
@@ -75,6 +76,7 @@ impl std::fmt::Display for ListColumn {
         match self {
             ListColumn::Id => write!(f, "id"),
             ListColumn::Title => write!(f, "title"),
+            ListColumn::Description => write!(f, "description"),
             ListColumn::FeatureType => write!(f, "feature-type"),
             ListColumn::Component => write!(f, "component"),
             ListColumn::Status => write!(f, "status"),
@@ -281,6 +283,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     match args.sort {
         ListColumn::Id => features.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string())),
         ListColumn::Title => features.sort_by(|a, b| a.title.cmp(&b.title)),
+        ListColumn::Description => features.sort_by(|a, b| {
+            a.description.as_deref().unwrap_or("").cmp(b.description.as_deref().unwrap_or(""))
+        }),
         ListColumn::FeatureType => features.sort_by(|a, b| {
             format!("{:?}", a.feature_type).cmp(&format!("{:?}", b.feature_type))
         }),
@@ -352,34 +357,46 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Tsv => {
             // Build header based on selected columns
             let mut header_parts = vec![format!("{:<8}", style("SHORT").bold().dim())];
+            let mut widths = vec![8usize];
             for col in &args.columns {
-                let header = match col {
-                    ListColumn::Id => format!("{:<17}", style("ID").bold()),
-                    ListColumn::Title => format!("{:<25}", style("TITLE").bold()),
-                    ListColumn::FeatureType => format!("{:<12}", style("TYPE").bold()),
-                    ListColumn::Component => format!("{:<15}", style("COMPONENT").bold()),
-                    ListColumn::Status => format!("{:<10}", style("STATUS").bold()),
-                    ListColumn::Author => format!("{:<14}", style("AUTHOR").bold()),
-                    ListColumn::Created => format!("{:<12}", style("CREATED").bold()),
+                let (header, width) = match col {
+                    ListColumn::Id => (style("ID").bold().to_string(), 17),
+                    ListColumn::Title => (style("TITLE").bold().to_string(), 20),
+                    ListColumn::Description => (style("DESCRIPTION").bold().to_string(), 30),
+                    ListColumn::FeatureType => (style("TYPE").bold().to_string(), 10),
+                    ListColumn::Component => (style("COMPONENT").bold().to_string(), 8),
+                    ListColumn::Status => (style("STATUS").bold().to_string(), 10),
+                    ListColumn::Author => (style("AUTHOR").bold().to_string(), 14),
+                    ListColumn::Created => (style("CREATED").bold().to_string(), 12),
                 };
-                header_parts.push(header);
+                header_parts.push(format!("{:<width$}", header, width = width));
+                widths.push(width);
             }
             println!("{}", header_parts.join(" "));
-            println!("{}", "-".repeat(95));
+            println!("{}", "-".repeat(widths.iter().sum::<usize>() + widths.len() - 1));
 
             for feat in &features {
                 let short_id = short_ids.get_short_id(&feat.id.to_string()).unwrap_or_default();
                 let mut row_parts = vec![format!("{:<8}", style(&short_id).cyan())];
 
-                for col in &args.columns {
+                for (i, col) in args.columns.iter().enumerate() {
+                    let width = widths[i + 1]; // +1 because first width is for SHORT column
                     let value = match col {
-                        ListColumn::Id => format!("{:<17}", format_short_id(&feat.id)),
-                        ListColumn::Title => format!("{:<25}", truncate_str(&feat.title, 23)),
-                        ListColumn::FeatureType => format!("{:<12}", feat.feature_type),
-                        ListColumn::Component => format!("{:<15}", truncate_str(&feat.component, 13)),
-                        ListColumn::Status => format!("{:<10}", feat.status()),
-                        ListColumn::Author => format!("{:<14}", truncate_str(&feat.author, 12)),
-                        ListColumn::Created => format!("{:<12}", feat.created.format("%Y-%m-%d")),
+                        ListColumn::Id => format!("{:<width$}", format_short_id(&feat.id), width = width),
+                        ListColumn::Title => format!("{:<width$}", truncate_str(&feat.title, width - 2), width = width),
+                        ListColumn::Description => {
+                            let desc = feat.description.as_deref().unwrap_or("-");
+                            format!("{:<width$}", truncate_str(desc, width - 2), width = width)
+                        }
+                        ListColumn::FeatureType => format!("{:<width$}", feat.feature_type, width = width),
+                        ListColumn::Component => {
+                            // Show component alias (CMP@N) instead of truncated full ID
+                            let cmp_alias = short_ids.get_short_id(&feat.component).unwrap_or_else(|| truncate_str(&feat.component, width - 2).to_string());
+                            format!("{:<width$}", cmp_alias, width = width)
+                        }
+                        ListColumn::Status => format!("{:<width$}", feat.status(), width = width),
+                        ListColumn::Author => format!("{:<width$}", truncate_str(&feat.author, width - 2), width = width),
+                        ListColumn::Created => format!("{:<width$}", feat.created.format("%Y-%m-%d"), width = width),
                     };
                     row_parts.push(value);
                 }
