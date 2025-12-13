@@ -10,6 +10,7 @@ use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::entities::requirement::Requirement;
+use crate::entities::test::Test;
 
 /// A generic entity with extracted link information
 #[derive(Debug, Clone)]
@@ -545,6 +546,15 @@ fn run_orphans(args: OrphansArgs, global: &GlobalOpts) -> Result<()> {
 fn run_coverage(args: CoverageArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let reqs = load_all_requirements(&project)?;
+    let tests = load_all_tests(&project);
+
+    // Build set of requirement IDs that are verified by tests (via test.links.verifies)
+    let mut verified_by_tests: HashSet<String> = HashSet::new();
+    for test in &tests {
+        for req_id in &test.links.verifies {
+            verified_by_tests.insert(req_id.to_string());
+        }
+    }
 
     // Filter by type if specified
     let filtered: Vec<&Requirement> = reqs.iter()
@@ -562,7 +572,9 @@ fn run_coverage(args: CoverageArgs, global: &GlobalOpts) -> Result<()> {
     let mut uncovered_list = Vec::new();
 
     for req in &filtered {
-        let has_verification = !req.links.verified_by.is_empty();
+        // Check both: req.links.verified_by AND tests that verify this req
+        let has_verification = !req.links.verified_by.is_empty()
+            || verified_by_tests.contains(&req.id.to_string());
         if has_verification {
             covered += 1;
         } else {
@@ -619,13 +631,13 @@ fn run_coverage(args: CoverageArgs, global: &GlobalOpts) -> Result<()> {
             );
             println!();
             println!(
-                "Coverage: {:.1}%",
+                "Coverage: {}",
                 if coverage_pct >= 100.0 {
-                    style(format!("{:.1}", coverage_pct)).green().bold()
+                    style(format!("{:.1}%", coverage_pct)).green().bold()
                 } else if coverage_pct >= 80.0 {
-                    style(format!("{:.1}", coverage_pct)).yellow()
+                    style(format!("{:.1}%", coverage_pct)).yellow()
                 } else {
-                    style(format!("{:.1}", coverage_pct)).red()
+                    style(format!("{:.1}%", coverage_pct)).red()
                 }
             );
 
@@ -681,6 +693,29 @@ fn load_all_requirements(project: &Project) -> Result<Vec<Requirement>> {
     }
 
     Ok(reqs)
+}
+
+/// Load all test protocols from the project
+fn load_all_tests(project: &Project) -> Vec<Test> {
+    let mut tests = Vec::new();
+
+    for subdir in &["verification/protocols", "validation/protocols"] {
+        let dir = project.root().join(subdir);
+        if dir.exists() {
+            for entry in walkdir::WalkDir::new(&dir)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            {
+                if let Ok(test) = crate::yaml::parse_yaml_file::<Test>(entry.path()) {
+                    tests.push(test);
+                }
+            }
+        }
+    }
+
+    tests
 }
 
 /// Load all entities from the project (generic version)

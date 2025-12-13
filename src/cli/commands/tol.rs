@@ -77,9 +77,11 @@ pub enum ResultFilter {
 pub enum ListColumn {
     Id,
     Title,
+    Result,
+    Cpk,
+    Yield,
     Disposition,
     Status,
-    Result,
     Critical,
     Author,
     Created,
@@ -90,9 +92,11 @@ impl std::fmt::Display for ListColumn {
         match self {
             ListColumn::Id => write!(f, "id"),
             ListColumn::Title => write!(f, "title"),
+            ListColumn::Result => write!(f, "result"),
+            ListColumn::Cpk => write!(f, "cpk"),
+            ListColumn::Yield => write!(f, "yield"),
             ListColumn::Disposition => write!(f, "disposition"),
             ListColumn::Status => write!(f, "status"),
-            ListColumn::Result => write!(f, "result"),
             ListColumn::Critical => write!(f, "critical"),
             ListColumn::Author => write!(f, "author"),
             ListColumn::Created => write!(f, "created"),
@@ -131,7 +135,7 @@ pub struct ListArgs {
     pub recent: Option<u32>,
 
     /// Columns to display
-    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Id, ListColumn::Title, ListColumn::Disposition, ListColumn::Status])]
+    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Id, ListColumn::Title, ListColumn::Result, ListColumn::Cpk, ListColumn::Yield, ListColumn::Status])]
     pub columns: Vec<ListColumn>,
 
     /// Sort by column
@@ -389,6 +393,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                         .unwrap_or_else(|| "zzz".to_string());
                     a_result.cmp(&b_result)
                 }
+                ListColumn::Cpk => {
+                    let a_cpk = a.analysis_results.rss.as_ref().map(|r| r.cpk).unwrap_or(-999.0);
+                    let b_cpk = b.analysis_results.rss.as_ref().map(|r| r.cpk).unwrap_or(-999.0);
+                    b_cpk.partial_cmp(&a_cpk).unwrap_or(std::cmp::Ordering::Equal) // Higher Cpk first
+                }
+                ListColumn::Yield => {
+                    let a_yield = a.analysis_results.monte_carlo.as_ref().map(|m| m.yield_percent).unwrap_or(-999.0);
+                    let b_yield = b.analysis_results.monte_carlo.as_ref().map(|m| m.yield_percent).unwrap_or(-999.0);
+                    b_yield.partial_cmp(&a_yield).unwrap_or(std::cmp::Ordering::Equal) // Higher yield first
+                }
                 ListColumn::Critical => b.target.critical.cmp(&a.target.critical), // Critical first
                 ListColumn::Author => a.author.cmp(&b.author),
                 ListColumn::Created => a.created.cmp(&b.created),
@@ -476,9 +490,11 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 let (label, width) = match col {
                     ListColumn::Id => ("SHORT", 8),
                     ListColumn::Title => ("TITLE", 22),
+                    ListColumn::Result => ("RESULT", 10),
+                    ListColumn::Cpk => ("CPK", 7),
+                    ListColumn::Yield => ("YIELD", 8),
                     ListColumn::Disposition => ("DISPOSITION", 14),
                     ListColumn::Status => ("STATUS", 10),
-                    ListColumn::Result => ("RESULT", 10),
                     ListColumn::Critical => ("CRIT", 5),
                     ListColumn::Author => ("AUTHOR", 15),
                     ListColumn::Created => ("CREATED", 12),
@@ -503,12 +519,6 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                         ListColumn::Title => {
                             format!("{:<width$}", truncate_str(&s.title, width - 2), width = width)
                         }
-                        ListColumn::Disposition => {
-                            format!("{:<width$}", format!("{}", s.disposition), width = width)
-                        }
-                        ListColumn::Status => {
-                            format!("{:<width$}", s.status(), width = width)
-                        }
                         ListColumn::Result => {
                             let wc_result = s
                                 .analysis_results
@@ -523,6 +533,42 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                                 _ => style(wc_result).dim(),
                             };
                             format!("{:<width$}", wc_styled, width = width)
+                        }
+                        ListColumn::Cpk => {
+                            let cpk = s
+                                .analysis_results
+                                .rss
+                                .as_ref()
+                                .map(|rss| rss.cpk);
+                            let cpk_str = cpk.map(|c| format!("{:.2}", c)).unwrap_or_else(|| "-".to_string());
+                            let cpk_styled = match cpk {
+                                Some(c) if c >= 1.33 => style(cpk_str).green(),
+                                Some(c) if c >= 1.0 => style(cpk_str).yellow(),
+                                Some(_) => style(cpk_str).red(),
+                                None => style(cpk_str).dim(),
+                            };
+                            format!("{:<width$}", cpk_styled, width = width)
+                        }
+                        ListColumn::Yield => {
+                            let mc_yield = s
+                                .analysis_results
+                                .monte_carlo
+                                .as_ref()
+                                .map(|mc| mc.yield_percent);
+                            let yield_str = mc_yield.map(|y| format!("{:.1}%", y)).unwrap_or_else(|| "-".to_string());
+                            let yield_styled = match mc_yield {
+                                Some(y) if y >= 99.73 => style(yield_str).green(),  // 3-sigma
+                                Some(y) if y >= 95.0 => style(yield_str).yellow(),
+                                Some(_) => style(yield_str).red(),
+                                None => style(yield_str).dim(),
+                            };
+                            format!("{:<width$}", yield_styled, width = width)
+                        }
+                        ListColumn::Disposition => {
+                            format!("{:<width$}", format!("{}", s.disposition), width = width)
+                        }
+                        ListColumn::Status => {
+                            format!("{:<width$}", s.status(), width = width)
                         }
                         ListColumn::Critical => {
                             let crit = if s.target.critical { "yes" } else { "no" };

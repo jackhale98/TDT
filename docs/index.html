@@ -1663,38 +1663,74 @@ RISK@2  Seal Issue     <span class="status-draft">medium</span>   <span class="s
         <div class="terminal-body">
           <div class="terminal-line">
             <span class="terminal-prompt">❯</span>
-            <span class="terminal-cmd">tdt req list</span>
+            <span class="terminal-cmd">tdt status</span>
           </div>
-          <div class="terminal-output table"><span class="header">@       TYPE    TITLE             STATUS</span>
-<span class="highlight">REQ@1</span>   input   Temp Range        <span class="status-approved">approved</span>
-<span class="highlight">REQ@2</span>   input   Shock Resist      <span class="status-approved">approved</span>
-<span class="highlight">REQ@3</span>   output  Thermal Spec      <span class="status-draft">draft</span>
-<span style="color: var(--text-muted)">3 requirement(s)</span></div>
+          <div class="terminal-output table"><span style="color: var(--accent)">TDT Project Status</span>
+════════════════════════════════════════════════════════
+
+<span class="header">REQUIREMENTS                 RISKS</span>
+  Total:      <span style="color: var(--info)">24</span>               Total:      <span style="color: var(--info)">8</span>
+  Verified:   <span class="status-approved">22 (92%)</span>         High:       <span style="color: #f85149">2</span>
+  Unverified: <span style="color: #d29922">2</span>                Medium:     <span style="color: #d29922">4</span>
+                               Avg RPN:    <span style="color: var(--info)">106</span>
+
+<span class="header">TESTS                        TOLERANCE ANALYSIS</span>
+  Protocols:  <span style="color: var(--info)">18</span>               Features:   <span style="color: var(--info)">12</span>
+  Executed:   <span style="color: var(--info)">16</span>               Stackups:   <span style="color: var(--info)">4</span>
+  Pass Rate:  <span class="status-approved">94%</span>                Passing:  <span class="status-approved">3</span>
+                                 Marginal: <span style="color: #d29922">1</span> ⚠
+
+════════════════════════════════════════════════════════
+Project Health: <span class="status-approved">Good</span></div>
 
           <div class="terminal-line">
             <span class="terminal-prompt">❯</span>
-            <span class="terminal-cmd">tdt risk list --by-rpn</span>
+            <span class="terminal-cmd">tdt tol analyze TOL@1</span>
           </div>
-          <div class="terminal-output table"><span class="header">@        TYPE     TITLE          RPN</span>
-<span class="highlight">RISK@1</span>   design   Thermal        <span style="color: #f85149">280</span>
-<span class="highlight">RISK@2</span>   process  Solder         <span style="color: #d29922">120</span>
-<span class="highlight">RISK@3</span>   design   EMI            <span style="color: var(--success)">48</span>
-<span style="color: var(--text-muted)">3 risk(s)</span></div>
+          <div class="terminal-output">⚙ Analyzing stackup <span class="highlight">TOL@1</span>...
+<span style="color: var(--success)">✓</span> Analysis complete
+
+   <span class="header">Worst-Case Analysis:</span>
+     Range: 0.030 to 0.076mm
+     Result: <span class="status-approved">pass</span>
+
+   <span class="header">RSS (Statistical) Analysis:</span>
+     Mean: 0.053 | ±3σ: 0.016
+     Cpk: <span style="color: var(--info)">1.45</span> | Yield: <span class="status-approved">99.99%</span>
+
+   <span class="header">Monte Carlo (10000 iterations):</span>
+     Mean: 0.053 | Std Dev: 0.005
+     Yield: <span class="status-approved">99.87%</span></div>
 
           <div class="terminal-line">
             <span class="terminal-prompt">❯</span>
-            <span class="terminal-cmd">tdt trace from REQ@1</span>
+            <span class="terminal-cmd">tdt asm bom ASM@1</span>
           </div>
-          <div class="terminal-output"><span style="color: var(--accent)">REQ@1</span> Temp Range
-<span style="color: var(--text-muted)">├──</span> satisfied_by → <span style="color: var(--info)">REQ@3</span>
-<span style="color: var(--text-muted)">├──</span> verified_by  → <span style="color: var(--info)">TEST@1</span>
-<span style="color: var(--text-muted)">└──</span> related_to   → <span style="color: var(--info)">RISK@1</span></div>
+          <div class="terminal-output table"><span class="highlight">ASM@1</span> Linear Actuator Assembly
+<span style="color: var(--text-muted)">├─</span> <span style="color: var(--info)">CMP@1</span> Housing         qty: 1   $45.00
+<span style="color: var(--text-muted)">├─</span> <span style="color: var(--info)">CMP@2</span> Actuator Shaft  qty: 1   $28.00
+<span style="color: var(--text-muted)">├─</span> <span style="color: var(--info)">CMP@3</span> Guide Bushing   qty: 2   $12.50
+<span style="color: var(--text-muted)">└─</span> <span style="color: var(--info)">CMP@4</span> Motor Assembly  qty: 1   $156.00
+────────────────────────────────────────
+   <span class="header">Total:</span> <span style="color: var(--success)">$254.00</span>  Mass: <span style="color: var(--info)">1.85 kg</span></div>
+
+          <div class="terminal-line">
+            <span class="terminal-prompt">❯</span>
+            <span class="terminal-cmd">tdt trace coverage</span>
+          </div>
+          <div class="terminal-output"><span class="header">Verification Coverage Report</span>
+════════════════════════════════════════
+Total requirements:     <span style="color: var(--info)">24</span>
+With verification:      <span class="status-approved">22</span>
+Without verification:   <span style="color: #d29922">2</span>
+
+Coverage: <span class="status-approved">92%</span> ████████████████░░</div>
 
           <div class="terminal-line">
             <span class="terminal-prompt">❯</span>
             <span class="terminal-cmd">tdt validate</span>
           </div>
-          <div class="terminal-output"><span style="color: var(--success)">✓</span> All 4 files valid</div>
+          <div class="terminal-output"><span style="color: var(--success)">✓</span> All 37 files passed validation</div>
 
           <div class="terminal-line">
             <span class="terminal-prompt">❯</span>

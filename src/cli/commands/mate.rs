@@ -61,9 +61,11 @@ pub enum StatusFilter {
 pub enum ListColumn {
     Id,
     Title,
+    MateType,
+    FitResult,
+    Match,
     FeatureA,
     FeatureB,
-    FitType,
     Status,
     Author,
     Created,
@@ -74,9 +76,11 @@ impl std::fmt::Display for ListColumn {
         match self {
             ListColumn::Id => write!(f, "id"),
             ListColumn::Title => write!(f, "title"),
+            ListColumn::MateType => write!(f, "mate-type"),
+            ListColumn::FitResult => write!(f, "fit-result"),
+            ListColumn::Match => write!(f, "match"),
             ListColumn::FeatureA => write!(f, "feature-a"),
             ListColumn::FeatureB => write!(f, "feature-b"),
-            ListColumn::FitType => write!(f, "fit-type"),
             ListColumn::Status => write!(f, "status"),
             ListColumn::Author => write!(f, "author"),
             ListColumn::Created => write!(f, "created"),
@@ -119,7 +123,7 @@ pub struct ListArgs {
     pub sort: Option<ListColumn>,
 
     /// Columns to display
-    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Id, ListColumn::Title, ListColumn::FeatureA, ListColumn::FeatureB, ListColumn::FitType, ListColumn::Status])]
+    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Id, ListColumn::Title, ListColumn::MateType, ListColumn::FitResult, ListColumn::Match, ListColumn::Status])]
     pub columns: Vec<ListColumn>,
 }
 
@@ -260,13 +264,19 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         match sort_column {
             ListColumn::Id => mates.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string())),
             ListColumn::Title => mates.sort_by(|a, b| a.title.cmp(&b.title)),
-            ListColumn::FeatureA => mates.sort_by(|a, b| a.feature_a.id.to_string().cmp(&b.feature_a.id.to_string())),
-            ListColumn::FeatureB => mates.sort_by(|a, b| a.feature_b.id.to_string().cmp(&b.feature_b.id.to_string())),
-            ListColumn::FitType => mates.sort_by(|a, b| {
+            ListColumn::MateType => mates.sort_by(|a, b| format!("{}", a.mate_type).cmp(&format!("{}", b.mate_type))),
+            ListColumn::FitResult => mates.sort_by(|a, b| {
                 let fit_a = a.fit_analysis.as_ref().map(|f| format!("{}", f.fit_result)).unwrap_or_default();
                 let fit_b = b.fit_analysis.as_ref().map(|f| format!("{}", f.fit_result)).unwrap_or_default();
                 fit_a.cmp(&fit_b)
             }),
+            ListColumn::Match => mates.sort_by(|a, b| {
+                let match_a = fit_matches_type(a);
+                let match_b = fit_matches_type(b);
+                match_a.cmp(&match_b)
+            }),
+            ListColumn::FeatureA => mates.sort_by(|a, b| a.feature_a.id.to_string().cmp(&b.feature_a.id.to_string())),
+            ListColumn::FeatureB => mates.sort_by(|a, b| a.feature_b.id.to_string().cmp(&b.feature_b.id.to_string())),
             ListColumn::Status => mates.sort_by(|a, b| a.status().cmp(b.status())),
             ListColumn::Author => mates.sort_by(|a, b| a.author.cmp(&b.author)),
             ListColumn::Created => mates.sort_by(|a, b| a.created.cmp(&b.created)),
@@ -329,30 +339,35 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
         OutputFormat::Tsv => {
-            // Build header
+            // Build header with variable widths
             let mut header_parts = Vec::new();
+            let mut widths = Vec::new();
             for col in &args.columns {
-                let header = match col {
-                    ListColumn::Id => "ID",
-                    ListColumn::Title => "TITLE",
-                    ListColumn::FeatureA => "FEATURE A",
-                    ListColumn::FeatureB => "FEATURE B",
-                    ListColumn::FitType => "FIT TYPE",
-                    ListColumn::Status => "STATUS",
-                    ListColumn::Author => "AUTHOR",
-                    ListColumn::Created => "CREATED",
+                let (header, width) = match col {
+                    ListColumn::Id => ("SHORT", 8),
+                    ListColumn::Title => ("TITLE", 20),
+                    ListColumn::MateType => ("TYPE", 16),
+                    ListColumn::FitResult => ("FIT", 12),
+                    ListColumn::Match => ("OK", 4),
+                    ListColumn::FeatureA => ("FEATURE A", 16),
+                    ListColumn::FeatureB => ("FEATURE B", 16),
+                    ListColumn::Status => ("STATUS", 10),
+                    ListColumn::Author => ("AUTHOR", 15),
+                    ListColumn::Created => ("CREATED", 12),
                 };
-                header_parts.push(format!("{:<20}", style(header).bold()));
+                header_parts.push(format!("{:<width$}", style(header).bold(), width = width));
+                widths.push(width);
             }
             println!("{}", header_parts.join(" "));
-            println!("{}", "-".repeat(20 * args.columns.len() + args.columns.len() - 1));
+            println!("{}", "-".repeat(widths.iter().sum::<usize>() + widths.len() - 1));
 
             // Build rows
             for mate in &mates {
                 let short_id = short_ids.get_short_id(&mate.id.to_string()).unwrap_or_default();
                 let mut row_parts = Vec::new();
 
-                for col in &args.columns {
+                for (i, col) in args.columns.iter().enumerate() {
+                    let width = widths[i];
                     let value = match col {
                         ListColumn::Id => {
                             let id_str = if !short_id.is_empty() {
@@ -360,39 +375,55 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                             } else {
                                 format_short_id(&mate.id)
                             };
-                            format!("{:<20}", style(&id_str).cyan())
+                            format!("{:<width$}", style(&id_str).cyan(), width = width)
                         }
                         ListColumn::Title => {
-                            format!("{:<20}", truncate_str(&mate.title, 18))
+                            format!("{:<width$}", truncate_str(&mate.title, width.saturating_sub(2)), width = width)
                         }
-                        ListColumn::FeatureA => {
-                            // Display name if cached, otherwise the short ID
-                            let display = mate.feature_a.name.clone()
-                                .or_else(|| short_ids.get_short_id(&mate.feature_a.id.to_string()))
-                                .unwrap_or_else(|| mate.feature_a.id.to_string());
-                            format!("{:<20}", truncate_str(&display, 18))
+                        ListColumn::MateType => {
+                            let type_str = format!("{}", mate.mate_type);
+                            format!("{:<width$}", truncate_str(&type_str, width.saturating_sub(2)), width = width)
                         }
-                        ListColumn::FeatureB => {
-                            // Display name if cached, otherwise the short ID
-                            let display = mate.feature_b.name.clone()
-                                .or_else(|| short_ids.get_short_id(&mate.feature_b.id.to_string()))
-                                .unwrap_or_else(|| mate.feature_b.id.to_string());
-                            format!("{:<20}", truncate_str(&display, 18))
-                        }
-                        ListColumn::FitType => {
+                        ListColumn::FitResult => {
                             let fit_result = mate.fit_analysis.as_ref()
                                 .map(|a| format!("{}", a.fit_result))
                                 .unwrap_or_else(|| "n/a".to_string());
-                            format!("{:<20}", fit_result)
+                            let styled = match fit_result.as_str() {
+                                "clearance" => style(fit_result).green(),
+                                "interference" => style(fit_result).yellow(),
+                                "transition" => style(fit_result).magenta(),
+                                _ => style(fit_result).dim(),
+                            };
+                            format!("{:<width$}", styled, width = width)
+                        }
+                        ListColumn::Match => {
+                            let styled = match fit_matches_type(mate) {
+                                FitMatch::Match => style("✓").green(),
+                                FitMatch::Mismatch => style("⚠").yellow(),
+                                FitMatch::Unknown => style("-").dim(),
+                            };
+                            format!("{:<width$}", styled, width = width)
+                        }
+                        ListColumn::FeatureA => {
+                            let display = mate.feature_a.name.clone()
+                                .or_else(|| short_ids.get_short_id(&mate.feature_a.id.to_string()))
+                                .unwrap_or_else(|| mate.feature_a.id.to_string());
+                            format!("{:<width$}", truncate_str(&display, width.saturating_sub(2)), width = width)
+                        }
+                        ListColumn::FeatureB => {
+                            let display = mate.feature_b.name.clone()
+                                .or_else(|| short_ids.get_short_id(&mate.feature_b.id.to_string()))
+                                .unwrap_or_else(|| mate.feature_b.id.to_string());
+                            format!("{:<width$}", truncate_str(&display, width.saturating_sub(2)), width = width)
                         }
                         ListColumn::Status => {
-                            format!("{:<20}", mate.status())
+                            format!("{:<width$}", mate.status(), width = width)
                         }
                         ListColumn::Author => {
-                            format!("{:<20}", truncate_str(&mate.author, 18))
+                            format!("{:<width$}", truncate_str(&mate.author, width.saturating_sub(2)), width = width)
                         }
                         ListColumn::Created => {
-                            format!("{:<20}", mate.created.format("%Y-%m-%d"))
+                            format!("{:<width$}", mate.created.format("%Y-%m-%d"), width = width)
                         }
                     };
                     row_parts.push(value);
@@ -776,6 +807,37 @@ fn calculate_fit_from_features(feat_a: &Feature, feat_b: &Feature) -> Option<Fit
         (dim_a.nominal, dim_a.plus_tol, dim_a.minus_tol),
         (dim_b.nominal, dim_b.plus_tol, dim_b.minus_tol),
     ))
+}
+
+/// Result of checking if fit_result matches mate_type
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum FitMatch {
+    Match,     // Fit result matches intended mate type
+    Mismatch,  // Fit result doesn't match intended type (warning)
+    Unknown,   // No fit analysis available
+}
+
+/// Check if a mate's calculated fit_result matches its intended mate_type
+fn fit_matches_type(mate: &Mate) -> FitMatch {
+    use crate::entities::mate::{FitResult, MateType};
+
+    let Some(ref analysis) = mate.fit_analysis else {
+        return FitMatch::Unknown;
+    };
+
+    match (mate.mate_type, analysis.fit_result) {
+        // Clearance fit should result in clearance
+        (MateType::ClearanceFit, FitResult::Clearance) => FitMatch::Match,
+        // Interference fit should result in interference
+        (MateType::InterferenceFit, FitResult::Interference) => FitMatch::Match,
+        // Transition fit can be any result
+        (MateType::TransitionFit, _) => FitMatch::Match,
+        // Planar and thread don't have fit analysis expectations
+        (MateType::PlanarContact, _) => FitMatch::Match,
+        (MateType::ThreadEngagement, _) => FitMatch::Match,
+        // Any other combination is a mismatch
+        _ => FitMatch::Mismatch,
+    }
 }
 
 // Helper functions

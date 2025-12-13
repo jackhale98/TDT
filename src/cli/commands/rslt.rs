@@ -60,6 +60,7 @@ pub enum StatusFilter {
 /// Columns to display in list output
 #[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum ListColumn {
+    Short,
     Id,
     Title,
     Test,
@@ -72,6 +73,7 @@ pub enum ListColumn {
 impl std::fmt::Display for ListColumn {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            ListColumn::Short => write!(f, "short"),
             ListColumn::Id => write!(f, "id"),
             ListColumn::Title => write!(f, "title"),
             ListColumn::Test => write!(f, "test"),
@@ -130,7 +132,7 @@ pub struct ListArgs {
     pub recent: Option<u32>,
 
     /// Columns to display (comma-separated)
-    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Id, ListColumn::Test, ListColumn::Verdict, ListColumn::Status, ListColumn::Author, ListColumn::Created])]
+    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Short, ListColumn::Test, ListColumn::Verdict, ListColumn::Status, ListColumn::Author, ListColumn::Created])]
     pub columns: Vec<ListColumn>,
 
     /// Sort by field (default: created)
@@ -351,7 +353,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
     // Sort by specified column
     match args.sort {
-        ListColumn::Id => results.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string())),
+        ListColumn::Short | ListColumn::Id => results.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string())),
         ListColumn::Title => results.sort_by(|a, b| {
             a.title.as_deref().unwrap_or("").cmp(b.title.as_deref().unwrap_or(""))
         }),
@@ -430,9 +432,10 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
             for col in &args.columns {
                 let (header, width) = match col {
+                    ListColumn::Short => ("SHORT", 8),
                     ListColumn::Id => ("ID", 17),
                     ListColumn::Title => ("TITLE", 25),
-                    ListColumn::Test => ("TEST", 17),
+                    ListColumn::Test => ("TEST", 8),
                     ListColumn::Verdict => ("VERDICT", 12),
                     ListColumn::Status => ("STATUS", 10),
                     ListColumn::Author => ("AUTHOR", 15),
@@ -458,12 +461,13 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
 
                 for col in &args.columns {
                     let part = match col {
+                        ListColumn::Short => short_ids.get_short_id(&result.id.to_string()).unwrap_or_else(|| "?".to_string()),
                         ListColumn::Id => format_short_id(&result.id),
                         ListColumn::Title => {
                             let title = result.title.as_deref().unwrap_or("Untitled");
                             truncate_str(title, 23)
                         },
-                        ListColumn::Test => format_short_id(&result.test_id),
+                        ListColumn::Test => short_ids.get_short_id(&result.test_id.to_string()).unwrap_or_else(|| format_short_id(&result.test_id)),
                         ListColumn::Verdict => {
                             match result.verdict {
                                 Verdict::Pass => style(result.verdict.to_string()).green().to_string(),

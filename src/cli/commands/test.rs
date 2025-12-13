@@ -212,6 +212,14 @@ pub struct NewArgs {
     #[arg(long, short = 'p', default_value = "medium")]
     pub priority: String,
 
+    /// Requirements this test verifies (comma-separated IDs, e.g., REQ@1,REQ@2)
+    #[arg(long, value_delimiter = ',')]
+    pub verifies: Vec<String>,
+
+    /// Risks this test mitigates (comma-separated IDs, e.g., RISK@1,RISK@2)
+    #[arg(long, value_delimiter = ',')]
+    pub mitigates: Vec<String>,
+
     /// Use interactive wizard to fill in fields
     #[arg(long, short = 'i')]
     pub interactive: bool,
@@ -751,6 +759,49 @@ fn run_new(args: NewArgs) -> Result<()> {
     let short_id = short_ids.add(id.to_string());
     let _ = short_ids.save(&project);
 
+    // Handle --verifies and --mitigates flags by updating the file with links
+    if !args.verifies.is_empty() || !args.mitigates.is_empty() {
+        // Parse the test we just created
+        let mut test: Test = crate::yaml::parse_yaml_file(&file_path)
+            .map_err(|e| miette::miette!("Failed to parse created test: {}", e))?;
+
+        // Resolve short IDs and add verifies links
+        for req_ref in &args.verifies {
+            let full_id = if req_ref.contains('@') {
+                // It's a short ID like REQ@1
+                short_ids.resolve(req_ref)
+                    .ok_or_else(|| miette::miette!("Unknown short ID: {}", req_ref))?
+            } else {
+                // It's already a full ID
+                req_ref.clone()
+            };
+            let entity_id = EntityId::parse(&full_id)
+                .map_err(|_| miette::miette!("Invalid entity ID: {}", full_id))?;
+            if !test.links.verifies.contains(&entity_id) {
+                test.links.verifies.push(entity_id);
+            }
+        }
+
+        // Resolve short IDs and add mitigates links
+        for risk_ref in &args.mitigates {
+            let full_id = if risk_ref.contains('@') {
+                short_ids.resolve(risk_ref)
+                    .ok_or_else(|| miette::miette!("Unknown short ID: {}", risk_ref))?
+            } else {
+                risk_ref.clone()
+            };
+            let entity_id = EntityId::parse(&full_id)
+                .map_err(|_| miette::miette!("Invalid entity ID: {}", full_id))?;
+            if !test.links.mitigates.contains(&entity_id) {
+                test.links.mitigates.push(entity_id);
+            }
+        }
+
+        // Write back the updated test
+        let updated_yaml = serde_yml::to_string(&test).into_diagnostic()?;
+        fs::write(&file_path, &updated_yaml).into_diagnostic()?;
+    }
+
     println!(
         "{} Created test {}",
         style("✓").green(),
@@ -763,6 +814,14 @@ fn run_new(args: NewArgs) -> Result<()> {
         style(test_level.to_string()).yellow(),
         style(test_method.to_string()).yellow()
     );
+
+    // Show linked entities if any
+    if !args.verifies.is_empty() {
+        println!("   Verifies: {}", style(args.verifies.join(", ")).cyan());
+    }
+    if !args.mitigates.is_empty() {
+        println!("   Mitigates: {}", style(args.mitigates.join(", ")).cyan());
+    }
 
     // Open in editor if requested (or by default unless --no-edit)
     if args.edit || (!args.no_edit && !args.interactive) {

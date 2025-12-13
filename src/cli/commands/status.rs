@@ -4,6 +4,8 @@ use console::style;
 use miette::Result;
 use std::collections::HashMap;
 
+use std::collections::HashSet;
+
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::entity::Status;
 use crate::core::project::Project;
@@ -13,6 +15,7 @@ use crate::entities::ncr::Ncr;
 use crate::entities::capa::Capa;
 use crate::entities::stackup::{AnalysisResult, Stackup};
 use crate::entities::mate::Mate;
+use crate::entities::test::Test;
 
 #[derive(clap::Args, Debug)]
 pub struct StatusArgs {
@@ -179,6 +182,27 @@ struct ToleranceMetrics {
 fn collect_requirement_metrics(project: &Project) -> RequirementMetrics {
     let mut metrics = RequirementMetrics::default();
 
+    // First, load all tests and build set of requirement IDs that are verified by tests
+    let mut verified_by_tests: HashSet<String> = HashSet::new();
+    for subdir in &["verification/protocols", "validation/protocols"] {
+        let dir = project.root().join(subdir);
+        if dir.exists() {
+            for entry in walkdir::WalkDir::new(&dir)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            {
+                if let Ok(test) = crate::yaml::parse_yaml_file::<Test>(entry.path()) {
+                    for req_id in &test.links.verifies {
+                        verified_by_tests.insert(req_id.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    // Now collect requirement metrics
     for subdir in &["requirements/inputs", "requirements/outputs"] {
         let dir = project.root().join(subdir);
         if !dir.exists() {
@@ -200,7 +224,10 @@ fn collect_requirement_metrics(project: &Project) -> RequirementMetrics {
                 let type_str = format!("{:?}", req.req_type).to_lowercase();
                 *metrics.by_type.entry(type_str).or_insert(0) += 1;
 
-                if !req.links.verified_by.is_empty() {
+                // Check both: req.links.verified_by AND tests that verify this req
+                let has_verification = !req.links.verified_by.is_empty()
+                    || verified_by_tests.contains(&req.id.to_string());
+                if has_verification {
                     metrics.verified += 1;
                 } else {
                     metrics.unverified += 1;
