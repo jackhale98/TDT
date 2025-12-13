@@ -196,6 +196,10 @@ pub struct ControlLinks {
     /// Requirements verified by this control
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub verifies: Vec<EntityId>,
+
+    /// CAPA that added this control (reciprocal of CAPA.controls_added)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub added_by_capa: Vec<EntityId>,
 }
 
 /// A Control entity - control plan item

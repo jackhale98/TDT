@@ -28,6 +28,12 @@ pub enum CmpCommands {
 
     /// Edit a component in your editor
     Edit(EditArgs),
+
+    /// Set the selected quote for pricing
+    SetQuote(SetQuoteArgs),
+
+    /// Clear the selected quote (revert to manual unit_cost)
+    ClearQuote(ClearQuoteArgs),
 }
 
 /// Make/buy filter
@@ -215,6 +221,21 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct SetQuoteArgs {
+    /// Component ID or short ID (CMP@N)
+    pub component: String,
+
+    /// Quote ID or short ID (QUOT@N) to use for pricing
+    pub quote: String,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ClearQuoteArgs {
+    /// Component ID or short ID (CMP@N)
+    pub component: String,
+}
+
 /// Run a component subcommand
 pub fn run(cmd: CmpCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -222,6 +243,8 @@ pub fn run(cmd: CmpCommands, global: &GlobalOpts) -> Result<()> {
         CmpCommands::New(args) => run_new(args),
         CmpCommands::Show(args) => run_show(args, global),
         CmpCommands::Edit(args) => run_edit(args),
+        CmpCommands::SetQuote(args) => run_set_quote(args),
+        CmpCommands::ClearQuote(args) => run_clear_quote(args),
     }
 }
 
@@ -808,7 +831,7 @@ fn run_edit(args: EditArgs) -> Result<()> {
 fn load_all_quotes(project: &Project) -> Vec<crate::entities::quote::Quote> {
     let mut quotes = Vec::new();
 
-    let quotes_dir = project.root().join("procurement/quotes");
+    let quotes_dir = project.root().join("bom/quotes");
     if quotes_dir.exists() {
         for entry in walkdir::WalkDir::new(&quotes_dir)
             .into_iter()
@@ -823,4 +846,187 @@ fn load_all_quotes(project: &Project) -> Vec<crate::entities::quote::Quote> {
     }
 
     quotes
+}
+
+fn run_set_quote(args: SetQuoteArgs) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Resolve component ID
+    let cmp_id = short_ids
+        .resolve(&args.component)
+        .unwrap_or_else(|| args.component.clone());
+
+    // Resolve quote ID
+    let quote_id = short_ids
+        .resolve(&args.quote)
+        .unwrap_or_else(|| args.quote.clone());
+
+    // Find and load the quote to validate it exists and is for this component
+    let quotes = load_all_quotes(&project);
+    let quote = quotes
+        .iter()
+        .find(|q| q.id.to_string() == quote_id || q.id.to_string().starts_with(&quote_id))
+        .ok_or_else(|| miette::miette!("Quote '{}' not found", args.quote))?;
+
+    // Verify quote is for this component
+    if let Some(ref quoted_cmp) = quote.component {
+        if !quoted_cmp.contains(&cmp_id) && !cmp_id.contains(quoted_cmp) {
+            return Err(miette::miette!(
+                "Quote '{}' is for component '{}', not '{}'",
+                args.quote,
+                quoted_cmp,
+                args.component
+            ));
+        }
+    } else {
+        return Err(miette::miette!(
+            "Quote '{}' is not linked to a component",
+            args.quote
+        ));
+    }
+
+    // Find and load the component
+    let cmp_dir = project.root().join("bom/components");
+    let mut found_path = None;
+    let mut component: Option<Component> = None;
+
+    if cmp_dir.exists() {
+        for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&cmp_id) || filename.starts_with(&cmp_id) {
+                    let content = fs::read_to_string(&path).into_diagnostic()?;
+                    if let Ok(cmp) = serde_yml::from_str::<Component>(&content) {
+                        component = Some(cmp);
+                        found_path = Some(path);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut component = component.ok_or_else(|| miette::miette!("Component '{}' not found", args.component))?;
+    let path = found_path.unwrap();
+
+    // Update the selected_quote field
+    let old_quote = component.selected_quote.clone();
+    component.selected_quote = Some(quote.id.to_string());
+
+    // Save the updated component
+    let yaml = serde_yml::to_string(&component).into_diagnostic()?;
+    fs::write(&path, yaml).into_diagnostic()?;
+
+    // Get display names
+    let cmp_display = short_ids
+        .get_short_id(&component.id.to_string())
+        .unwrap_or_else(|| args.component.clone());
+    let quote_display = short_ids
+        .get_short_id(&quote.id.to_string())
+        .unwrap_or_else(|| args.quote.clone());
+
+    println!(
+        "{} Set quote for {} to {}",
+        style("✓").green(),
+        style(&cmp_display).cyan(),
+        style(&quote_display).yellow()
+    );
+
+    // Show price info
+    if let Some(price) = quote.price_for_qty(1) {
+        println!("   Base price: ${:.2}", price);
+    }
+    if !quote.price_breaks.is_empty() {
+        println!("   Price breaks:");
+        for pb in &quote.price_breaks {
+            let lead = pb.lead_time_days.map(|d| format!(" ({}d)", d)).unwrap_or_default();
+            println!("     {} qty {} → ${:.2}{}", style("•").dim(), pb.min_qty, pb.unit_price, lead);
+        }
+    }
+
+    if let Some(old) = old_quote {
+        let old_display = short_ids.get_short_id(&old).unwrap_or(old);
+        println!("   (Previously: {})", style(old_display).dim());
+    }
+
+    Ok(())
+}
+
+fn run_clear_quote(args: ClearQuoteArgs) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Resolve component ID
+    let cmp_id = short_ids
+        .resolve(&args.component)
+        .unwrap_or_else(|| args.component.clone());
+
+    // Find and load the component
+    let cmp_dir = project.root().join("bom/components");
+    let mut found_path = None;
+    let mut component: Option<Component> = None;
+
+    if cmp_dir.exists() {
+        for entry in fs::read_dir(&cmp_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&cmp_id) || filename.starts_with(&cmp_id) {
+                    let content = fs::read_to_string(&path).into_diagnostic()?;
+                    if let Ok(cmp) = serde_yml::from_str::<Component>(&content) {
+                        component = Some(cmp);
+                        found_path = Some(path);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let mut component = component.ok_or_else(|| miette::miette!("Component '{}' not found", args.component))?;
+    let path = found_path.unwrap();
+
+    let cmp_display = short_ids
+        .get_short_id(&component.id.to_string())
+        .unwrap_or_else(|| args.component.clone());
+
+    if component.selected_quote.is_none() {
+        println!(
+            "{} {} has no selected quote",
+            style("•").dim(),
+            style(&cmp_display).cyan()
+        );
+        return Ok(());
+    }
+
+    let old_quote = component.selected_quote.take();
+
+    // Save the updated component
+    let yaml = serde_yml::to_string(&component).into_diagnostic()?;
+    fs::write(&path, yaml).into_diagnostic()?;
+
+    println!(
+        "{} Cleared quote for {}",
+        style("✓").green(),
+        style(&cmp_display).cyan()
+    );
+
+    if let Some(old) = old_quote {
+        let old_display = short_ids.get_short_id(&old).unwrap_or(old);
+        println!("   (Was: {})", style(old_display).dim());
+    }
+
+    if let Some(cost) = component.unit_cost {
+        println!("   Will use manual unit_cost: ${:.2}", cost);
+    } else {
+        println!("   {}", style("Note: No unit_cost set. BOM costing will show $0.00").yellow());
+    }
+
+    Ok(())
 }

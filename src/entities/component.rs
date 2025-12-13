@@ -141,9 +141,17 @@ pub struct ComponentLinks {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub replaces: Vec<EntityId>,
 
+    /// Components that replace this one (reciprocal of replaces)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub replaced_by: Vec<EntityId>,
+
     /// Interchangeable components (alternates)
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub interchangeable_with: Vec<EntityId>,
+
+    /// Risks affecting this component (reciprocal of RISK.affects)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub risks: Vec<EntityId>,
 }
 
 /// A Component entity - individual part (purchased or manufactured)
@@ -182,9 +190,14 @@ pub struct Component {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mass_kg: Option<f64>,
 
-    /// Unit cost
+    /// Unit cost (manual override - prefer using selected_quote for pricing)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit_cost: Option<f64>,
+
+    /// Selected quote ID for pricing (QUOT-...)
+    /// When set, BOM costing will use this quote's price breaks instead of unit_cost
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selected_quote: Option<String>,
 
     /// Supplier information
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -271,6 +284,7 @@ impl Component {
             material: None,
             mass_kg: None,
             unit_cost: None,
+            selected_quote: None,
             suppliers: Vec::new(),
             documents: Vec::new(),
             tags: Vec::new(),

@@ -104,70 +104,70 @@ revision: 3
 
 ```bash
 # Create with default template
-tdtreq new
+tdt req new
 
 # Create with title and type
-tdtreq new --title "Operating Temperature Range" --type input
+tdt req new --title "Operating Temperature Range" --type input
 
 # Create with interactive wizard
-tdtreq new -i
+tdt req new -i
 
 # Create output requirement with high priority
-tdtreq new --type output --priority high --title "Thermal Management Spec"
+tdt req new --type output --priority high --title "Thermal Management Spec"
 ```
 
 ### List requirements
 
 ```bash
 # List all requirements
-tdtreq list
+tdt req list
 
 # Filter by type
-tdtreq list --type input
-tdtreq list --type output
+tdt req list --type input
+tdt req list --type output
 
 # Filter by status
-tdtreq list --status draft
-tdtreq list --status approved
+tdt req list --status draft
+tdt req list --status approved
 
 # Filter by priority
-tdtreq list --priority high
-tdtreq list --priority urgent  # high + critical
+tdt req list --priority high
+tdt req list --priority urgent  # high + critical
 
 # Show orphaned requirements (no links)
-tdtreq list --orphans
+tdt req list --orphans
 
 # Show requirements needing review
-tdtreq list --needs-review
+tdt req list --needs-review
 
 # Show recently created
-tdtreq list --recent 7  # last 7 days
+tdt req list --recent 7  # last 7 days
 
 # Search in title/text
-tdtreq list --search "temperature"
+tdt req list --search "temperature"
 
 # Custom columns
-tdtreq list --columns id,title,status
+tdt req list --columns id,title,status
 ```
 
 ### Show requirement details
 
 ```bash
 # Show by ID (partial match supported)
-tdtreq show REQ-01HC2
+tdt req show REQ-01HC2
 
 # Show by title search
-tdtreq show "temperature"
+tdt req show "temperature"
 
 # Show with linked entities
-tdtreq show REQ-01HC2 --with-links
+tdt req show REQ-01HC2 --with-links
 ```
 
 ### Edit a requirement
 
 ```bash
 # Open in editor
-tdtreq edit REQ-01HC2
+tdt req edit REQ-01HC2
 ```
 
 ## Validation
@@ -176,16 +176,16 @@ Requirements are validated against a JSON Schema. Run validation with:
 
 ```bash
 # Validate all project files
-tdtvalidate
+tdt validate
 
 # Validate specific file
-tdtvalidate requirements/inputs/REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD.tdt.yaml
+tdt validate requirements/inputs/REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD.tdt.yaml
 
 # Validate only requirements
-tdtvalidate --entity-type req
+tdt validate --entity-type req
 
 # Continue after first error
-tdtvalidate --keep-going
+tdt validate --keep-going
 ```
 
 ### Validation Rules
@@ -201,45 +201,45 @@ tdtvalidate --keep-going
 ## Link Management
 
 ```bash
-# Add a link
-tdtlink add REQ-01HC2 --type satisfied_by REQ-01HC3
+# Add a link (with reciprocal)
+tdt link add REQ-01HC2 REQ-01HC3 satisfied_by -r
 
 # Remove a link
-tdtlink remove REQ-01HC2 --type satisfied_by REQ-01HC3
+tdt link remove REQ-01HC2 REQ-01HC3 satisfied_by
 
 # Show all links for a requirement
-tdtlink show REQ-01HC2
+tdt link show REQ-01HC2
 
 # Check for broken links
-tdtlink check
+tdt link check
 ```
 
 ## Traceability
 
 ```bash
 # Show traceability matrix
-tdttrace matrix
+tdt trace matrix
 
 # Export as GraphViz DOT
-tdttrace matrix --output dot > trace.dot
+tdt trace matrix -o dot > trace.dot
 
 # Export as CSV
-tdttrace matrix --output csv > trace.csv
+tdt trace matrix -o csv > trace.csv
 
 # Trace what depends on a requirement
-tdttrace from REQ-01HC2
+tdt trace from REQ-01HC2
 
 # Trace what a requirement depends on
-tdttrace to REQ-01HC2
+tdt trace to REQ-01HC2
 
 # Find orphaned requirements
-tdttrace orphans
+tdt trace orphans
 
 # Verification coverage report
-tdttrace coverage
+tdt trace coverage
 
 # Show uncovered requirements
-tdttrace coverage --uncovered
+tdt trace coverage --uncovered
 ```
 
 ## Best Practices

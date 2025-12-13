@@ -151,21 +151,10 @@ pub struct RiskLinks {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub verified_by: Vec<EntityId>,
 
-    /// Features affected by this risk
+    /// Entities affected by this risk (FEAT, CMP, ASM, PROC, etc.)
+    /// Target type is inferred from the entity ID prefix
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub affects_features: Vec<EntityId>,
-
-    /// Components affected by this risk
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub affects_components: Vec<EntityId>,
-
-    /// Assemblies affected by this risk
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub affects_assemblies: Vec<EntityId>,
-
-    /// Processes affected by this risk
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub affects_processes: Vec<EntityId>,
+    pub affects: Vec<EntityId>,
 }
 
 /// A risk entity (FMEA item)

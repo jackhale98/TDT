@@ -373,6 +373,10 @@ pub struct NcrLinks {
     /// Linked CAPA if opened
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub capa: Option<EntityId>,
+
+    /// Test result that created this NCR (reciprocal of RSLT.created_ncr)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub from_result: Option<EntityId>,
 }
 
 /// An NCR entity - Non-Conformance Report

@@ -183,6 +183,10 @@ pub struct ProcessLinks {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub risks: Vec<EntityId>,
 
+    /// CAPAs that modified this process (reciprocal of CAPA.processes_modified)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub modified_by_capa: Vec<EntityId>,
+
     /// Related entities
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub related_to: Vec<EntityId>,

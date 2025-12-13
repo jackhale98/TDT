@@ -49,6 +49,10 @@ pub struct AssemblyLinks {
     /// Parent assembly ID if this is a sub-assembly
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub parent: Option<String>,
+
+    /// Risks affecting this assembly (reciprocal of RISK.affects)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub risks: Vec<String>,
 }
 
 /// Assembly entity - collection of components and sub-assemblies

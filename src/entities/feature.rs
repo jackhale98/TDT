@@ -203,6 +203,14 @@ pub struct FeatureLinks {
     /// Stackups using this feature
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub used_in_stackups: Vec<String>,
+
+    /// Requirements allocated to this feature (reciprocal of REQ.allocated_to)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub allocated_from: Vec<EntityId>,
+
+    /// Risks affecting this feature (reciprocal of RISK.affects)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub risks: Vec<EntityId>,
 }
 
 /// Feature entity - dimensional feature on a component

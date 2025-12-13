@@ -64,6 +64,10 @@ pub struct Links {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub derives_from: Vec<EntityId>,
 
+    /// Child requirements derived from this one (reciprocal of derives_from)
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub derived_by: Vec<EntityId>,
+
     /// Features this requirement is allocated to
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub allocated_to: Vec<EntityId>,

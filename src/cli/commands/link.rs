@@ -9,7 +9,6 @@ use crate::cli::helpers::format_short_id;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
-use crate::entities::requirement::Requirement;
 
 #[derive(clap::Subcommand, Debug)]
 pub enum LinkCommands {
@@ -30,8 +29,8 @@ pub enum LinkCommands {
 #[command(after_help = "\
 LINK TYPES:
   Requirements (REQ):
-    satisfied_by    REQ that satisfies this requirement
-    verified_by     TEST or CTRL that verifies this requirement
+    satisfied_by    REQ that satisfies this requirement (symmetric)
+    verified_by     TEST or CTRL that verifies this requirement (→ verifies)
     derives_from    Parent REQ this derives from (→ derived_by)
     allocated_to    FEAT this requirement is allocated to (→ allocated_from)
 
@@ -39,30 +38,46 @@ LINK TYPES:
     verifies        REQ that this test/control verifies (→ verified_by)
 
   Risks (RISK):
-    affects_features     FEAT affected by this risk
-    affects_components   CMP affected by this risk
-    affects_assemblies   ASM affected by this risk
-    affects_processes    PROC affected by this risk
-    related_to           Any related entity
+    affects         Any entity affected by this risk: FEAT, CMP, ASM, PROC (→ risks)
+    mitigated_by    Design output that mitigates this risk
+    verified_by     TEST that verifies mitigation
+    related_to      Any related entity (symmetric)
 
   Results (RSLT):
     created_ncr     NCR created from this result (→ from_result)
 
+  NCRs (NCR):
+    from_result     RSLT that created this NCR (→ created_ncr)
+
   CAPAs (CAPA):
-    processes_modified   PROC modified by this CAPA
-    controls_added       CTRL added by this CAPA
+    processes_modified   PROC modified by this CAPA (→ modified_by_capa)
+    controls_added       CTRL added by this CAPA (→ added_by_capa)
+    ncrs                 Source NCRs for this CAPA
 
   Components (CMP):
     replaces             CMP this replaces (→ replaced_by)
-    interchangeable_with CMP that is interchangeable
+    replaced_by          CMP that replaces this (→ replaces)
+    interchangeable_with CMP that is interchangeable (symmetric)
+    risks                RISKs affecting this component (→ affects)
 
-  General:
+  Processes (PROC):
+    risks                RISKs affecting this process (→ affects)
+    modified_by_capa     CAPA that modified this process (→ processes_modified)
+
+  Features (FEAT):
+    allocated_from       REQs allocated to this feature (→ allocated_to)
+    risks                RISKs affecting this feature (→ affects)
+
+  General (all entities):
     related_to           Symmetric link to any related entity
 
+  Use -r/--reciprocal to automatically add the reverse link.
+
 EXAMPLES:
-  tdt link add REQ@1 TEST@1 verified_by -r    # Link requirement to test
-  tdt link add REQ@1 REQ@2 derives_from       # Requirement decomposition
-  tdt link add RISK@1 CMP@1 affects_components
+  tdt link add REQ@1 TEST@1 verified_by -r    # Link requirement to test (both ways)
+  tdt link add REQ@1 REQ@2 derives_from -r    # Requirement decomposition
+  tdt link add RISK@1 CMP@1 affects -r        # Risk affects component
+  tdt link add CAPA@1 PROC@1 processes_modified -r
 ")]
 pub struct AddLinkArgs {
     /// Source entity ID (or partial ID)
@@ -147,42 +162,42 @@ fn run_add(args: AddLinkArgs) -> Result<()> {
             "Link type required. Usage:\n  tdt link add REQ@1 TEST@1 verified_by\n  tdt link add REQ@1 TEST@1 -t verified_by"
         ))?;
 
-    // Find source entity
-    let (source_req, source_path) = find_requirement(&project, &args.source)?;
+    // Find source entity (works with any entity type)
+    let source = find_entity(&project, &args.source)?;
 
-    // Validate target exists (if it's a known prefix)
-    let target_id = resolve_entity_id(&project, &args.target)?;
+    // Validate target exists
+    let target = find_entity(&project, &args.target)?;
 
     // Parse link type
     let link_type = link_type_input.to_lowercase();
 
     // Read the current file content
-    let content = fs::read_to_string(&source_path).into_diagnostic()?;
+    let content = fs::read_to_string(&source.path).into_diagnostic()?;
 
     // Add the link to the appropriate array
-    let updated_content = add_link_to_yaml(&content, &link_type, &target_id.to_string())?;
+    let updated_content = add_link_to_yaml(&content, &link_type, &target.id.to_string())?;
 
     // Write back
-    fs::write(&source_path, &updated_content).into_diagnostic()?;
+    fs::write(&source.path, &updated_content).into_diagnostic()?;
 
     println!(
         "{} Added link: {} --[{}]--> {}",
         style("✓").green(),
-        format_short_id(&source_req.id),
+        format_short_id(&source.id),
         style(&link_type).cyan(),
-        format_short_id(&target_id)
+        format_short_id(&target.id)
     );
 
     if args.reciprocal {
         // Determine reciprocal link type and add it
-        match add_reciprocal_link(&project, &source_req.id, &target_id, &link_type) {
+        match add_reciprocal_link(&project, &source.id, &target.id, &link_type) {
             Ok(Some(recip_type)) => {
                 println!(
                     "{} Added reciprocal link: {} --[{}]--> {}",
                     style("✓").green(),
-                    format_short_id(&target_id),
+                    format_short_id(&target.id),
                     style(&recip_type).cyan(),
-                    format_short_id(&source_req.id)
+                    format_short_id(&source.id)
                 );
             }
             Ok(None) => {
@@ -215,30 +230,30 @@ fn run_remove(args: RemoveLinkArgs) -> Result<()> {
             "Link type required. Usage:\n  tdt link rm REQ@1 TEST@1 verified_by\n  tdt link rm REQ@1 TEST@1 -t verified_by"
         ))?;
 
-    // Find source entity
-    let (source_req, source_path) = find_requirement(&project, &args.source)?;
+    // Find source entity (works with any entity type)
+    let source = find_entity(&project, &args.source)?;
 
-    // Parse target ID
-    let target_id = resolve_entity_id(&project, &args.target)?;
+    // Find target entity
+    let target = find_entity(&project, &args.target)?;
 
     // Parse link type
     let link_type = link_type_input.to_lowercase();
 
     // Read the current file content
-    let content = fs::read_to_string(&source_path).into_diagnostic()?;
+    let content = fs::read_to_string(&source.path).into_diagnostic()?;
 
     // Remove the link from the appropriate array
-    let updated_content = remove_link_from_yaml(&content, &link_type, &target_id.to_string())?;
+    let updated_content = remove_link_from_yaml(&content, &link_type, &target.id.to_string())?;
 
     // Write back
-    fs::write(&source_path, &updated_content).into_diagnostic()?;
+    fs::write(&source.path, &updated_content).into_diagnostic()?;
 
     println!(
         "{} Removed link: {} --[{}]--> {}",
         style("✓").green(),
-        format_short_id(&source_req.id),
+        format_short_id(&source.id),
         style(&link_type).cyan(),
-        format_short_id(&target_id)
+        format_short_id(&target.id)
     );
 
     Ok(())
@@ -247,40 +262,55 @@ fn run_remove(args: RemoveLinkArgs) -> Result<()> {
 fn run_show(args: ShowLinksArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
-    // Find entity
-    let (req, _path) = find_requirement(&project, &args.id)?;
+    // Find entity (works with any type)
+    let entity = find_entity(&project, &args.id)?;
 
     println!("{}", style("─".repeat(60)).dim());
     println!(
         "Links for {} - {}",
-        style(&req.id.to_string()).cyan(),
-        style(&req.title).yellow()
+        style(&entity.id.to_string()).cyan(),
+        style(&entity.title).yellow()
     );
     println!("{}", style("─".repeat(60)).dim());
 
     if !args.incoming {
-        // Show outgoing links
+        // Show outgoing links by reading YAML directly
         println!();
         println!("{}", style("Outgoing Links:").bold());
 
-        let satisfied_by = &req.links.satisfied_by;
-        let verified_by = &req.links.verified_by;
+        let content = fs::read_to_string(&entity.path).into_diagnostic()?;
+        let value: serde_yml::Value = serde_yml::from_str(&content).into_diagnostic()?;
 
-        if satisfied_by.is_empty() && verified_by.is_empty() {
+        let mut found_links = false;
+        if let Some(links) = value.get("links") {
+            if let Some(links_map) = links.as_mapping() {
+                for (key, val) in links_map {
+                    if let Some(key_str) = key.as_str() {
+                        // Handle array links
+                        if let Some(arr) = val.as_sequence() {
+                            if !arr.is_empty() {
+                                found_links = true;
+                                println!("  {}:", style(key_str).cyan());
+                                for item in arr {
+                                    if let Some(id_str) = item.as_str() {
+                                        println!("    → {}", truncate_id(id_str));
+                                    }
+                                }
+                            }
+                        }
+                        // Handle single-value links (Option<EntityId>)
+                        else if let Some(id_str) = val.as_str() {
+                            found_links = true;
+                            println!("  {}:", style(key_str).cyan());
+                            println!("    → {}", truncate_id(id_str));
+                        }
+                    }
+                }
+            }
+        }
+
+        if !found_links {
             println!("  {}", style("(none)").dim());
-        } else {
-            if !satisfied_by.is_empty() {
-                println!("  {}:", style("satisfied_by").cyan());
-                for id in satisfied_by {
-                    println!("    → {}", format_short_id(id));
-                }
-            }
-            if !verified_by.is_empty() {
-                println!("  {}:", style("verified_by").cyan());
-                for id in verified_by {
-                    println!("    → {}", format_short_id(id));
-                }
-            }
         }
     }
 
@@ -289,12 +319,12 @@ fn run_show(args: ShowLinksArgs) -> Result<()> {
         println!();
         println!("{}", style("Incoming Links:").bold());
 
-        let incoming = find_incoming_links(&project, &req.id)?;
+        let incoming = find_incoming_links(&project, &entity.id)?;
         if incoming.is_empty() {
             println!("  {}", style("(none)").dim());
         } else {
             for (source_id, link_type) in incoming {
-                println!("  {} ← {} ({})", format_short_id(&req.id), format_short_id(&source_id), link_type);
+                println!("  {} ← {} ({})", format_short_id(&entity.id), format_short_id(&source_id), link_type);
             }
         }
     }
@@ -302,11 +332,20 @@ fn run_show(args: ShowLinksArgs) -> Result<()> {
     Ok(())
 }
 
+/// Truncate an ID string for display
+fn truncate_id(id: &str) -> String {
+    if id.len() > 16 {
+        format!("{}...", &id[..13])
+    } else {
+        id.to_string()
+    }
+}
+
 fn run_check(args: CheckLinksArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     println!(
-        "{} Checking links...\n",
+        "{} Checking links across all entity types...\n",
         style("→").blue()
     );
 
@@ -316,96 +355,81 @@ fn run_check(args: CheckLinksArgs) -> Result<()> {
     // Collect all entity IDs first
     let all_ids = collect_all_entity_ids(&project)?;
 
-    // Check all requirements in inputs directory
-    let inputs_dir = project.root().join("requirements/inputs");
-    if inputs_dir.exists() {
-        for entry in walkdir::WalkDir::new(&inputs_dir)
-            .into_iter()
-            .filter_map(|e| e.ok())
-            .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
-        {
-            if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
-                // Check satisfied_by links
-                for target_id in &req.links.satisfied_by {
-                    checked_count += 1;
-                    let target_str = target_id.to_string();
-                    if !entity_exists(&all_ids, &target_str) {
-                        broken_count += 1;
-                        println!(
-                            "{} {} → {} (satisfied_by) - {}",
-                            style("✗").red(),
-                            format_short_id(&req.id),
-                            format_short_id(target_id),
-                            style("target not found").red()
-                        );
+    // Get all directories to scan
+    let all_dirs = get_search_dirs_for_query(&project, "");
 
-                        if args.fix {
-                            println!("  {} Would remove broken link", style("fix:").yellow());
-                        }
-                    }
-                }
-
-                // Check verified_by links
-                for target_id in &req.links.verified_by {
-                    checked_count += 1;
-                    let target_str = target_id.to_string();
-                    if !entity_exists(&all_ids, &target_str) {
-                        broken_count += 1;
-                        println!(
-                            "{} {} → {} (verified_by) - {}",
-                            style("✗").red(),
-                            format_short_id(&req.id),
-                            format_short_id(target_id),
-                            style("target not found").red()
-                        );
-
-                        if args.fix {
-                            println!("  {} Would remove broken link", style("fix:").yellow());
-                        }
-                    }
-                }
-            }
+    for dir in all_dirs {
+        if !dir.exists() {
+            continue;
         }
-    }
 
-    // Also check outputs directory
-    let outputs_dir = project.root().join("requirements/outputs");
-    if outputs_dir.exists() {
-        for entry in walkdir::WalkDir::new(&outputs_dir)
+        for entry in walkdir::WalkDir::new(&dir)
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            .filter(|e| {
+                let path_str = e.path().to_string_lossy();
+                path_str.ends_with(".tdt.yaml") || path_str.ends_with(".yaml")
+            })
         {
-            if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
-                for target_id in &req.links.satisfied_by {
-                    checked_count += 1;
-                    let target_str = target_id.to_string();
-                    if !entity_exists(&all_ids, &target_str) {
-                        broken_count += 1;
-                        println!(
-                            "{} {} → {} (satisfied_by) - {}",
-                            style("✗").red(),
-                            format_short_id(&req.id),
-                            format_short_id(target_id),
-                            style("target not found").red()
-                        );
-                    }
-                }
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                if let Ok(value) = serde_yml::from_str::<serde_yml::Value>(&content) {
+                    // Get source entity ID
+                    let source_id = match value.get("id").and_then(|v| v.as_str()) {
+                        Some(id_str) => id_str.to_string(),
+                        None => continue,
+                    };
 
-                for target_id in &req.links.verified_by {
-                    checked_count += 1;
-                    let target_str = target_id.to_string();
-                    if !entity_exists(&all_ids, &target_str) {
-                        broken_count += 1;
-                        println!(
-                            "{} {} → {} (verified_by) - {}",
-                            style("✗").red(),
-                            format_short_id(&req.id),
-                            format_short_id(target_id),
-                            style("target not found").red()
-                        );
+                    // Check all links in the links section
+                    if let Some(links) = value.get("links") {
+                        if let Some(links_map) = links.as_mapping() {
+                            for (key, val) in links_map {
+                                if let Some(link_type) = key.as_str() {
+                                    // Check array links
+                                    if let Some(arr) = val.as_sequence() {
+                                        for item in arr {
+                                            if let Some(target_str) = item.as_str() {
+                                                checked_count += 1;
+                                                if !entity_exists(&all_ids, target_str) {
+                                                    broken_count += 1;
+                                                    println!(
+                                                        "{} {} → {} ({}) - {}",
+                                                        style("✗").red(),
+                                                        truncate_id(&source_id),
+                                                        truncate_id(target_str),
+                                                        link_type,
+                                                        style("target not found").red()
+                                                    );
+
+                                                    if args.fix {
+                                                        println!("  {} Would remove broken link", style("fix:").yellow());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // Check single-value links
+                                    else if let Some(target_str) = val.as_str() {
+                                        checked_count += 1;
+                                        if !entity_exists(&all_ids, target_str) {
+                                            broken_count += 1;
+                                            println!(
+                                                "{} {} → {} ({}) - {}",
+                                                style("✗").red(),
+                                                truncate_id(&source_id),
+                                                truncate_id(target_str),
+                                                link_type,
+                                                style("target not found").red()
+                                            );
+
+                                            if args.fix {
+                                                println!("  {} Would remove broken link", style("fix:").yellow());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -438,17 +462,26 @@ fn run_check(args: CheckLinksArgs) -> Result<()> {
     }
 }
 
-/// Find a requirement by ID prefix match or short ID
-fn find_requirement(project: &Project, id_query: &str) -> Result<(Requirement, std::path::PathBuf)> {
+/// Generic entity info extracted from YAML
+struct EntityInfo {
+    id: EntityId,
+    title: String,
+    path: PathBuf,
+}
+
+/// Find any entity by ID prefix match or short ID
+/// Works with all entity types (REQ, RISK, TEST, CMP, etc.)
+fn find_entity(project: &Project, id_query: &str) -> Result<EntityInfo> {
     // Resolve short ID (e.g., REQ@1) to full ID
     let short_ids = ShortIdIndex::load(project);
     let resolved_query = short_ids.resolve(id_query).unwrap_or_else(|| id_query.to_string());
 
-    let mut matches: Vec<(Requirement, std::path::PathBuf)> = Vec::new();
+    // Determine which directories to search based on prefix
+    let search_dirs = get_search_dirs_for_query(project, &resolved_query);
 
-    // Search both inputs and outputs
-    for subdir in &["inputs", "outputs"] {
-        let dir = project.root().join(format!("requirements/{}", subdir));
+    let mut matches: Vec<EntityInfo> = Vec::new();
+
+    for dir in search_dirs {
         if !dir.exists() {
             continue;
         }
@@ -457,14 +490,29 @@ fn find_requirement(project: &Project, id_query: &str) -> Result<(Requirement, s
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            .filter(|e| {
+                let path_str = e.path().to_string_lossy();
+                path_str.ends_with(".tdt.yaml") || path_str.ends_with(".yaml")
+            })
         {
-            if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
-                let id_str = req.id.to_string();
-                if id_str.starts_with(&resolved_query) || id_str == resolved_query {
-                    matches.push((req, entry.path().to_path_buf()));
-                } else if !id_query.contains('@') && req.title.to_lowercase().contains(&resolved_query.to_lowercase()) {
-                    matches.push((req, entry.path().to_path_buf()));
+            // Parse as generic YAML to extract id and title
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                if let Ok(value) = serde_yml::from_str::<serde_yml::Value>(&content) {
+                    if let Some(id_str) = value.get("id").and_then(|v| v.as_str()) {
+                        if id_str.starts_with(&resolved_query) || id_str == resolved_query {
+                            if let Ok(id) = id_str.parse::<EntityId>() {
+                                let title = value.get("title")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("(untitled)")
+                                    .to_string();
+                                matches.push(EntityInfo {
+                                    id,
+                                    title,
+                                    path: entry.path().to_path_buf(),
+                                });
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -481,11 +529,11 @@ fn find_requirement(project: &Project, id_query: &str) -> Result<(Requirement, s
                 "{} Multiple matches found:",
                 style("!").yellow()
             );
-            for (req, _path) in &matches {
+            for info in &matches {
                 println!(
                     "  {} - {}",
-                    format_short_id(&req.id),
-                    req.title
+                    format_short_id(&info.id),
+                    info.title
                 );
             }
             Err(miette::miette!(
@@ -496,20 +544,63 @@ fn find_requirement(project: &Project, id_query: &str) -> Result<(Requirement, s
     }
 }
 
-/// Resolve an entity ID from a query string (supports short IDs like REQ@1)
-fn resolve_entity_id(project: &Project, query: &str) -> Result<EntityId> {
-    // Resolve short ID (e.g., REQ@1, RISK@2) to full ID
-    let short_ids = ShortIdIndex::load(project);
-    let resolved_query = short_ids.resolve(query).unwrap_or_else(|| query.to_string());
+/// Get search directories based on query prefix
+fn get_search_dirs_for_query(project: &Project, query: &str) -> Vec<PathBuf> {
+    let root = project.root();
 
-    // Try to parse as a full ID
-    if let Ok(id) = resolved_query.parse::<EntityId>() {
-        return Ok(id);
+    // Try to determine prefix from query
+    let prefix = query.split('-').next().unwrap_or("");
+
+    match prefix.to_uppercase().as_str() {
+        "REQ" => vec![
+            root.join("requirements/inputs"),
+            root.join("requirements/outputs"),
+        ],
+        "RISK" => vec![root.join("design/risks")],
+        "TEST" => vec![
+            root.join("verification/protocols"),
+            root.join("validation/protocols"),
+        ],
+        "RSLT" => vec![
+            root.join("verification/results"),
+            root.join("validation/results"),
+        ],
+        "CMP" => vec![root.join("bom/components")],
+        "ASM" => vec![root.join("bom/assemblies")],
+        "FEAT" => vec![root.join("tolerances/features")],
+        "MATE" => vec![root.join("tolerances/mates")],
+        "TOL" => vec![root.join("tolerances/stackups")],
+        "QUOT" => vec![root.join("sourcing/quotes")],
+        "SUP" => vec![root.join("sourcing/suppliers")],
+        "PROC" => vec![root.join("manufacturing/processes")],
+        "CTRL" => vec![root.join("manufacturing/controls")],
+        "WORK" => vec![root.join("manufacturing/work_instructions")],
+        "NCR" => vec![root.join("manufacturing/ncrs")],
+        "CAPA" => vec![root.join("manufacturing/capas")],
+        "ACT" => vec![root.join("manufacturing/actions")],
+        _ => {
+            // Search all directories if prefix is unknown
+            vec![
+                root.join("requirements/inputs"),
+                root.join("requirements/outputs"),
+                root.join("design/risks"),
+                root.join("verification/protocols"),
+                root.join("validation/protocols"),
+                root.join("bom/components"),
+                root.join("bom/assemblies"),
+                root.join("tolerances/features"),
+                root.join("tolerances/mates"),
+                root.join("tolerances/stackups"),
+                root.join("sourcing/quotes"),
+                root.join("sourcing/suppliers"),
+                root.join("manufacturing/processes"),
+                root.join("manufacturing/controls"),
+                root.join("manufacturing/work_instructions"),
+                root.join("manufacturing/ncrs"),
+                root.join("manufacturing/capas"),
+            ]
+        }
     }
-
-    // Try to find by prefix
-    let (req, _) = find_requirement(project, &resolved_query)?;
-    Ok(req.id)
 }
 
 /// Add a link to a YAML file
@@ -567,13 +658,15 @@ fn remove_link_from_yaml(content: &str, link_type: &str, target_id: &str) -> Res
     serde_yml::to_string(&value).into_diagnostic()
 }
 
-/// Find all incoming links to an entity
+/// Find all incoming links to an entity (scans all entity types)
 fn find_incoming_links(project: &Project, target_id: &EntityId) -> Result<Vec<(EntityId, String)>> {
     let mut incoming = Vec::new();
+    let target_str = target_id.to_string();
 
-    // Scan all requirements
-    for subdir in &["inputs", "outputs"] {
-        let dir = project.root().join(format!("requirements/{}", subdir));
+    // Get all directories to scan
+    let all_dirs = get_search_dirs_for_query(project, "");
+
+    for dir in all_dirs {
         if !dir.exists() {
             continue;
         }
@@ -582,17 +675,51 @@ fn find_incoming_links(project: &Project, target_id: &EntityId) -> Result<Vec<(E
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            .filter(|e| {
+                let path_str = e.path().to_string_lossy();
+                path_str.ends_with(".tdt.yaml") || path_str.ends_with(".yaml")
+            })
         {
-            if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
-                for link in &req.links.satisfied_by {
-                    if link == target_id {
-                        incoming.push((req.id.clone(), "satisfied_by".to_string()));
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                if let Ok(value) = serde_yml::from_str::<serde_yml::Value>(&content) {
+                    // Get source entity ID
+                    let source_id = match value.get("id").and_then(|v| v.as_str()) {
+                        Some(id_str) => match id_str.parse::<EntityId>() {
+                            Ok(id) => id,
+                            Err(_) => continue,
+                        },
+                        None => continue,
+                    };
+
+                    // Skip if this is the target entity itself
+                    if source_id == *target_id {
+                        continue;
                     }
-                }
-                for link in &req.links.verified_by {
-                    if link == target_id {
-                        incoming.push((req.id.clone(), "verified_by".to_string()));
+
+                    // Check all link arrays
+                    if let Some(links) = value.get("links") {
+                        if let Some(links_map) = links.as_mapping() {
+                            for (key, val) in links_map {
+                                if let Some(link_type) = key.as_str() {
+                                    // Check array links
+                                    if let Some(arr) = val.as_sequence() {
+                                        for item in arr {
+                                            if let Some(link_str) = item.as_str() {
+                                                if link_str == target_str {
+                                                    incoming.push((source_id.clone(), link_type.to_string()));
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // Check single-value links
+                                    else if let Some(link_str) = val.as_str() {
+                                        if link_str == target_str {
+                                            incoming.push((source_id.clone(), link_type.to_string()));
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -602,13 +729,14 @@ fn find_incoming_links(project: &Project, target_id: &EntityId) -> Result<Vec<(E
     Ok(incoming)
 }
 
-/// Collect all entity IDs in the project
+/// Collect all entity IDs in the project (scans all entity types)
 fn collect_all_entity_ids(project: &Project) -> Result<Vec<String>> {
     let mut ids = Vec::new();
 
-    // Scan all requirements
-    for subdir in &["inputs", "outputs"] {
-        let dir = project.root().join(format!("requirements/{}", subdir));
+    // Get all directories to scan
+    let all_dirs = get_search_dirs_for_query(project, "");
+
+    for dir in all_dirs {
         if !dir.exists() {
             continue;
         }
@@ -617,10 +745,17 @@ fn collect_all_entity_ids(project: &Project) -> Result<Vec<String>> {
             .into_iter()
             .filter_map(|e| e.ok())
             .filter(|e| e.file_type().is_file())
-            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            .filter(|e| {
+                let path_str = e.path().to_string_lossy();
+                path_str.ends_with(".tdt.yaml") || path_str.ends_with(".yaml")
+            })
         {
-            if let Ok(req) = crate::yaml::parse_yaml_file::<Requirement>(entry.path()) {
-                ids.push(req.id.to_string());
+            if let Ok(content) = fs::read_to_string(entry.path()) {
+                if let Ok(value) = serde_yml::from_str::<serde_yml::Value>(&content) {
+                    if let Some(id_str) = value.get("id").and_then(|v| v.as_str()) {
+                        ids.push(id_str.to_string());
+                    }
+                }
             }
         }
     }
@@ -694,12 +829,12 @@ fn get_reciprocal_link_type(link_type: &str, target_prefix: EntityPrefix) -> Opt
         ("allocated_to", EntityPrefix::Feat) => Some("allocated_from".to_string()),
         ("allocated_from", EntityPrefix::Req) => Some("allocated_to".to_string()),
 
-        // Risk affects: affects_* -> affected_by_risk
-        ("affects_features", EntityPrefix::Feat) => Some("affected_by_risk".to_string()),
-        ("affects_components", EntityPrefix::Cmp) => Some("affected_by_risk".to_string()),
-        ("affects_assemblies", EntityPrefix::Asm) => Some("affected_by_risk".to_string()),
-        ("affects_processes", EntityPrefix::Proc) => Some("affected_by_risk".to_string()),
-        ("affected_by_risk", EntityPrefix::Risk) => None, // Risk doesn't get reverse links auto-added
+        // RISK.affects -> target.risks (simplified from affects_*)
+        ("affects", EntityPrefix::Feat) => Some("risks".to_string()),
+        ("affects", EntityPrefix::Cmp) => Some("risks".to_string()),
+        ("affects", EntityPrefix::Asm) => Some("risks".to_string()),
+        ("affects", EntityPrefix::Proc) => Some("risks".to_string()),
+        ("risks", EntityPrefix::Risk) => Some("affects".to_string()),
 
         // Result -> NCR: created_ncr <-> from_result
         ("created_ncr", EntityPrefix::Ncr) => Some("from_result".to_string()),

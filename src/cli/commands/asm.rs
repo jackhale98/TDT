@@ -215,6 +215,11 @@ pub struct CostArgs {
     /// Assembly ID or short ID (ASM@N)
     pub assembly: String,
 
+    /// Production quantity (for price break lookup)
+    /// BOM quantities are multiplied by this to determine purchase quantities
+    #[arg(long, default_value = "1")]
+    pub qty: u32,
+
     /// Show breakdown by component
     #[arg(long)]
     pub breakdown: bool,
@@ -1223,6 +1228,8 @@ fn run_remove_component(args: RemoveComponentArgs) -> Result<()> {
 }
 
 fn run_cost(args: CostArgs) -> Result<()> {
+    use crate::entities::quote::Quote;
+
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let short_ids = ShortIdIndex::load(&project);
 
@@ -1232,7 +1239,7 @@ fn run_cost(args: CostArgs) -> Result<()> {
     // Load assembly
     let assembly = find_assembly(&project, &resolved_id)?;
 
-    // Load all components and assemblies for lookup
+    // Load all components, assemblies, and quotes for lookup
     let components = load_all_components(&project);
     let component_map: std::collections::HashMap<String, &Component> = components.iter()
         .map(|c| (c.id.to_string(), c))
@@ -1243,8 +1250,27 @@ fn run_cost(args: CostArgs) -> Result<()> {
         .map(|a| (a.id.to_string(), a))
         .collect();
 
+    let quotes = load_all_quotes(&project);
+    let quote_map: std::collections::HashMap<String, &Quote> = quotes.iter()
+        .map(|q| (q.id.to_string(), q))
+        .collect();
+
+    // Build a map of component -> quotes for that component (for warning about unselected quotes)
+    let mut component_quotes: std::collections::HashMap<String, Vec<&Quote>> = std::collections::HashMap::new();
+    for quote in &quotes {
+        if let Some(ref cmp_id) = quote.component {
+            component_quotes.entry(cmp_id.clone()).or_default().push(quote);
+        }
+    }
+
+    let production_qty = args.qty;
+
+    // Track components with quotes but no selection (for user feedback)
+    let mut unselected_quote_warnings: Vec<(String, String, usize)> = Vec::new(); // (id, title, quote_count)
+
     // Calculate costs recursively
-    let mut breakdown: Vec<(String, String, u32, f64)> = Vec::new(); // (id, title, qty, cost)
+    // breakdown: (id, title, bom_qty, unit_price, line_cost, price_source)
+    let mut breakdown: Vec<(String, String, u32, f64, f64, String)> = Vec::new();
     let mut visited = std::collections::HashSet::new();
     visited.insert(assembly.id.to_string());
 
@@ -1252,25 +1278,40 @@ fn run_cost(args: CostArgs) -> Result<()> {
         bom: &[crate::entities::assembly::BomItem],
         component_map: &std::collections::HashMap<String, &Component>,
         assembly_map: &std::collections::HashMap<String, &Assembly>,
-        breakdown: &mut Vec<(String, String, u32, f64)>,
+        quote_map: &std::collections::HashMap<String, &Quote>,
+        component_quotes: &std::collections::HashMap<String, Vec<&Quote>>,
+        breakdown: &mut Vec<(String, String, u32, f64, f64, String)>,
+        unselected_warnings: &mut Vec<(String, String, usize)>,
         visited: &mut std::collections::HashSet<String>,
+        production_qty: u32,
     ) -> f64 {
         let mut total = 0.0;
         for item in bom {
             let item_id = item.component_id.to_string();
             if let Some(cmp) = component_map.get(&item_id) {
-                let line_cost = cmp.unit_cost.unwrap_or(0.0) * item.quantity as f64;
+                // Determine price: selected quote > unit_cost > 0.0
+                let purchase_qty = item.quantity * production_qty;
+                let (unit_price, price_source) = get_component_price(
+                    cmp,
+                    quote_map,
+                    component_quotes,
+                    purchase_qty,
+                    unselected_warnings,
+                );
+
+                let line_cost = unit_price * item.quantity as f64;
                 total += line_cost;
-                breakdown.push((item_id, cmp.title.clone(), item.quantity, line_cost));
+                breakdown.push((item_id, cmp.title.clone(), item.quantity, unit_price, line_cost, price_source));
             } else if let Some(sub_asm) = assembly_map.get(&item_id) {
                 if !visited.contains(&item_id) {
                     visited.insert(item_id.clone());
                     let sub_cost = calculate_bom_cost(
-                        &sub_asm.bom, component_map, assembly_map, breakdown, visited
+                        &sub_asm.bom, component_map, assembly_map, quote_map, component_quotes,
+                        breakdown, unselected_warnings, visited, production_qty
                     );
                     let line_cost = sub_cost * item.quantity as f64;
                     total += line_cost;
-                    breakdown.push((item_id.clone(), sub_asm.title.clone(), item.quantity, line_cost));
+                    breakdown.push((item_id.clone(), sub_asm.title.clone(), item.quantity, sub_cost, line_cost, "sub-asm".to_string()));
                     visited.remove(&item_id);
                 }
             }
@@ -1278,29 +1319,149 @@ fn run_cost(args: CostArgs) -> Result<()> {
         total
     }
 
+    fn get_component_price(
+        cmp: &Component,
+        quote_map: &std::collections::HashMap<String, &Quote>,
+        component_quotes: &std::collections::HashMap<String, Vec<&Quote>>,
+        purchase_qty: u32,
+        unselected_warnings: &mut Vec<(String, String, usize)>,
+    ) -> (f64, String) {
+        // Priority 1: Use selected quote if set
+        if let Some(ref quote_id) = cmp.selected_quote {
+            if let Some(quote) = quote_map.get(quote_id) {
+                if let Some(price) = quote.price_for_qty(purchase_qty) {
+                    return (price, format!("quote@{}", purchase_qty));
+                }
+            }
+        }
+
+        // Priority 2: Fall back to manual unit_cost
+        if let Some(cost) = cmp.unit_cost {
+            // Check if there are quotes available but none selected
+            if let Some(quotes) = component_quotes.get(&cmp.id.to_string()) {
+                if !quotes.is_empty() {
+                    // Only warn once per component
+                    let already_warned = unselected_warnings.iter().any(|(id, _, _)| id == &cmp.id.to_string());
+                    if !already_warned {
+                        unselected_warnings.push((cmp.id.to_string(), cmp.title.clone(), quotes.len()));
+                    }
+                }
+            }
+            return (cost, "unit_cost".to_string());
+        }
+
+        // Check if there are quotes available but none selected (and no unit_cost)
+        if let Some(quotes) = component_quotes.get(&cmp.id.to_string()) {
+            if !quotes.is_empty() {
+                let already_warned = unselected_warnings.iter().any(|(id, _, _)| id == &cmp.id.to_string());
+                if !already_warned {
+                    unselected_warnings.push((cmp.id.to_string(), cmp.title.clone(), quotes.len()));
+                }
+            }
+        }
+
+        (0.0, "none".to_string())
+    }
+
     let total_cost = calculate_bom_cost(
-        &assembly.bom, &component_map, &assembly_map, &mut breakdown, &mut visited
+        &assembly.bom, &component_map, &assembly_map, &quote_map, &component_quotes,
+        &mut breakdown, &mut unselected_quote_warnings, &mut visited, production_qty
     );
 
     // Output
     println!("{} {}", style("Assembly:").bold(), style(&assembly.title).cyan());
-    println!("{} {}\n", style("Part Number:").bold(), assembly.part_number);
+    println!("{} {}", style("Part Number:").bold(), assembly.part_number);
+    if production_qty > 1 {
+        println!("{} {}", style("Production Qty:").bold(), style(production_qty).yellow());
+    }
+    println!();
 
     if args.breakdown && !breakdown.is_empty() {
-        println!("{:<12} {:<30} {:<6} {:<12}", style("ID").bold(), style("TITLE").bold(), style("QTY").bold(), style("COST").bold());
-        println!("{}", "-".repeat(65));
-        for (id, title, qty, cost) in &breakdown {
-            let id_short = short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 10));
-            if *cost > 0.0 {
-                println!("{:<12} {:<30} {:<6} ${:.2}", id_short, truncate_str(title, 28), qty, cost);
+        println!(
+            "{:<10} {:<26} {:<5} {:<10} {:<10} {:<10}",
+            style("ID").bold(),
+            style("TITLE").bold(),
+            style("QTY").bold(),
+            style("UNIT").bold(),
+            style("LINE").bold(),
+            style("SOURCE").bold()
+        );
+        println!("{}", "-".repeat(75));
+        for (id, title, qty, unit_price, line_cost, source) in &breakdown {
+            let id_short = short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 8));
+            if *line_cost > 0.0 || *unit_price > 0.0 {
+                println!(
+                    "{:<10} {:<26} {:<5} ${:<9.2} ${:<9.2} {}",
+                    id_short,
+                    truncate_str(title, 24),
+                    qty,
+                    unit_price,
+                    line_cost,
+                    style(source).dim()
+                );
+            } else {
+                println!(
+                    "{:<10} {:<26} {:<5} {:<10} {:<10} {}",
+                    id_short,
+                    truncate_str(title, 24),
+                    qty,
+                    style("-").dim(),
+                    style("-").dim(),
+                    style(source).dim()
+                );
             }
         }
-        println!("{}", "-".repeat(65));
+        println!("{}", "-".repeat(75));
     }
 
     println!("{} ${:.2}", style("Total Cost:").green().bold(), total_cost);
 
+    // Show warnings about components with quotes but no selection
+    if !unselected_quote_warnings.is_empty() {
+        println!();
+        println!(
+            "{} Some components have quotes but no selected quote:",
+            style("Note:").yellow().bold()
+        );
+        for (id, title, count) in &unselected_quote_warnings {
+            let id_short = short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 10));
+            println!(
+                "   {} {} ({} quote{}) - use: tdt cmp set-quote {} <quote-id>",
+                style("•").dim(),
+                style(truncate_str(title, 30)).cyan(),
+                count,
+                if *count == 1 { "" } else { "s" },
+                id_short
+            );
+        }
+        println!(
+            "   {}",
+            style("Run 'tdt quote compare <component>' to see available quotes").dim()
+        );
+    }
+
     Ok(())
+}
+
+/// Load all quotes from the project
+fn load_all_quotes(project: &Project) -> Vec<crate::entities::quote::Quote> {
+    let mut quotes = Vec::new();
+
+    let quotes_dir = project.root().join("bom/quotes");
+    if quotes_dir.exists() {
+        for entry in walkdir::WalkDir::new(&quotes_dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().is_file())
+            .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+        {
+            if let Ok(quote) = crate::yaml::parse_yaml_file::<crate::entities::quote::Quote>(entry.path()) {
+                quotes.push(quote);
+            }
+        }
+    }
+
+    quotes
 }
 
 fn run_mass(args: MassArgs) -> Result<()> {
