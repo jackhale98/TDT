@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Why Plain Text? - TDT Tessera Development Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0e14;
+      --bg-secondary: #0d1117;
+      --bg-elevated: #151b23;
+      --bg-card: #1a2029;
+      --accent: #00d4aa;
+      --accent-glow: rgba(0, 212, 170, 0.15);
+      --accent-dim: #00a085;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #4a5568;
+      --border: #21262d;
+      --border-accent: #00d4aa33;
+      --grid-line: rgba(0, 212, 170, 0.04);
+      --code-bg: #0d1117;
+      --success: #3fb950;
+      --warning: #d29922;
+      --info: #58a6ff;
+      --error: #f85149;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* Blueprint Grid Background */
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .grid-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, var(--accent-glow), transparent);
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    code, pre, .mono {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* Layout */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(10, 14, 20, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--bg-primary);
+    }
+
+    .logo-text {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: -0.03em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover,
+    .nav-links a.active {
+      color: var(--accent);
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .nav-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Mobile Menu */
+    .mobile-menu-btn {
+      display: none;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .mobile-menu-btn svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+    }
+
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 64px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(10, 14, 20, 0.98);
+      backdrop-filter: blur(12px);
+      z-index: 99;
+      padding: 24px;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mobile-menu.active {
+      display: flex;
+    }
+
+    .mobile-menu a {
+      display: block;
+      padding: 16px 20px;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: 500;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .mobile-menu a:hover {
+      background: var(--bg-elevated);
+      color: var(--accent);
+    }
+
+    /* Page Header */
+    .page-header {
+      padding: 120px 0 60px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .page-header h1 {
+      font-size: clamp(32px, 5vw, 48px);
+      margin-bottom: 16px;
+    }
+
+    .page-header h1 span {
+      color: var(--accent);
+    }
+
+    .page-header .description {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 700px;
+    }
+
+    /* Main Content */
+    .content {
+      padding: 60px 0 100px;
+    }
+
+    .content-section {
+      margin-bottom: 60px;
+    }
+
+    .content-section h2 {
+      font-size: 28px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    .content-section h3 {
+      font-size: 20px;
+      margin-top: 32px;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+
+    .content-section p {
+      margin-bottom: 16px;
+      color: var(--text-secondary);
+    }
+
+    .content-section ul, .content-section ol {
+      margin-bottom: 16px;
+      padding-left: 24px;
+      color: var(--text-secondary);
+    }
+
+    .content-section li {
+      margin-bottom: 8px;
+    }
+
+    .content-section strong {
+      color: var(--text-primary);
+    }
+
+    /* Comparison Grid */
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin: 32px 0;
+    }
+
+    .comparison-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+    }
+
+    .comparison-card.highlight {
+      border-color: var(--accent);
+      background: linear-gradient(135deg, var(--bg-card), var(--accent-glow));
+    }
+
+    .comparison-card h4 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .comparison-card.highlight h4 {
+      color: var(--accent);
+    }
+
+    .comparison-card ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .comparison-card li {
+      padding: 8px 0;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .comparison-card li::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      margin-top: 8px;
+      flex-shrink: 0;
+    }
+
+    .comparison-card.highlight li::before {
+      background: var(--accent);
+    }
+
+    /* Benefits Cards */
+    .benefits-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin: 32px 0;
+    }
+
+    .benefit-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      transition: all 0.3s;
+    }
+
+    .benefit-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-2px);
+    }
+
+    .benefit-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--accent-glow);
+      border: 1px solid var(--border-accent);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      color: var(--accent);
+    }
+
+    .benefit-icon svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .benefit-card h4 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .benefit-card p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin: 0;
+    }
+
+    /* Code Blocks */
+    .code-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-lang {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .code-block pre {
+      padding: 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .code-block code {
+      color: var(--text-primary);
+    }
+
+    /* Syntax Highlighting */
+    .comment { color: var(--text-muted); }
+    .key { color: var(--accent); }
+    .string { color: var(--success); }
+    .number { color: var(--info); }
+
+    /* Info Boxes */
+    .info-box {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin: 24px 0;
+    }
+
+    .info-box.tip {
+      border-left-color: var(--success);
+    }
+
+    .info-box h4 {
+      margin-bottom: 8px;
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+
+    .info-box p {
+      margin-bottom: 0;
+      font-size: 14px;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 48px;
+      text-align: center;
+      margin-top: 60px;
+    }
+
+    .cta-section h2 {
+      font-size: 28px;
+      margin-bottom: 16px;
+      border: none;
+      padding: 0;
+    }
+
+    .cta-section p {
+      color: var(--text-secondary);
+      max-width: 500px;
+      margin: 0 auto 24px;
+    }
+
+    .cta-buttons {
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 28px;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.25s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg-primary);
+    }
+
+    .btn-primary:hover {
+      background: #00eabb;
+      box-shadow: 0 0 30px var(--accent-glow);
+      transform: translateY(-2px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+    }
+
+    /* Footer */
+    footer {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .footer-text {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 32px;
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--accent);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .nav-links {
+        display: none;
+      }
+
+      .mobile-menu-btn {
+        display: block;
+      }
+
+      .page-header {
+        padding: 100px 0 40px;
+      }
+
+      .page-header h1 {
+        font-size: 28px;
+      }
+
+      .comparison-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .benefits-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .cta-section {
+        padding: 32px 24px;
+      }
+
+      .cta-buttons {
+        flex-direction: column;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 16px 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">T</div>
+        <span class="logo-text">TDT</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#workflows">Workflows</a>
+        <a href="index.html#entities">Entities</a>
+        <a href="index.html#install">Install</a>
+        <a href="tutorial.html">Tutorial</a>
+        <a href="https://github.com/jackhale98/TDT" class="nav-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+      <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html#features" onclick="closeMobileMenu()">Features</a>
+    <a href="index.html#workflows" onclick="closeMobileMenu()">Workflows</a>
+    <a href="index.html#entities" onclick="closeMobileMenu()">Entities</a>
+    <a href="index.html#install" onclick="closeMobileMenu()">Install</a>
+    <a href="tutorial.html" onclick="closeMobileMenu()">Tutorial</a>
+    <a href="https://github.com/jackhale98/TDT" onclick="closeMobileMenu()">GitHub</a>
+  </div>
+
+  <!-- Page Header -->
+  <header class="page-header">
+    <div class="container">
+      <h1>Why <span>Plain Text</span>?</h1>
+      <p class="description">TDT stores all your engineering data as human-readable YAML files. Here's why that matters for engineering teams.</p>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="content">
+    <div class="container">
+
+      <!-- The Problem Section -->
+      <section class="content-section">
+        <h2>The Problem with Traditional Tools</h2>
+        <p>Most engineering data management tools lock your information in proprietary databases or cloud services. This creates real problems for engineering teams:</p>
+
+        <div class="comparison-grid">
+          <div class="comparison-card">
+            <h4>Traditional PLM/QMS Tools</h4>
+            <ul>
+              <li>Data locked in proprietary formats you can't read</li>
+              <li>Expensive annual licenses that grow with your team</li>
+              <li>Vendor controls your data migration path</li>
+              <li>Complex administration requires IT support</li>
+              <li>Changes tracked in opaque audit logs</li>
+              <li>Difficult to integrate with other systems</li>
+              <li>Offline access limited or unavailable</li>
+            </ul>
+          </div>
+          <div class="comparison-card highlight">
+            <h4>TDT Plain Text Approach</h4>
+            <ul>
+              <li>Human-readable YAML files you can open anywhere</li>
+              <li>Free and open source, no per-seat licensing</li>
+              <li>You own your data, export anytime</li>
+              <li>Simple file structure, no admin needed</li>
+              <li>Full git history shows exactly what changed</li>
+              <li>Easy to script, automate, and integrate</li>
+              <li>Works offline, sync when ready</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- What is YAML Section -->
+      <section class="content-section">
+        <h2>What is YAML?</h2>
+        <p>YAML (YAML Ain't Markup Language) is a human-friendly data format. Unlike databases or binary files, you can read and edit YAML files with any text editor. Here's what a requirement looks like in TDT:</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">requirement.yaml</span>
+          </div>
+          <pre><code><span class="key">id:</span> <span class="string">"01JGGR5XN6JQFT8BHK2VCN5M9A"</span>
+<span class="key">short:</span> <span class="number">1</span>
+<span class="key">type:</span> <span class="string">"input"</span>
+<span class="key">title:</span> <span class="string">"Operating Temperature Range"</span>
+<span class="key">text:</span> <span class="string">"The device shall operate continuously in ambient</span>
+<span class="string">       temperatures from -40C to +85C without degradation."</span>
+<span class="key">priority:</span> <span class="string">"critical"</span>
+<span class="key">status:</span> <span class="string">"approved"</span>
+<span class="key">author:</span> <span class="string">"Sarah Chen"</span>
+<span class="key">created:</span> <span class="string">"2024-01-15T09:30:00Z"</span>
+<span class="key">modified:</span> <span class="string">"2024-01-20T14:22:00Z"</span></code></pre>
+        </div>
+
+        <p>No special software needed to read it. No database queries. No API calls. Just open the file and see exactly what's there.</p>
+      </section>
+
+      <!-- Benefits Section -->
+      <section class="content-section">
+        <h2>Benefits for Engineering Teams</h2>
+
+        <div class="benefits-grid">
+          <div class="benefit-card">
+            <div class="benefit-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M6 21V9a9 9 0 0 0 9 9"/></svg>
+            </div>
+            <h4>True Version Control</h4>
+            <p>Use git to track every change. See exactly what changed, when, and who made the change. Compare any two versions line by line.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <h4>Team Collaboration</h4>
+            <p>Multiple engineers can work on different parts simultaneously. Merge changes with standard git workflows your team already knows.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            </div>
+            <h4>Works Offline</h4>
+            <p>All your data is local files. Work on a plane, at a customer site, or anywhere without internet. Sync when you're back online.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+            </div>
+            <h4>No Lock-In</h4>
+            <p>Your data is yours. Standard YAML means you can write scripts to export, transform, or migrate to any system. No vendor holds your data hostage.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            </div>
+            <h4>Easy Automation</h4>
+            <p>Write simple scripts to generate reports, check for issues, or integrate with other tools. Standard file formats mean standard tools work.</p>
+          </div>
+
+          <div class="benefit-card">
+            <div class="benefit-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <h4>Audit Ready</h4>
+            <p>Git provides a complete, tamper-evident history. Show auditors exactly what changed, when, and who approved it. Better than any database audit log.</p>
+          </div>
+        </div>
+      </section>
+
+      <!-- How Git Helps Section -->
+      <section class="content-section">
+        <h2>How Git Changes Everything</h2>
+        <p>Git is the industry-standard version control system used by software teams worldwide. TDT brings these same powerful capabilities to engineering data:</p>
+
+        <h3>See Exactly What Changed</h3>
+        <p>When you modify a requirement, git shows you precisely what was different:</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">git diff</span>
+          </div>
+          <pre><code><span class="comment">$ git diff requirements/REQ-001.yaml</span>
+
+ <span class="key">title:</span> <span class="string">"Operating Temperature Range"</span>
+-<span class="key">text:</span> <span class="string">"The device shall operate from -20C to +70C"</span>
++<span class="key">text:</span> <span class="string">"The device shall operate from -40C to +85C"</span>
+ <span class="key">priority:</span> <span class="string">"critical"</span>
+-<span class="key">status:</span> <span class="string">"draft"</span>
++<span class="key">status:</span> <span class="string">"approved"</span></code></pre>
+        </div>
+
+        <h3>Track Who Changed What</h3>
+        <p>Git blame shows you the history of every line in a file:</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">git blame</span>
+          </div>
+          <pre><code><span class="comment">$ tdt blame REQ@1</span>
+
+<span class="string">a3f7c21</span> (Sarah Chen  2024-01-20) title: "Operating Temperature Range"
+<span class="string">8b2e4d9</span> (Jack Smith  2024-01-18) text: "The device shall operate..."
+<span class="string">a3f7c21</span> (Sarah Chen  2024-01-20) priority: "critical"
+<span class="string">a3f7c21</span> (Sarah Chen  2024-01-20) status: "approved"</code></pre>
+        </div>
+
+        <h3>Create Release Baselines</h3>
+        <p>Tag your data at any point to create immutable baselines for design reviews, regulatory submissions, or releases:</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">terminal</span>
+          </div>
+          <pre><code><span class="comment">$ tdt baseline create v1.0-design-freeze</span>
+<span class="string">Validation passed (42 files)</span>
+<span class="string">Created baseline v1.0-design-freeze</span>
+
+<span class="comment">$ tdt baseline compare v1.0-design-freeze v2.0-release</span>
+<span class="string">Changed: REQ@3, REQ@7, RISK@2</span>
+<span class="string">Added:   REQ@12, TEST@8</span>
+<span class="string">Removed: (none)</span></code></pre>
+        </div>
+      </section>
+
+      <!-- For Non-Programmers Section -->
+      <section class="content-section">
+        <h2>You Don't Need to Be a Programmer</h2>
+        <p>TDT is a command-line tool, but that doesn't mean it's only for software developers. The commands are simple and consistent:</p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-lang">common commands</span>
+          </div>
+          <pre><code><span class="comment"># Create a new requirement</span>
+<span class="key">$</span> tdt req new --title "Motor Torque" --type input
+
+<span class="comment"># List all risks sorted by RPN</span>
+<span class="key">$</span> tdt risk list --by-rpn
+
+<span class="comment"># Run tolerance analysis</span>
+<span class="key">$</span> tdt tol analyze TOL@1
+
+<span class="comment"># Check verification coverage</span>
+<span class="key">$</span> tdt trace coverage
+
+<span class="comment"># Validate all files</span>
+<span class="key">$</span> tdt validate</code></pre>
+        </div>
+
+        <div class="info-box tip">
+          <h4>Getting Started is Easy</h4>
+          <p>If you can use a command prompt to navigate folders, you can use TDT. Our <a href="tutorial.html" style="color: var(--accent);">step-by-step tutorial</a> walks you through everything from installation to creating your first design review package.</p>
+        </div>
+      </section>
+
+      <!-- When to Use Section -->
+      <section class="content-section">
+        <h2>Is TDT Right for Your Team?</h2>
+
+        <h3>TDT is ideal for:</h3>
+        <ul>
+          <li><strong>Small to medium engineering teams</strong> (2-50 people) who want powerful tools without enterprise complexity</li>
+          <li><strong>Hardware startups</strong> who need professional documentation without expensive PLM licenses</li>
+          <li><strong>Consulting engineers</strong> who work across multiple clients and projects</li>
+          <li><strong>R&D teams</strong> who iterate quickly and need flexible, lightweight tools</li>
+          <li><strong>Regulated industries</strong> (medical devices, aerospace) who need robust change tracking for compliance</li>
+        </ul>
+
+        <h3>Consider traditional tools if you need:</h3>
+        <ul>
+          <li>CAD file management and PDM integration (TDT manages metadata, not binary files)</li>
+          <li>Complex approval workflows with role-based permissions</li>
+          <li>Enterprise-wide deployment across hundreds of users</li>
+          <li>Real-time collaboration features (comments, notifications)</li>
+        </ul>
+      </section>
+
+      <!-- CTA Section -->
+      <div class="cta-section">
+        <h2>Ready to Try Plain Text Engineering?</h2>
+        <p>Get started with TDT in minutes. No signup required, no license keys, just install and go.</p>
+        <div class="cta-buttons">
+          <a href="index.html#install" class="btn btn-primary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Install TDT
+          </a>
+          <a href="tutorial.html" class="btn btn-secondary">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+            Read the Tutorial
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <div class="logo-icon">T</div>
+          <span class="footer-text">TDT -- Tessera Development Toolkit</span>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/jackhale98/TDT">GitHub</a>
+          <a href="https://github.com/jackhale98/TDT/blob/main/README.md">Documentation</a>
+          <a href="https://github.com/jackhale98/TDT/issues">Issues</a>
+          <a href="https://github.com/jackhale98/TDT/blob/main/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const btn = document.querySelector('.mobile-menu-btn');
+      menu.classList.toggle('active');
+
+      if (menu.classList.contains('active')) {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>`;
+      } else {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>`;
+      }
+    }
+
+    function closeMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const btn = document.querySelector('.mobile-menu-btn');
+      menu.classList.remove('active');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>`;
+    }
+  </script>
+
+</body>
+</html>
