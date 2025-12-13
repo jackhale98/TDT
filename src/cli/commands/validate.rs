@@ -757,3 +757,328 @@ fn check_stackup_values(
 
     Ok(issues)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn create_test_project() -> (TempDir, Project) {
+        let tmp = TempDir::new().unwrap();
+
+        // Initialize as a TDT project
+        let config_dir = tmp.path().join(".tdt");
+        fs::create_dir_all(&config_dir).unwrap();
+        fs::write(config_dir.join("config.yaml"), "version: 1\n").unwrap();
+
+        // Create directories
+        fs::create_dir_all(tmp.path().join("requirements/inputs")).unwrap();
+        fs::create_dir_all(tmp.path().join("risks")).unwrap();
+        fs::create_dir_all(tmp.path().join("tolerances/features")).unwrap();
+        fs::create_dir_all(tmp.path().join("tolerances/mates")).unwrap();
+        fs::create_dir_all(tmp.path().join("tolerances/stackups")).unwrap();
+        fs::create_dir_all(tmp.path().join("bom/components")).unwrap();
+
+        let project = Project::discover_from(tmp.path()).unwrap();
+        (tmp, project)
+    }
+
+    fn write_entity(project: &Project, rel_path: &str, content: &str) {
+        let full_path = project.root().join(rel_path);
+        if let Some(parent) = full_path.parent() {
+            fs::create_dir_all(parent).unwrap();
+        }
+        fs::write(full_path, content.trim_start()).unwrap();
+    }
+
+    // =========================================================================
+    // Risk Calculation Tests
+    // =========================================================================
+
+    #[test]
+    fn test_check_risk_rpn_correct() {
+        // RPN = 8 * 5 * 4 = 160, risk_level should be "high" (151-400)
+        let content = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+title: Test Risk
+description: A test risk
+type: design
+author: Test
+created: 2024-01-15T10:30:00Z
+severity: 8
+occurrence: 5
+detection: 4
+rpn: 160
+risk_level: high
+"#;
+
+        let mut stats = ValidationStats::default();
+        let path = PathBuf::from("/tmp/test.yaml");
+        let issues = check_risk_calculations(content.trim(), &path, false, &mut stats).unwrap();
+
+        assert!(issues.is_empty(), "No issues expected for correct RPN: {:?}", issues);
+    }
+
+    #[test]
+    fn test_check_risk_rpn_mismatch() {
+        // RPN should be 8 * 5 * 4 = 160, but stored as 100
+        let content = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+title: Test Risk
+description: A test risk
+type: design
+author: Test
+created: 2024-01-15T10:30:00Z
+severity: 8
+occurrence: 5
+detection: 4
+rpn: 100
+risk_level: medium
+"#;
+
+        let mut stats = ValidationStats::default();
+        let path = PathBuf::from("/tmp/test.yaml");
+        let issues = check_risk_calculations(content.trim(), &path, false, &mut stats).unwrap();
+
+        assert!(
+            issues.iter().any(|i| i.contains("RPN mismatch")),
+            "Expected RPN mismatch issue: {:?}",
+            issues
+        );
+    }
+
+    #[test]
+    fn test_check_risk_level_mismatch() {
+        // RPN 160 = high (151-400), but stored as "low"
+        let content = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+title: Test Risk
+description: A test risk
+type: design
+author: Test
+created: 2024-01-15T10:30:00Z
+severity: 8
+occurrence: 5
+detection: 4
+rpn: 160
+risk_level: low
+"#;
+
+        let mut stats = ValidationStats::default();
+        let path = PathBuf::from("/tmp/test.yaml");
+        let issues = check_risk_calculations(content.trim(), &path, false, &mut stats).unwrap();
+
+        assert!(
+            issues.iter().any(|i| i.contains("risk_level mismatch")),
+            "Expected risk_level mismatch: {:?}",
+            issues
+        );
+    }
+
+    #[test]
+    fn test_check_risk_no_rpn() {
+        let content = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+title: Test Risk
+description: A test risk
+type: design
+author: Test
+created: 2024-01-15T10:30:00Z
+"#;
+
+        let mut stats = ValidationStats::default();
+        let path = PathBuf::from("/tmp/test.yaml");
+        let issues = check_risk_calculations(content.trim(), &path, false, &mut stats).unwrap();
+
+        assert!(issues.is_empty(), "No issues when RPN fields not set");
+    }
+
+    // =========================================================================
+    // Feature Loader Tests
+    // =========================================================================
+
+    #[test]
+    fn test_feature_loader_empty_project() {
+        let (_tmp, project) = create_test_project();
+        let loader = FeatureLoader::load(&project).unwrap();
+
+        assert!(loader.get_feature("FEAT-NONEXISTENT").is_none());
+    }
+
+    #[test]
+    fn test_feature_loader_finds_features() {
+        let (_tmp, project) = create_test_project();
+
+        write_entity(
+            &project,
+            "tolerances/features/FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTD.tdt.yaml",
+            r#"
+id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTD
+title: Bore Diameter
+feature_type: internal
+dimension:
+  nominal: 10.0
+  plus_tol: 0.05
+  minus_tol: 0.05
+  unit: mm
+component: CMP-01HC2JB7SMQX7RS1Y0GFKBHPT1
+author: Test
+created: 2024-01-15T10:30:00Z
+"#,
+        );
+
+        let loader = FeatureLoader::load(&project).unwrap();
+
+        let feat = loader.get_feature("FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTD");
+        assert!(feat.is_some(), "Should find the feature");
+        assert_eq!(feat.unwrap().title, "Bore Diameter");
+    }
+
+    #[test]
+    fn test_feature_loader_multiple_features() {
+        let (_tmp, project) = create_test_project();
+
+        // Generate 5 unique ULID-like IDs
+        let ids = [
+            "01HC2JB7SMQX7RS1Y0GFKBHPT0",
+            "01HC2JB7SMQX7RS1Y0GFKBHPT1",
+            "01HC2JB7SMQX7RS1Y0GFKBHPT2",
+            "01HC2JB7SMQX7RS1Y0GFKBHPT3",
+            "01HC2JB7SMQX7RS1Y0GFKBHPT4",
+        ];
+
+        for (i, ulid) in ids.iter().enumerate() {
+            write_entity(
+                &project,
+                &format!("tolerances/features/FEAT-{}.tdt.yaml", ulid),
+                &format!(
+                    r#"
+id: FEAT-{}
+title: Feature {}
+feature_type: internal
+dimension:
+  nominal: 10.0
+  plus_tol: 0.05
+  minus_tol: 0.05
+  unit: mm
+component: CMP-01HC2JB7SMQX7RS1Y0GFKBHPT0
+author: Test
+created: 2024-01-15T10:30:00Z
+"#,
+                    ulid, i
+                ),
+            );
+        }
+
+        let loader = FeatureLoader::load(&project).unwrap();
+
+        for ulid in &ids {
+            let feat = loader.get_feature(&format!("FEAT-{}", ulid));
+            assert!(feat.is_some(), "Should find feature with ULID {}", ulid);
+        }
+    }
+
+    // =========================================================================
+    // Schema Validation Tests
+    // =========================================================================
+
+    #[test]
+    fn test_schema_validates_valid_requirement() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let content = r#"
+id: REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD
+title: Valid Requirement
+status: draft
+type: input
+priority: high
+author: Test Author
+created: 2024-01-15T10:30:00Z
+text: This is a test requirement.
+"#;
+
+        let result = validator.validate(content.trim(), "test.yaml", EntityPrefix::Req);
+        assert!(result.is_ok(), "Valid requirement should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_schema_rejects_missing_required_field() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let content = r#"
+id: REQ-01HC2JB7SMQX7RS1Y0GFKBHPTD
+status: draft
+author: Test
+created: 2024-01-15T10:30:00Z
+"#;
+
+        let result = validator.validate(content.trim(), "test.yaml", EntityPrefix::Req);
+        assert!(result.is_err(), "Missing 'title' should fail validation");
+    }
+
+    #[test]
+    fn test_schema_validates_valid_risk() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let content = r#"
+id: RISK-01HC2JB7SMQX7RS1Y0GFKBHPTD
+title: Test Risk
+description: A test risk description
+type: design
+status: draft
+author: Test
+created: 2024-01-15T10:30:00Z
+"#;
+
+        let result = validator.validate(content.trim(), "test.yaml", EntityPrefix::Risk);
+        assert!(result.is_ok(), "Valid risk should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_schema_validates_valid_component() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let content = r#"
+id: CMP-01HC2JB7SMQX7RS1Y0GFKBHPTD
+part_number: PN-001
+title: Housing
+make_buy: make
+category: mechanical
+status: draft
+description: Main housing component
+author: Test
+created: 2024-01-15T10:30:00Z
+"#;
+
+        let result = validator.validate(content.trim(), "test.yaml", EntityPrefix::Cmp);
+        assert!(result.is_ok(), "Valid component should pass: {:?}", result);
+    }
+
+    #[test]
+    fn test_schema_validates_valid_feature() {
+        let registry = SchemaRegistry::default();
+        let validator = Validator::new(&registry);
+
+        let content = r#"
+id: FEAT-01HC2JB7SMQX7RS1Y0GFKBHPTD
+title: Bore Diameter
+feature_type: internal
+status: draft
+component: CMP-01HC2JB7SMQX7RS1Y0GFKBHPT0
+author: Test
+created: 2024-01-15T10:30:00Z
+dimensions:
+  - name: diameter
+    nominal: 10.0
+    plus_tol: 0.05
+    minus_tol: 0.05
+"#;
+
+        let result = validator.validate(content.trim(), "test.yaml", EntityPrefix::Feat);
+        assert!(result.is_ok(), "Valid feature should pass: {:?}", result);
+    }
+}
