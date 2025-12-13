@@ -362,7 +362,38 @@ Stackups analyze how tolerances accumulate across multiple features.
 tdt tol new --title "LED to Lens Air Gap" --no-edit
 ```
 
-Then edit to add contributors:
+### Add Features as Contributors (CLI Method - Recommended)
+
+The fastest way to build a stackup is using `tdt tol add` to pull feature dimensions directly:
+
+```bash
+# Add features with direction: + for positive, ~ for negative
+tdt tol add TOL@1 +FEAT@1 ~FEAT@3
+
+# Add multiple features at once
+tdt tol add TOL@1 +FEAT@1 ~FEAT@3 +FEAT@5
+
+# Add features and run analysis immediately
+tdt tol add TOL@1 +FEAT@1 ~FEAT@3 --analyze
+```
+
+**Direction prefixes:**
+- `+FEAT@N` — Positive direction (adds to the stackup)
+- `~FEAT@N` — Negative direction (subtracts from the stackup)
+
+> **Note:** Use `~` instead of `-` for negative direction to avoid conflicts with CLI flags.
+
+This automatically pulls the feature's nominal value and tolerances into the stackup contributor list.
+
+### Remove Contributors
+
+```bash
+tdt tol rm TOL@1 FEAT@1 FEAT@3
+```
+
+### Edit Stackup Details
+
+For advanced configuration (target limits, descriptions, distribution settings), edit the file directly:
 
 ```bash
 tdt tol edit TOL@1

@@ -1,0 +1,2031 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tutorial - TDT Tessera Development Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0e14;
+      --bg-secondary: #0d1117;
+      --bg-elevated: #151b23;
+      --bg-card: #1a2029;
+      --accent: #00d4aa;
+      --accent-glow: rgba(0, 212, 170, 0.15);
+      --accent-dim: #00a085;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #4a5568;
+      --border: #21262d;
+      --border-accent: #00d4aa33;
+      --grid-line: rgba(0, 212, 170, 0.04);
+      --code-bg: #0d1117;
+      --success: #3fb950;
+      --warning: #d29922;
+      --info: #58a6ff;
+      --error: #f85149;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    /* Blueprint Grid Background */
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .grid-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, var(--accent-glow), transparent);
+    }
+
+    /* Typography */
+    h1, h2, h3, h4 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    code, pre, .mono {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    /* Layout */
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(10, 14, 20, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-icon {
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-dim));
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--bg-primary);
+    }
+
+    .logo-text {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: -0.03em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover,
+    .nav-links a.active {
+      color: var(--accent);
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .nav-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    /* Mobile Menu */
+    .mobile-menu-btn {
+      display: none;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      cursor: pointer;
+    }
+
+    .mobile-menu-btn svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+    }
+
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 64px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(10, 14, 20, 0.98);
+      backdrop-filter: blur(12px);
+      z-index: 99;
+      padding: 24px;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mobile-menu.active {
+      display: flex;
+    }
+
+    .mobile-menu a {
+      display: block;
+      padding: 16px 20px;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: 500;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .mobile-menu a:hover {
+      background: var(--bg-elevated);
+      color: var(--accent);
+    }
+
+    /* Tutorial Header */
+    .tutorial-header {
+      padding: 120px 0 60px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .tutorial-header h1 {
+      font-size: clamp(32px, 5vw, 48px);
+      margin-bottom: 16px;
+    }
+
+    .tutorial-header h1 span {
+      color: var(--accent);
+    }
+
+    .tutorial-header .description {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 700px;
+    }
+
+    /* Main Content Area */
+    .tutorial-layout {
+      display: flex;
+      gap: 40px;
+      padding: 40px 0 100px;
+    }
+
+    /* Sidebar TOC */
+    .toc-sidebar {
+      position: sticky;
+      top: 84px;
+      width: 260px;
+      max-height: calc(100vh - 104px);
+      overflow-y: auto;
+      flex-shrink: 0;
+      padding-right: 20px;
+    }
+
+    .toc-sidebar h3 {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toc-sidebar ul {
+      list-style: none;
+    }
+
+    .toc-sidebar li {
+      margin-bottom: 6px;
+    }
+
+    .toc-sidebar a {
+      display: block;
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      border-left: 2px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .toc-sidebar a:hover {
+      color: var(--accent);
+      background: var(--bg-elevated);
+      border-left-color: var(--accent);
+    }
+
+    .toc-sidebar a.active {
+      color: var(--accent);
+      background: var(--accent-glow);
+      border-left-color: var(--accent);
+    }
+
+    /* Tutorial Content */
+    .tutorial-content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .tutorial-section {
+      margin-bottom: 60px;
+      scroll-margin-top: 84px;
+    }
+
+    .tutorial-section h2 {
+      font-size: 28px;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--accent);
+    }
+
+    .tutorial-section h3 {
+      font-size: 20px;
+      margin-top: 32px;
+      margin-bottom: 16px;
+      color: var(--text-primary);
+    }
+
+    .tutorial-section h4 {
+      font-size: 16px;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      color: var(--text-secondary);
+    }
+
+    .tutorial-section p {
+      margin-bottom: 16px;
+      color: var(--text-secondary);
+    }
+
+    .tutorial-section ul, .tutorial-section ol {
+      margin-bottom: 16px;
+      padding-left: 24px;
+      color: var(--text-secondary);
+    }
+
+    .tutorial-section li {
+      margin-bottom: 8px;
+    }
+
+    .tutorial-section strong {
+      color: var(--text-primary);
+    }
+
+    /* Code Blocks */
+    .code-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-lang {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .code-block pre {
+      padding: 16px;
+      overflow-x: auto;
+      font-size: 13px;
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    .code-block code {
+      color: var(--text-primary);
+    }
+
+    /* Inline Code */
+    code:not(pre code) {
+      background: var(--bg-elevated);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+
+    /* Syntax Highlighting */
+    .comment { color: var(--text-muted); }
+    .cmd { color: var(--accent); }
+    .output { color: var(--text-secondary); }
+    .symbol { color: var(--warning); }
+    .value { color: var(--info); }
+    .key { color: var(--accent); }
+    .string { color: var(--success); }
+    .number { color: var(--info); }
+
+    /* Terminal Output */
+    .terminal-output {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      line-height: 1.6;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .terminal-output .header {
+      color: var(--text-muted);
+    }
+
+    .terminal-output .highlight {
+      color: var(--accent);
+    }
+
+    .terminal-output .success { color: var(--success); }
+    .terminal-output .warning { color: var(--warning); }
+    .terminal-output .error { color: var(--error); }
+
+    /* Info Boxes */
+    .info-box {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 20px;
+    }
+
+    .info-box.tip {
+      border-left-color: var(--success);
+    }
+
+    .info-box.warning {
+      border-left-color: var(--warning);
+    }
+
+    .info-box h4 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      color: var(--text-primary);
+      font-size: 14px;
+    }
+
+    .info-box p {
+      margin-bottom: 0;
+      font-size: 14px;
+    }
+
+    /* Tables */
+    .table-wrapper {
+      overflow-x: auto;
+      margin-bottom: 20px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-weight: 600;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    td {
+      color: var(--text-secondary);
+    }
+
+    td code {
+      font-size: 12px;
+    }
+
+    /* Step Numbers */
+    .step {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .step-number {
+      width: 32px;
+      height: 32px;
+      background: var(--accent-glow);
+      border: 1px solid var(--border-accent);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .step-content {
+      flex: 1;
+    }
+
+    .step-content h4 {
+      margin-top: 0;
+    }
+
+    /* Footer */
+    footer {
+      padding: 60px 0;
+      border-top: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 24px;
+    }
+
+    .footer-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .footer-text {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 32px;
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover {
+      color: var(--accent);
+    }
+
+    /* Section Divider */
+    .section-divider {
+      height: 1px;
+      background: var(--border);
+      margin: 40px 0;
+    }
+
+    /* Responsive */
+    @media (max-width: 1024px) {
+      .toc-sidebar {
+        display: none;
+      }
+
+      .tutorial-layout {
+        padding: 30px 0 60px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .nav-links {
+        display: none;
+      }
+
+      .mobile-menu-btn {
+        display: block;
+      }
+
+      .tutorial-header {
+        padding: 100px 0 40px;
+      }
+
+      .tutorial-header h1 {
+        font-size: 28px;
+      }
+
+      .tutorial-header .description {
+        font-size: 16px;
+      }
+
+      .tutorial-section h2 {
+        font-size: 24px;
+      }
+
+      .tutorial-section h3 {
+        font-size: 18px;
+      }
+
+      .code-block pre {
+        font-size: 11px;
+        padding: 12px;
+      }
+
+      .terminal-output {
+        font-size: 10px;
+        padding: 12px;
+      }
+
+      .footer-content {
+        flex-direction: column;
+        text-align: center;
+      }
+
+      .footer-links {
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 16px 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+
+  <!-- Navigation -->
+  <nav>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">T</div>
+        <span class="logo-text">TDT</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#workflows">Workflows</a>
+        <a href="index.html#entities">Entities</a>
+        <a href="tutorial.html" class="active">Tutorial</a>
+        <a href="https://github.com/jackhale98/TDT" class="nav-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+      <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html#features" onclick="closeMobileMenu()">Features</a>
+    <a href="index.html#workflows" onclick="closeMobileMenu()">Workflows</a>
+    <a href="index.html#entities" onclick="closeMobileMenu()">Entities</a>
+    <a href="tutorial.html" onclick="closeMobileMenu()">Tutorial</a>
+    <a href="https://github.com/jackhale98/TDT" onclick="closeMobileMenu()">GitHub</a>
+  </div>
+
+  <!-- Tutorial Header -->
+  <header class="tutorial-header">
+    <div class="container">
+      <h1>TDT <span>Tutorial</span></h1>
+      <p class="description">Build a complete product development project from scratch. This tutorial walks you through creating an LED Flashlight, covering all entity types and showing how they connect for full traceability.</p>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main>
+    <div class="container">
+      <div class="tutorial-layout">
+        <!-- Table of Contents Sidebar -->
+        <aside class="toc-sidebar">
+          <h3>Contents</h3>
+          <ul>
+            <li><a href="#project-setup">1. Project Setup</a></li>
+            <li><a href="#requirements">2. Requirements</a></li>
+            <li><a href="#components">3. Components & BOM</a></li>
+            <li><a href="#suppliers">4. Suppliers & Quotes</a></li>
+            <li><a href="#features">5. Features & Tolerances</a></li>
+            <li><a href="#mates">6. Mates & Fit Analysis</a></li>
+            <li><a href="#stackups">7. Tolerance Stackups</a></li>
+            <li><a href="#risks">8. Risk Management</a></li>
+            <li><a href="#processes">9. Manufacturing</a></li>
+            <li><a href="#controls">10. Process Controls</a></li>
+            <li><a href="#tests">11. Test Protocols</a></li>
+            <li><a href="#results">12. Test Results</a></li>
+            <li><a href="#assemblies">13. Assemblies</a></li>
+            <li><a href="#ncrs-capas">14. NCRs & CAPAs</a></li>
+            <li><a href="#status">15. Status & Validation</a></li>
+            <li><a href="#traceability">16. Traceability</a></li>
+            <li><a href="#summary">Summary</a></li>
+          </ul>
+        </aside>
+
+        <!-- Tutorial Content -->
+        <article class="tutorial-content">
+
+          <!-- Section 1: Project Setup -->
+          <section id="project-setup" class="tutorial-section">
+            <h2>1. Project Setup</h2>
+
+            <h3>Initialize Your Project</h3>
+            <p>Create a new directory and initialize TDT:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">mkdir</span> led-flashlight
+<span class="cmd">cd</span> led-flashlight
+<span class="cmd">tdt init</span></code></pre>
+            </div>
+
+            <p>This creates:</p>
+            <ul>
+              <li>A <code>.tdt/</code> directory with configuration</li>
+              <li>A <code>.gitignore</code> file (excludes local short ID mappings)</li>
+              <li>A git repository</li>
+              <li>Standard directory structure for all entity types</li>
+            </ul>
+
+            <h3>Configure Your Project</h3>
+            <p>Edit <code>.tdt/config.yaml</code> to set your default author:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="comment"># .tdt/config.yaml</span>
+<span class="key">author:</span> <span class="string">"Your Name"</span>
+<span class="key">editor:</span> <span class="string">"code"</span>  <span class="comment"># or vim, nano, etc.</span></code></pre>
+            </div>
+
+            <p>You can also set this globally:</p>
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">git config</span> --global user.name <span class="string">"Your Name"</span></code></pre>
+            </div>
+          </section>
+
+          <!-- Section 2: Requirements -->
+          <section id="requirements" class="tutorial-section">
+            <h2>2. Requirements</h2>
+
+            <p>Requirements define what your product must do. TDT supports <strong>input requirements</strong> (from customers/stakeholders) and <strong>output requirements</strong> (derived/allocated).</p>
+
+            <h3>Create Input Requirements</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Brightness requirement</span>
+<span class="cmd">tdt req new</span> --title <span class="string">"Light Output"</span> --type input --priority critical \
+  --category performance --status approved --no-edit
+
+<span class="comment"># Battery life requirement</span>
+<span class="cmd">tdt req new</span> --title <span class="string">"Battery Life"</span> --type input --priority high \
+  --category performance --status approved --no-edit
+
+<span class="comment"># Water resistance requirement</span>
+<span class="cmd">tdt req new</span> --title <span class="string">"Water Resistance"</span> --type input --priority medium \
+  --category environmental --status approved --no-edit
+
+<span class="comment"># Drop resistance requirement</span>
+<span class="cmd">tdt req new</span> --title <span class="string">"Drop Resistance"</span> --type input --priority high \
+  --category durability --status approved --no-edit</code></pre>
+            </div>
+
+            <h3>View Your Requirements</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt req list</span></code></pre>
+            </div>
+
+            <div class="terminal-output"><span class="header">SHORT    ID               TYPE   TITLE             STATUS    PRIORITY</span>
+----------------------------------------------------------------------
+<span class="highlight">REQ@1</span>    REQ-01KCA...     input  Light Output      <span class="success">approved</span>  critical
+<span class="highlight">REQ@2</span>    REQ-01KCA...     input  Battery Life      <span class="success">approved</span>  high
+<span class="highlight">REQ@3</span>    REQ-01KCA...     input  Water Resistance  <span class="success">approved</span>  medium
+<span class="highlight">REQ@4</span>    REQ-01KCA...     input  Drop Resistance   <span class="success">approved</span>  high</div>
+
+            <h3>Edit Requirements with Full Details</h3>
+            <p>Open a requirement in your editor to add detailed information:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt req edit</span> REQ@1</code></pre>
+            </div>
+
+            <p>Add acceptance criteria, rationale, and source information:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> REQ-01KCA...
+<span class="key">type:</span> input
+<span class="key">title:</span> Light Output
+<span class="key">source:</span>
+  <span class="key">document:</span> PRD-2024-001
+  <span class="key">section:</span> <span class="string">"3.1"</span>
+  <span class="key">revision:</span> A
+<span class="key">category:</span> performance
+<span class="key">text:</span> <span class="string">|
+  The flashlight shall produce a minimum of 500 lumens
+  at maximum brightness setting.</span>
+<span class="key">rationale:</span> <span class="string">|
+  500 lumens provides adequate illumination for outdoor use
+  at distances up to 50 meters.</span>
+<span class="key">acceptance_criteria:</span>
+  - Light output >= 500 lumens measured at LED surface
+  - Beam angle between 15-20 degrees
+<span class="key">priority:</span> critical
+<span class="key">status:</span> approved
+<span class="key">tags:</span>
+  - optical
+  - performance
+<span class="key">links:</span> {}</code></pre>
+            </div>
+
+            <h3>Create Derived Requirements</h3>
+            <p>Derived requirements flow down from input requirements:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt req new</span> --title <span class="string">"LED Selection"</span> --type derived --priority high \
+  --category electrical --status approved --no-edit</code></pre>
+            </div>
+
+            <p>Then link it to the parent requirement:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt link add</span> REQ@5 REQ@1 --link-type derives_from</code></pre>
+            </div>
+          </section>
+
+          <!-- Section 3: Components -->
+          <section id="components" class="tutorial-section">
+            <h2>3. Components & Bill of Materials</h2>
+
+            <p>Components are the parts that make up your product. They can be <strong>make</strong> (manufactured) or <strong>buy</strong> (purchased).</p>
+
+            <h3>Create Components</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Housing (make part)</span>
+<span class="cmd">tdt cmp new</span> --title <span class="string">"Flashlight Housing"</span> --part-number <span class="string">"FL-HSG-001"</span> \
+  --make-buy make --category mechanical --no-edit
+
+<span class="comment"># LED module (buy part)</span>
+<span class="cmd">tdt cmp new</span> --title <span class="string">"LED Module"</span> --part-number <span class="string">"LED-500LM"</span> \
+  --make-buy buy --category electrical --no-edit
+
+<span class="comment"># Battery holder (buy part)</span>
+<span class="cmd">tdt cmp new</span> --title <span class="string">"Battery Holder"</span> --part-number <span class="string">"BH-2xAA"</span> \
+  --make-buy buy --category electrical --no-edit
+
+<span class="comment"># Lens (buy part)</span>
+<span class="cmd">tdt cmp new</span> --title <span class="string">"Optical Lens"</span> --part-number <span class="string">"LENS-20DEG"</span> \
+  --make-buy buy --category optical --no-edit
+
+<span class="comment"># O-ring seal (buy part)</span>
+<span class="cmd">tdt cmp new</span> --title <span class="string">"Housing O-Ring"</span> --part-number <span class="string">"OR-25x2"</span> \
+  --make-buy buy --category mechanical --no-edit
+
+<span class="comment"># End cap (make part)</span>
+<span class="cmd">tdt cmp new</span> --title <span class="string">"End Cap"</span> --part-number <span class="string">"FL-CAP-001"</span> \
+  --make-buy make --category mechanical --no-edit</code></pre>
+            </div>
+
+            <h3>Add Component Details</h3>
+            <p>Edit a component to add specifications:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt cmp edit</span> CMP@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> CMP-01KCA...
+<span class="key">part_number:</span> FL-HSG-001
+<span class="key">title:</span> Flashlight Housing
+<span class="key">description:</span> <span class="string">|
+  Main housing body, CNC machined from 6061-T6 aluminum.
+  Provides structural support and heat dissipation for LED.</span>
+<span class="key">make_buy:</span> make
+<span class="key">category:</span> mechanical
+<span class="key">material:</span> <span class="string">"6061-T6 Aluminum"</span>
+<span class="key">mass_kg:</span> <span class="number">0.085</span>
+<span class="key">unit_cost:</span> <span class="number">12.50</span>
+<span class="key">specifications:</span>
+  <span class="key">finish:</span> <span class="string">"Type III Hard Anodize, Black"</span>
+  <span class="key">wall_thickness:</span> <span class="string">"2.0mm minimum"</span>
+<span class="key">status:</span> draft</code></pre>
+            </div>
+          </section>
+
+          <!-- Section 4: Suppliers -->
+          <section id="suppliers" class="tutorial-section">
+            <h2>4. Suppliers & Quotes</h2>
+
+            <p>For buy parts, track suppliers and quotes.</p>
+
+            <h3>Create Suppliers</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt sup new</span> --name <span class="string">"BrightLED Inc"</span> --short-name <span class="string">"BrightLED"</span> \
+  --contact-email <span class="string">"sales@brightled.example"</span> --no-edit
+
+<span class="cmd">tdt sup new</span> --name <span class="string">"PowerCell Supply"</span> --short-name <span class="string">"PowerCell"</span> \
+  --contact-email <span class="string">"orders@powercell.example"</span> --no-edit</code></pre>
+            </div>
+
+            <h3>Create Quotes</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Quote for LED module</span>
+<span class="cmd">tdt quote new</span> --title <span class="string">"LED Module Quote"</span> --supplier SUP@1 \
+  --component CMP@2 --unit-price <span class="number">3.50</span> --moq <span class="number">100</span> --lead-time <span class="number">14</span> --no-edit
+
+<span class="comment"># Quote for battery holder</span>
+<span class="cmd">tdt quote new</span> --title <span class="string">"Battery Holder Quote"</span> --supplier SUP@2 \
+  --component CMP@3 --unit-price <span class="number">0.85</span> --moq <span class="number">500</span> --lead-time <span class="number">7</span> --no-edit</code></pre>
+            </div>
+
+            <h3>View Quotes</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt quote list</span></code></pre>
+            </div>
+          </section>
+
+          <!-- Section 5: Features -->
+          <section id="features" class="tutorial-section">
+            <h2>5. Features & Tolerances</h2>
+
+            <p>Features are the geometric characteristics of components that matter for fit and function.</p>
+
+            <h3>Create Features</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Housing bore (where LED mounts)</span>
+<span class="cmd">tdt feat new</span> --title <span class="string">"LED Mounting Bore"</span> --component CMP@1 \
+  --feature-type hole --no-edit
+
+<span class="comment"># Housing thread (for end cap)</span>
+<span class="cmd">tdt feat new</span> --title <span class="string">"End Cap Thread"</span> --component CMP@1 \
+  --feature-type thread --no-edit
+
+<span class="comment"># LED module OD</span>
+<span class="cmd">tdt feat new</span> --title <span class="string">"LED Module OD"</span> --component CMP@2 \
+  --feature-type shaft --no-edit
+
+<span class="comment"># End cap thread</span>
+<span class="cmd">tdt feat new</span> --title <span class="string">"Cap Thread"</span> --component CMP@6 \
+  --feature-type thread --no-edit
+
+<span class="comment"># O-ring groove</span>
+<span class="cmd">tdt feat new</span> --title <span class="string">"O-Ring Groove"</span> --component CMP@6 \
+  --feature-type slot --no-edit</code></pre>
+            </div>
+
+            <h3>Add Tolerances to Features</h3>
+            <p>Edit a feature to add dimensional tolerances:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt feat edit</span> FEAT@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> FEAT-01KCA...
+<span class="key">title:</span> LED Mounting Bore
+<span class="key">component:</span> CMP-01KCA...  <span class="comment"># Housing</span>
+<span class="key">feature_type:</span> hole
+<span class="key">description:</span> <span class="string">|
+  Bore in housing front face for LED module press-fit.
+  Critical for thermal contact and alignment.</span>
+<span class="key">nominal:</span> <span class="number">20.00</span>
+<span class="key">plus_tolerance:</span> <span class="number">0.021</span>
+<span class="key">minus_tolerance:</span> <span class="number">0.000</span>
+<span class="key">unit:</span> mm
+<span class="key">notes:</span> <span class="string">|
+  H7 tolerance class for transition/light interference fit.
+  Surface finish Ra 1.6 or better for thermal contact.</span>
+<span class="key">critical:</span> <span class="number">true</span>
+<span class="key">status:</span> approved</code></pre>
+            </div>
+
+            <h3>View Features</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># All features</span>
+<span class="cmd">tdt feat list</span>
+
+<span class="comment"># Features for a specific component</span>
+<span class="cmd">tdt feat list</span> -c CMP@1
+
+<span class="comment"># With descriptions</span>
+<span class="cmd">tdt feat list</span> --columns title,description,component</code></pre>
+            </div>
+          </section>
+
+          <!-- Section 6: Mates -->
+          <section id="mates" class="tutorial-section">
+            <h2>6. Mates & Fit Analysis</h2>
+
+            <p>Mates define how features from different components interact.</p>
+
+            <h3>Create Mates</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># LED to Housing fit</span>
+<span class="cmd">tdt mate new</span> --title <span class="string">"LED-Housing Press Fit"</span> \
+  --feature-a FEAT@1 --feature-b FEAT@3 \
+  --mate-type interference_fit --no-edit
+
+<span class="comment"># End cap thread engagement</span>
+<span class="cmd">tdt mate new</span> --title <span class="string">"End Cap Thread Engagement"</span> \
+  --feature-a FEAT@2 --feature-b FEAT@4 \
+  --mate-type thread_engagement --no-edit</code></pre>
+            </div>
+
+            <h3>Analyze Fit</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt mate list</span></code></pre>
+            </div>
+
+            <p>The fit analysis shows:</p>
+            <ul>
+              <li><strong>Worst-case clearance/interference</strong> calculated from tolerances</li>
+              <li><strong>Fit result</strong>: clearance, interference, or transition</li>
+              <li><strong>Match indicator</strong>: <span style="color: var(--success)">&#10003;</span> if result matches intended type, <span style="color: var(--warning)">&#9888;</span> if mismatch</li>
+            </ul>
+          </section>
+
+          <!-- Section 7: Stackups -->
+          <section id="stackups" class="tutorial-section">
+            <h2>7. Tolerance Stackups</h2>
+
+            <p>Stackups analyze how tolerances accumulate across multiple features.</p>
+
+            <h3>Create a Stackup</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt tol new</span> --title <span class="string">"LED to Lens Air Gap"</span> --no-edit</code></pre>
+            </div>
+
+            <h3>Add Features as Contributors (CLI Method - Recommended)</h3>
+
+            <p>The fastest way to build a stackup is using <code>tdt tol add</code> to pull feature dimensions directly:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Add features with direction: + for positive, ~ for negative</span>
+<span class="cmd">tdt tol add</span> TOL@1 +FEAT@1 ~FEAT@3
+
+<span class="comment"># Add multiple features at once</span>
+<span class="cmd">tdt tol add</span> TOL@1 +FEAT@1 ~FEAT@3 +FEAT@5
+
+<span class="comment"># Add features and run analysis immediately</span>
+<span class="cmd">tdt tol add</span> TOL@1 +FEAT@1 ~FEAT@3 --analyze</code></pre>
+            </div>
+
+            <p><strong>Direction prefixes:</strong></p>
+            <ul>
+              <li><code>+FEAT@N</code> — Positive direction (adds to the stackup)</li>
+              <li><code>~FEAT@N</code> — Negative direction (subtracts from the stackup)</li>
+            </ul>
+
+            <div class="info-box tip">
+              <h4>Why use ~ instead of -?</h4>
+              <p>The tilde (<code>~</code>) is used for negative direction instead of minus (<code>-</code>) to avoid conflicts with CLI flags.</p>
+            </div>
+
+            <p>This automatically pulls the feature's nominal value and tolerances into the stackup contributor list.</p>
+
+            <h3>Remove Contributors</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt tol rm</span> TOL@1 FEAT@1 FEAT@3</code></pre>
+            </div>
+
+            <h3>Edit Stackup Details</h3>
+
+            <p>For advanced configuration (target limits, descriptions, distribution settings), edit the file directly:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt tol edit</span> TOL@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> TOL-01KCA...
+<span class="key">title:</span> LED to Lens Air Gap
+<span class="key">description:</span> <span class="string">|
+  Critical air gap between LED emitter surface and lens.
+  Affects beam focus and light output efficiency.</span>
+<span class="key">target:</span>
+  <span class="key">nominal:</span> <span class="number">2.5</span>
+  <span class="key">lower_limit:</span> <span class="number">2.0</span>
+  <span class="key">upper_limit:</span> <span class="number">3.0</span>
+  <span class="key">unit:</span> mm
+<span class="key">contributors:</span>
+  - <span class="key">feature_id:</span> FEAT-01KCA...  <span class="comment"># LED Mounting Bore</span>
+    <span class="key">description:</span> <span class="string">"Housing bore depth"</span>
+    <span class="key">direction:</span> positive
+    <span class="key">nominal:</span> <span class="number">15.0</span>
+    <span class="key">tolerance:</span> <span class="number">0.1</span>
+    <span class="key">distribution:</span> normal
+    <span class="key">sigma:</span> <span class="number">3.0</span>
+  - <span class="key">feature_id:</span> FEAT-01KCA...  <span class="comment"># LED Module</span>
+    <span class="key">description:</span> <span class="string">"LED module height"</span>
+    <span class="key">direction:</span> negative
+    <span class="key">nominal:</span> <span class="number">12.5</span>
+    <span class="key">tolerance:</span> <span class="number">0.15</span>
+    <span class="key">distribution:</span> normal
+    <span class="key">sigma:</span> <span class="number">3.0</span>
+<span class="key">analysis_results:</span> {}
+<span class="key">status:</span> draft</code></pre>
+            </div>
+
+            <h3>Run Analysis</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt tol analyze</span> TOL@1</code></pre>
+            </div>
+
+            <p>This calculates:</p>
+            <ul>
+              <li><strong>Worst-case</strong> min/max values</li>
+              <li><strong>RSS (Root Sum Square)</strong> statistical analysis</li>
+              <li><strong>Monte Carlo</strong> simulation with yield prediction</li>
+              <li><strong>Cpk</strong> process capability index</li>
+            </ul>
+
+            <h3>View Results</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt tol list</span></code></pre>
+            </div>
+
+            <div class="terminal-output"><span class="header">SHORT    TITLE                  RESULT     CPK     YIELD    STATUS</span>
+------------------------------------------------------------------
+<span class="highlight">TOL@1</span>    LED to Lens Air Gap    <span class="success">acceptable</span> <span class="highlight">1.45</span>    <span class="success">99.8%</span>    draft</div>
+          </section>
+
+          <!-- Section 8: Risks -->
+          <section id="risks" class="tutorial-section">
+            <h2>8. Risk Management</h2>
+
+            <p>Identify and mitigate risks to your design and manufacturing processes.</p>
+
+            <h3>Create Design Risks</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt risk new</span> --title <span class="string">"LED Overheating"</span> --type design \
+  --category thermal --no-edit</code></pre>
+            </div>
+
+            <p>Edit to add FMEA details:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt risk edit</span> RISK@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> RISK-01KCA...
+<span class="key">type:</span> design
+<span class="key">title:</span> LED Overheating
+<span class="key">category:</span> thermal
+<span class="key">failure_mode:</span> <span class="string">|
+  LED junction temperature exceeds maximum rating during
+  continuous operation at maximum brightness.</span>
+<span class="key">cause:</span> <span class="string">|
+  Insufficient thermal path from LED to housing.
+  Inadequate heat sink mass.</span>
+<span class="key">effect:</span> <span class="string">|
+  Reduced LED life, color shift, potential thermal shutdown.</span>
+<span class="key">severity:</span> <span class="number">8</span>
+<span class="key">occurrence:</span> <span class="number">4</span>
+<span class="key">detection:</span> <span class="number">6</span>
+<span class="comment"># RPN = 8 x 4 x 6 = 192</span>
+<span class="key">mitigations:</span>
+  - <span class="key">action:</span> <span class="string">"Add thermal interface material between LED and housing"</span>
+    <span class="key">owner:</span> <span class="string">"Thermal Engineer"</span>
+    <span class="key">status:</span> planned
+  - <span class="key">action:</span> <span class="string">"Increase housing wall thickness at LED mount"</span>
+    <span class="key">owner:</span> <span class="string">"Mechanical Engineer"</span>
+    <span class="key">status:</span> completed
+<span class="key">status:</span> draft</code></pre>
+            </div>
+
+            <h3>Create Process Risks</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt risk new</span> --title <span class="string">"Housing Machining Defects"</span> --type process \
+  --category manufacturing --no-edit</code></pre>
+            </div>
+
+            <h3>View Risks</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt risk list</span></code></pre>
+            </div>
+
+            <p>Shows risk level (Critical/High/Medium/Low) and RPN scores.</p>
+          </section>
+
+          <!-- Section 9: Processes -->
+          <section id="processes" class="tutorial-section">
+            <h2>9. Manufacturing Processes</h2>
+
+            <p>Define how components are manufactured.</p>
+
+            <h3>Create Process Steps</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Housing machining</span>
+<span class="cmd">tdt proc new</span> --title <span class="string">"Housing CNC Machining"</span> --type machining \
+  --operation-number <span class="string">"OP-010"</span> --no-edit
+
+<span class="comment"># Housing anodizing</span>
+<span class="cmd">tdt proc new</span> --title <span class="string">"Housing Anodizing"</span> --type finishing \
+  --operation-number <span class="string">"OP-020"</span> --no-edit
+
+<span class="comment"># Final assembly</span>
+<span class="cmd">tdt proc new</span> --title <span class="string">"Final Assembly"</span> --type assembly \
+  --operation-number <span class="string">"OP-030"</span> --no-edit</code></pre>
+            </div>
+
+            <h3>Link Processes to Components and Risks</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt link add</span> PROC@1 CMP@1 --link-type produces
+<span class="cmd">tdt link add</span> PROC@1 RISK@2 --link-type risks</code></pre>
+            </div>
+          </section>
+
+          <!-- Section 10: Controls -->
+          <section id="controls" class="tutorial-section">
+            <h2>10. Process Controls</h2>
+
+            <p>Controls ensure processes produce conforming product.</p>
+
+            <h3>Create Controls</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Bore diameter inspection</span>
+<span class="cmd">tdt ctrl new</span> --title <span class="string">"LED Bore Diameter Check"</span> --type inspection \
+  --process PROC@1 --feature FEAT@1 --no-edit</code></pre>
+            </div>
+
+            <p>Edit to add control details:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt ctrl edit</span> CTRL@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> CTRL-01KCA...
+<span class="key">title:</span> LED Bore Diameter Check
+<span class="key">control_type:</span> inspection
+<span class="key">process:</span> PROC-01KCA...
+<span class="key">feature:</span> FEAT-01KCA...
+<span class="key">description:</span> <span class="string">|
+  100% inspection of LED mounting bore diameter.</span>
+<span class="key">characteristic:</span> <span class="string">"Bore diameter 20.000 - 20.021 mm"</span>
+<span class="key">measurement_method:</span> <span class="string">"Bore gauge, calibrated"</span>
+<span class="key">frequency:</span> <span class="string">"Every part"</span>
+<span class="key">acceptance_criteria:</span> <span class="string">"20.000 - 20.021 mm"</span>
+<span class="key">reaction_plan:</span> <span class="string">|
+  Out of tolerance: Quarantine part, notify quality.
+  Trend toward limit: Adjust tool offset.</span>
+<span class="key">critical:</span> <span class="number">true</span>
+<span class="key">status:</span> draft</code></pre>
+            </div>
+          </section>
+
+          <!-- Section 11: Tests -->
+          <section id="tests" class="tutorial-section">
+            <h2>11. Test Protocols</h2>
+
+            <p>Define how requirements will be verified.</p>
+
+            <h3>Create Test Protocols</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Light output test</span>
+<span class="cmd">tdt test new</span> --title <span class="string">"Light Output Verification"</span> \
+  --type verification --level system --method test \
+  --priority critical --verifies REQ@1 --no-edit
+
+<span class="comment"># Battery life test</span>
+<span class="cmd">tdt test new</span> --title <span class="string">"Battery Life Test"</span> \
+  --type verification --level system --method test \
+  --priority high --verifies REQ@2 --no-edit
+
+<span class="comment"># Water resistance test (IP rating)</span>
+<span class="cmd">tdt test new</span> --title <span class="string">"Water Resistance Test"</span> \
+  --type verification --level system --method test \
+  --priority medium --verifies REQ@3 --no-edit
+
+<span class="comment"># Drop test</span>
+<span class="cmd">tdt test new</span> --title <span class="string">"Drop Test"</span> \
+  --type verification --level system --method test \
+  --priority high --verifies REQ@4 --mitigates RISK@1 --no-edit</code></pre>
+            </div>
+
+            <div class="info-box tip">
+              <h4>Tip: Automatic Linking</h4>
+              <p>The <code>--verifies</code> and <code>--mitigates</code> flags link the test to requirements and risks automatically!</p>
+            </div>
+
+            <h3>Add Test Procedure Details</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt test edit</span> TEST@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> TEST-01KCA...
+<span class="key">type:</span> verification
+<span class="key">test_level:</span> system
+<span class="key">test_method:</span> test
+<span class="key">title:</span> Light Output Verification
+<span class="key">objective:</span> <span class="string">|
+  Verify flashlight meets minimum 500 lumen output requirement.</span>
+<span class="key">preconditions:</span>
+  - Fresh batteries installed
+  - Unit at room temperature (23C +/- 2C)
+  - Integrating sphere calibrated
+<span class="key">equipment:</span>
+  - <span class="key">name:</span> <span class="string">"Integrating Sphere"</span>
+    <span class="key">specification:</span> <span class="string">"12-inch diameter, calibrated"</span>
+    <span class="key">calibration_required:</span> <span class="number">true</span>
+<span class="key">procedure:</span>
+  - <span class="key">step:</span> <span class="number">1</span>
+    <span class="key">action:</span> <span class="string">"Install fresh AA batteries"</span>
+    <span class="key">expected:</span> <span class="string">"Power indicator lights"</span>
+  - <span class="key">step:</span> <span class="number">2</span>
+    <span class="key">action:</span> <span class="string">"Place flashlight in integrating sphere"</span>
+    <span class="key">expected:</span> <span class="string">"Centered in sphere aperture"</span>
+  - <span class="key">step:</span> <span class="number">3</span>
+    <span class="key">action:</span> <span class="string">"Turn on at maximum brightness"</span>
+    <span class="key">expected:</span> <span class="string">"Stable light output"</span>
+  - <span class="key">step:</span> <span class="number">4</span>
+    <span class="key">action:</span> <span class="string">"Record lumen reading after 30 second stabilization"</span>
+    <span class="key">expected:</span> <span class="string">">= 500 lumens"</span>
+    <span class="key">acceptance:</span> <span class="string">"Pass if >= 500 lumens"</span>
+<span class="key">acceptance_criteria:</span>
+  - <span class="string">"Light output >= 500 lumens"</span>
+  - <span class="string">"No visible flicker"</span>
+<span class="key">priority:</span> critical
+<span class="key">status:</span> approved
+<span class="key">links:</span>
+  <span class="key">verifies:</span>
+    - REQ-01KCA...</code></pre>
+            </div>
+          </section>
+
+          <!-- Section 12: Results -->
+          <section id="results" class="tutorial-section">
+            <h2>12. Test Results</h2>
+
+            <p>Record the outcomes of test execution.</p>
+
+            <h3>Create Test Results</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Passing result</span>
+<span class="cmd">tdt rslt new</span> --test TEST@1 --verdict pass \
+  --title <span class="string">"Light Output Test - Unit SN001"</span> --no-edit
+
+<span class="comment"># Another passing result</span>
+<span class="cmd">tdt rslt new</span> --test TEST@2 --verdict pass \
+  --title <span class="string">"Battery Life Test - Unit SN001"</span> --no-edit
+
+<span class="comment"># Failing result (for demonstration)</span>
+<span class="cmd">tdt rslt new</span> --test TEST@3 --verdict fail \
+  --title <span class="string">"Water Resistance Test - Unit SN001"</span> --no-edit</code></pre>
+            </div>
+
+            <h3>Add Result Details</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt rslt edit</span> RSLT@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> RSLT-01KCA...
+<span class="key">test_id:</span> TEST-01KCA...
+<span class="key">title:</span> Light Output Test - Unit SN001
+<span class="key">verdict:</span> pass
+<span class="key">executed_by:</span> <span class="string">"Test Engineer"</span>
+<span class="key">executed_date:</span> <span class="string">"2024-01-15T10:30:00Z"</span>
+<span class="key">measurements:</span>
+  - <span class="key">parameter:</span> <span class="string">"Light Output"</span>
+    <span class="key">value:</span> <span class="number">523</span>
+    <span class="key">unit:</span> <span class="string">"lumens"</span>
+    <span class="key">pass:</span> <span class="number">true</span>
+  - <span class="key">parameter:</span> <span class="string">"Color Temperature"</span>
+    <span class="key">value:</span> <span class="number">5800</span>
+    <span class="key">unit:</span> <span class="string">"K"</span>
+    <span class="key">pass:</span> <span class="number">true</span>
+<span class="key">notes:</span> <span class="string">|
+  Unit exceeded minimum requirement by 4.6%.
+  Consistent with expected LED module performance.</span>
+<span class="key">status:</span> approved</code></pre>
+            </div>
+
+            <h3>View Results</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt rslt list</span></code></pre>
+            </div>
+
+            <div class="terminal-output"><span class="header">SHORT    TEST     VERDICT      STATUS     AUTHOR</span>
+------------------------------------------------
+<span class="highlight">RSLT@1</span>   TEST@1   <span class="success">pass</span>         <span class="success">approved</span>   Test Engineer
+<span class="highlight">RSLT@2</span>   TEST@2   <span class="success">pass</span>         draft      Test Engineer
+<span class="highlight">RSLT@3</span>   TEST@3   <span class="error">fail</span>         draft      Test Engineer</div>
+          </section>
+
+          <!-- Section 13: Assemblies -->
+          <section id="assemblies" class="tutorial-section">
+            <h2>13. Assemblies</h2>
+
+            <p>Define how components come together.</p>
+
+            <h3>Create Assembly</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt asm new</span> --title <span class="string">"LED Flashlight Assembly"</span> \
+  --part-number <span class="string">"FL-ASM-001"</span> --no-edit</code></pre>
+            </div>
+
+            <h3>Add Bill of Materials</h3>
+            <p>Edit the assembly to add BOM:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt asm edit</span> ASM@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> ASM-01KCA...
+<span class="key">part_number:</span> FL-ASM-001
+<span class="key">title:</span> LED Flashlight Assembly
+<span class="key">description:</span> <span class="string">|
+  Complete LED flashlight assembly, ready for packaging.</span>
+<span class="key">bom:</span>
+  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># Housing</span>
+    <span class="key">quantity:</span> <span class="number">1</span>
+    <span class="key">reference:</span> <span class="string">"1"</span>
+  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># LED Module</span>
+    <span class="key">quantity:</span> <span class="number">1</span>
+    <span class="key">reference:</span> <span class="string">"2"</span>
+  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># Battery Holder</span>
+    <span class="key">quantity:</span> <span class="number">1</span>
+    <span class="key">reference:</span> <span class="string">"3"</span>
+  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># Lens</span>
+    <span class="key">quantity:</span> <span class="number">1</span>
+    <span class="key">reference:</span> <span class="string">"4"</span>
+  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># O-Ring</span>
+    <span class="key">quantity:</span> <span class="number">1</span>
+    <span class="key">reference:</span> <span class="string">"5"</span>
+  - <span class="key">component_id:</span> CMP-01KCA...  <span class="comment"># End Cap</span>
+    <span class="key">quantity:</span> <span class="number">1</span>
+    <span class="key">reference:</span> <span class="string">"6"</span>
+<span class="key">revision:</span> <span class="string">"A"</span>
+<span class="key">status:</span> draft</code></pre>
+            </div>
+
+            <h3>View BOM</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt asm bom</span> ASM@1</code></pre>
+            </div>
+
+            <div class="terminal-output"><span class="highlight">ASM@1</span> LED Flashlight Assembly
+<span style="color: var(--text-muted);">|--</span> <span class="highlight">CMP@1</span> Housing          qty: 1   $12.50
+<span style="color: var(--text-muted);">|--</span> <span class="highlight">CMP@2</span> LED Module       qty: 1   $3.50
+<span style="color: var(--text-muted);">|--</span> <span class="highlight">CMP@3</span> Battery Holder   qty: 1   $0.85
+<span style="color: var(--text-muted);">|--</span> <span class="highlight">CMP@4</span> Optical Lens     qty: 1   $2.25
+<span style="color: var(--text-muted);">|--</span> <span class="highlight">CMP@5</span> Housing O-Ring   qty: 1   $0.15
+<span style="color: var(--text-muted);">`--</span> <span class="highlight">CMP@6</span> End Cap         qty: 1   $4.50
+--------------------------------------------
+   <span class="header">Total:</span> <span class="success">$23.75</span>  Mass: <span class="highlight">0.145 kg</span></div>
+
+            <h3>Calculate Assembly Cost/Mass</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt asm cost</span> ASM@1
+<span class="cmd">tdt asm mass</span> ASM@1</code></pre>
+            </div>
+          </section>
+
+          <!-- Section 14: NCRs & CAPAs -->
+          <section id="ncrs-capas" class="tutorial-section">
+            <h2>14. Handling Issues (NCRs & CAPAs)</h2>
+
+            <p>When things go wrong, track nonconformances and corrective actions.</p>
+
+            <h3>Create an NCR</h3>
+            <p>When the water resistance test failed:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt ncr new</span> --title <span class="string">"Water Ingress at O-Ring Seal"</span> \
+  --type internal --severity major --no-edit</code></pre>
+            </div>
+
+            <p>Edit to add details:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt ncr edit</span> NCR@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> NCR-01KCA...
+<span class="key">title:</span> Water Ingress at O-Ring Seal
+<span class="key">type:</span> internal
+<span class="key">severity:</span> major
+<span class="key">description:</span> <span class="string">|
+  During water resistance testing (TEST@3), water ingress
+  observed at end cap O-ring seal after 30 minutes
+  submersion at 1 meter depth.</span>
+<span class="key">immediate_action:</span> <span class="string">|
+  Quarantined test unit SN001.
+  Halted further water resistance testing.</span>
+<span class="key">root_cause:</span> <span class="string">|
+  O-ring groove depth undersized by 0.15mm, preventing
+  proper O-ring compression. Caused by tool wear on
+  CNC lathe.</span>
+<span class="key">disposition:</span> rework
+<span class="key">status:</span> open
+<span class="key">links:</span>
+  <span class="key">from_result:</span>
+    - RSLT-01KCA...  <span class="comment"># The failing test result</span>
+  <span class="key">component:</span>
+    - CMP-01KCA...   <span class="comment"># End Cap</span></code></pre>
+            </div>
+
+            <h3>Link NCR to Test Result</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt link add</span> NCR@1 RSLT@3 --link-type from_result</code></pre>
+            </div>
+
+            <h3>Create a CAPA</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt capa new</span> --title <span class="string">"O-Ring Groove Tool Wear Control"</span> \
+  --type corrective --no-edit</code></pre>
+            </div>
+
+            <p>Edit to add action plan:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt capa edit</span> CAPA@1</code></pre>
+            </div>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">yaml</span></div>
+              <pre><code><span class="key">id:</span> CAPA-01KCA...
+<span class="key">title:</span> O-Ring Groove Tool Wear Control
+<span class="key">type:</span> corrective
+<span class="key">description:</span> <span class="string">|
+  Implement controls to prevent O-ring groove dimension
+  drift due to tool wear.</span>
+<span class="key">root_cause_analysis:</span> <span class="string">|
+  5-Why Analysis:
+  1. Why water ingress? O-ring didn't seal.
+  2. Why didn't O-ring seal? Groove too shallow.
+  3. Why groove too shallow? Tool worn beyond limit.
+  4. Why tool worn? No scheduled replacement.
+  5. Why no schedule? Tool life not characterized.</span>
+<span class="key">actions:</span>
+  - <span class="key">description:</span> <span class="string">"Characterize groove tool life"</span>
+    <span class="key">owner:</span> <span class="string">"Manufacturing Engineer"</span>
+    <span class="key">due_date:</span> <span class="string">"2024-02-01"</span>
+    <span class="key">status:</span> completed
+  - <span class="key">description:</span> <span class="string">"Add tool change to PM schedule at 500 parts"</span>
+    <span class="key">owner:</span> <span class="string">"Production Supervisor"</span>
+    <span class="key">due_date:</span> <span class="string">"2024-02-15"</span>
+    <span class="key">status:</span> in_progress
+  - <span class="key">description:</span> <span class="string">"Add groove depth to in-process inspection"</span>
+    <span class="key">owner:</span> <span class="string">"Quality Engineer"</span>
+    <span class="key">due_date:</span> <span class="string">"2024-02-15"</span>
+    <span class="key">status:</span> planned
+<span class="key">effectiveness_criteria:</span> <span class="string">|
+  Zero O-ring seal failures in next 100 units.</span>
+<span class="key">capa_status:</span> in_progress
+<span class="key">links:</span>
+  <span class="key">ncrs:</span>
+    - NCR-01KCA...</code></pre>
+            </div>
+
+            <h3>Link CAPA to NCR</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt link add</span> CAPA@1 NCR@1 --link-type ncrs</code></pre>
+            </div>
+          </section>
+
+          <!-- Section 15: Status & Validation -->
+          <section id="status" class="tutorial-section">
+            <h2>15. Project Status & Validation</h2>
+
+            <h3>Check Project Status</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt status</span></code></pre>
+            </div>
+
+            <div class="terminal-output"><span class="highlight">TDT Project Status</span>
+=============================================================
+
+<span class="header">REQUIREMENTS                 RISKS</span>
+  Total:      <span class="highlight">5</span>                Total:      <span class="highlight">2</span>
+  Verified:   <span class="success">4 (80%)</span>          High:       <span class="error">1</span>
+  Unverified: <span class="warning">1</span>               Medium:     <span class="warning">1</span>
+                               Avg RPN:    <span class="highlight">144</span>
+
+<span class="header">TESTS                        QUALITY</span>
+  Protocols:  <span class="highlight">4</span>                Open NCRs:  <span class="warning">1</span>
+  Executed:   <span class="highlight">3</span>                Open CAPAs: <span class="warning">1</span>
+  Pass Rate:  <span class="success">67%</span>
+
+=============================================================
+Project Health: <span class="warning">Issues</span></div>
+
+            <p>Shows a dashboard with:</p>
+            <ul>
+              <li>Requirements coverage (verified vs unverified)</li>
+              <li>Risk summary (by level, average RPN)</li>
+              <li>Test status (pass rate, pending tests)</li>
+              <li>Quality metrics (open NCRs, CAPAs)</li>
+              <li>BOM summary</li>
+              <li>Tolerance analysis results</li>
+            </ul>
+
+            <h3>Validate Project</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt validate</span></code></pre>
+            </div>
+
+            <p>Checks:</p>
+            <ul>
+              <li>YAML syntax validity</li>
+              <li>Schema compliance</li>
+              <li>Required field presence</li>
+              <li>Link integrity (referenced entities exist)</li>
+            </ul>
+
+            <h3>Check Verification Coverage</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt trace coverage</span></code></pre>
+            </div>
+
+            <div class="terminal-output"><span class="header">Verification Coverage Report</span>
+=============================================================
+
+Total requirements:     <span class="highlight">5</span>
+With verification:      <span class="success">4</span>
+Without verification:   <span class="warning">1</span>
+
+Coverage: <span class="success">80%</span> ================....
+
+<span class="header">Uncovered Requirements:</span>
+-------------------------------------------------------------
+  <span class="warning">o</span> REQ@5 - LED Selection</div>
+          </section>
+
+          <!-- Section 16: Traceability -->
+          <section id="traceability" class="tutorial-section">
+            <h2>16. Traceability</h2>
+
+            <p>TDT maintains full traceability across all entities.</p>
+
+            <h3>View Traceability Matrix</h3>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="comment"># Full matrix</span>
+<span class="cmd">tdt trace matrix</span>
+
+<span class="comment"># With short ID aliases for readability</span>
+<span class="cmd">tdt trace matrix</span> --aliases
+
+<span class="comment"># Filter by entity type</span>
+<span class="cmd">tdt trace matrix</span> --source-type TEST --target-type REQ</code></pre>
+            </div>
+
+            <h3>Trace From an Entity</h3>
+            <p>See what depends on a specific entity:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt trace from</span> REQ@1</code></pre>
+            </div>
+
+            <p>Shows all tests, components, and other entities linked to this requirement.</p>
+
+            <h3>Trace To an Entity</h3>
+            <p>See what an entity depends on:</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt trace to</span> TEST@1</code></pre>
+            </div>
+
+            <h3>Find Orphaned Entities</h3>
+            <p>Entities with no links (potential gaps):</p>
+
+            <div class="code-block">
+              <div class="code-header"><span class="code-lang">bash</span></div>
+              <pre><code><span class="cmd">tdt trace orphans</span></code></pre>
+            </div>
+          </section>
+
+          <!-- Summary Section -->
+          <section id="summary" class="tutorial-section">
+            <h2>Summary</h2>
+
+            <p>You've now created a complete TDT project with:</p>
+
+            <div class="table-wrapper">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Entity Type</th>
+                    <th>Purpose</th>
+                    <th>Commands</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Requirements</strong></td>
+                    <td>What the product must do</td>
+                    <td><code>tdt req</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Components</strong></td>
+                    <td>Parts (make/buy)</td>
+                    <td><code>tdt cmp</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Suppliers</strong></td>
+                    <td>Vendor information</td>
+                    <td><code>tdt sup</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Quotes</strong></td>
+                    <td>Pricing and lead times</td>
+                    <td><code>tdt quote</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Features</strong></td>
+                    <td>Geometric characteristics</td>
+                    <td><code>tdt feat</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Mates</strong></td>
+                    <td>Feature interactions</td>
+                    <td><code>tdt mate</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Stackups</strong></td>
+                    <td>Tolerance accumulation</td>
+                    <td><code>tdt tol</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Risks</strong></td>
+                    <td>FMEA (design/process)</td>
+                    <td><code>tdt risk</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Processes</strong></td>
+                    <td>Manufacturing steps</td>
+                    <td><code>tdt proc</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Controls</strong></td>
+                    <td>Process controls</td>
+                    <td><code>tdt ctrl</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Tests</strong></td>
+                    <td>Verification protocols</td>
+                    <td><code>tdt test</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Results</strong></td>
+                    <td>Test outcomes</td>
+                    <td><code>tdt rslt</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>Assemblies</strong></td>
+                    <td>BOM structure</td>
+                    <td><code>tdt asm</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>NCRs</strong></td>
+                    <td>Nonconformances</td>
+                    <td><code>tdt ncr</code></td>
+                  </tr>
+                  <tr>
+                    <td><strong>CAPAs</strong></td>
+                    <td>Corrective actions</td>
+                    <td><code>tdt capa</code></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <h3>Key Workflows</h3>
+            <ol>
+              <li><strong>Requirements &rarr; Tests &rarr; Results</strong>: Verify requirements are met</li>
+              <li><strong>Components &rarr; Features &rarr; Mates &rarr; Stackups</strong>: Ensure parts fit</li>
+              <li><strong>Risks &rarr; Mitigations &rarr; Controls</strong>: Manage product/process risks</li>
+              <li><strong>NCRs &rarr; CAPAs</strong>: Handle quality issues systematically</li>
+            </ol>
+
+            <h3>Tips</h3>
+            <ul>
+              <li>Use <code>--no-edit</code> for scripted creation, omit it to open editor immediately</li>
+              <li>Use short IDs (<code>REQ@1</code>, <code>CMP@2</code>) for quick reference</li>
+              <li>Use <code>tdt link add</code> to create traceability between entities</li>
+              <li>Run <code>tdt validate</code> regularly to catch errors early</li>
+              <li>Use <code>tdt status</code> for a project health overview</li>
+            </ul>
+
+            <div class="section-divider"></div>
+
+            <h3>Next Steps</h3>
+            <ul>
+              <li>Explore individual entity documentation on <a href="https://github.com/jackhale98/TDT" style="color: var(--accent);">GitHub</a></li>
+              <li>Set up your own project structure</li>
+              <li>Integrate with your existing PLM/QMS systems via JSON/YAML export</li>
+              <li>Use <code>tdt report</code> commands for generating documentation</li>
+            </ul>
+
+            <div class="info-box">
+              <h4>Get Help</h4>
+              <p>For more information, visit the <a href="https://github.com/jackhale98/TDT" style="color: var(--accent);">TDT GitHub repository</a> or run <code>tdt --help</code> for command-line help.</p>
+            </div>
+          </section>
+
+        </article>
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <div class="container" style="max-width: 1200px;">
+      <div class="footer-content">
+        <div class="footer-brand">
+          <div class="logo-icon">T</div>
+          <span class="footer-text">TDT - Tessera Development Toolkit</span>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/jackhale98/TDT">GitHub</a>
+          <a href="https://github.com/jackhale98/TDT/blob/main/README.md">Documentation</a>
+          <a href="https://github.com/jackhale98/TDT/issues">Issues</a>
+          <a href="https://github.com/jackhale98/TDT/blob/main/LICENSE">MIT License</a>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const btn = document.querySelector('.mobile-menu-btn');
+      menu.classList.toggle('active');
+
+      if (menu.classList.contains('active')) {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>`;
+      } else {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>`;
+      }
+    }
+
+    function closeMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const btn = document.querySelector('.mobile-menu-btn');
+      menu.classList.remove('active');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>`;
+    }
+
+    // Highlight active TOC item on scroll
+    const sections = document.querySelectorAll('.tutorial-section');
+    const tocLinks = document.querySelectorAll('.toc-sidebar a');
+
+    function highlightTOC() {
+      let current = '';
+
+      sections.forEach(section => {
+        const sectionTop = section.offsetTop;
+        const sectionHeight = section.clientHeight;
+        if (window.scrollY >= sectionTop - 100) {
+          current = section.getAttribute('id');
+        }
+      });
+
+      tocLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === '#' + current) {
+          link.classList.add('active');
+        }
+      });
+    }
+
+    window.addEventListener('scroll', highlightTOC);
+    highlightTOC();
+
+    // Close mobile menu on outside click
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('mobileMenu');
+      const btn = document.querySelector('.mobile-menu-btn');
+      if (!menu.contains(e.target) && !btn.contains(e.target) && menu.classList.contains('active')) {
+        closeMobileMenu();
+      }
+    });
+
+    // Close mobile menu on escape
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeMobileMenu();
+      }
+    });
+  </script>
+</body>
+</html>
