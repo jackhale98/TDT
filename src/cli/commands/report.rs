@@ -8,6 +8,7 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
+use crate::cli::helpers::truncate_str;
 use crate::cli::GlobalOpts;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -641,14 +642,6 @@ fn write_output(content: &str, output_path: Option<PathBuf>) -> Result<()> {
         print!("{}", content);
     }
     Ok(())
-}
-
-fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
-    }
 }
 
 fn load_all_requirements(project: &Project) -> Vec<Requirement> {

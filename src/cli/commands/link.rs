@@ -5,6 +5,7 @@ use miette::{IntoDiagnostic, Result};
 use std::fs;
 use std::path::PathBuf;
 
+use crate::cli::helpers::format_short_id;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -592,16 +593,6 @@ fn collect_all_entity_ids(project: &Project) -> Result<Vec<String>> {
 /// Check if an entity exists
 fn entity_exists(all_ids: &[String], id: &str) -> bool {
     all_ids.iter().any(|existing| existing == id || existing.starts_with(id))
-}
-
-/// Format an entity ID for short display
-fn format_short_id(id: &EntityId) -> String {
-    let full = id.to_string();
-    if full.len() > 12 {
-        format!("{}...", &full[..12])
-    } else {
-        full
-    }
 }
 
 /// Add a reciprocal link from target back to source

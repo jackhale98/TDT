@@ -2,8 +2,9 @@
 
 use console::style;
 use miette::Result;
+use std::collections::HashMap;
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use walkdir::WalkDir;
 
 use crate::core::project::Project;
@@ -57,10 +58,52 @@ struct ValidationStats {
     files_fixed: usize,
 }
 
+/// Cache for entities to avoid repeated file loading during validation
+/// This eliminates O(n²) behavior when validating mates and stackups
+struct EntityCache {
+    features: HashMap<String, Feature>,
+}
+
+impl EntityCache {
+    /// Build cache by loading all features once
+    fn build(project: &Project) -> Result<Self> {
+        let mut features = HashMap::new();
+
+        // Load all features
+        let feat_dir = project.root().join("tolerances/features");
+        if feat_dir.exists() {
+            for entry in WalkDir::new(&feat_dir)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+            {
+                let path = entry.path();
+                if !path.to_string_lossy().ends_with(".tdt.yaml") {
+                    continue;
+                }
+                if let Ok(content) = fs::read_to_string(path) {
+                    if let Ok(feat) = serde_yml::from_str::<Feature>(&content) {
+                        features.insert(feat.id.to_string(), feat);
+                    }
+                }
+            }
+        }
+
+        Ok(Self { features })
+    }
+
+    fn get_feature(&self, id: &str) -> Option<&Feature> {
+        self.features.get(id)
+    }
+}
+
 pub fn run(args: ValidateArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let registry = SchemaRegistry::default();
     let validator = Validator::new(&registry);
+
+    // Build entity cache once to avoid O(n²) lookups
+    let cache = EntityCache::build(&project)?;
 
     let mut stats = ValidationStats::default();
     let mut had_error = false;
@@ -153,10 +196,10 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                         check_risk_calculations(&content, path, args.fix, &mut stats)?
                     }
                     EntityPrefix::Mate => {
-                        check_mate_values(&content, path, args.fix, &mut stats, project.root())?
+                        check_mate_values(&content, path, args.fix, &mut stats, &cache)?
                     }
                     EntityPrefix::Tol => {
-                        check_stackup_values(&content, path, args.fix, &mut stats, project.root())?
+                        check_stackup_values(&content, path, args.fix, &mut stats, &cache)?
                     }
                     _ => vec![],
                 };
@@ -438,44 +481,13 @@ fn check_risk_calculations(
     Ok(issues)
 }
 
-/// Load a feature entity by ID from the project
-fn load_feature(feature_id: &str, project_root: &Path) -> Option<Feature> {
-    // Find the feature file by searching in the tolerances/features directory
-    let features_dir = project_root.join("tolerances").join("features");
-
-    if !features_dir.exists() {
-        return None;
-    }
-
-    for entry in WalkDir::new(&features_dir)
-        .into_iter()
-        .filter_map(|e| e.ok())
-        .filter(|e| e.file_type().is_file())
-    {
-        let path = entry.path();
-        if !path.to_string_lossy().ends_with(".tdt.yaml") {
-            continue;
-        }
-
-        if let Ok(content) = fs::read_to_string(path) {
-            if let Ok(feature) = serde_yml::from_str::<Feature>(&content) {
-                if feature.id.to_string() == feature_id {
-                    return Some(feature);
-                }
-            }
-        }
-    }
-
-    None
-}
-
 /// Check and optionally fix calculated values in MATE entities
 fn check_mate_values(
     content: &str,
     path: &PathBuf,
     fix: bool,
     stats: &mut ValidationStats,
-    project_root: &Path,
+    cache: &EntityCache,
 ) -> Result<Vec<String>> {
     let mut issues = Vec::new();
     let mut needs_fix = false;
@@ -486,9 +498,9 @@ fn check_mate_values(
         Err(_) => return Ok(issues), // Already reported by schema validation
     };
 
-    // Load linked features
+    // Load linked features from cache (O(1) lookup instead of O(n) directory scan)
     let feat_a_id = mate.feature_a.id.to_string();
-    let feat_a = match load_feature(&feat_a_id, project_root) {
+    let feat_a = match cache.get_feature(&feat_a_id) {
         Some(f) => f,
         None => {
             issues.push(format!("Cannot find feature_a: {}", mate.feature_a));
@@ -525,7 +537,7 @@ fn check_mate_values(
     }
 
     let feat_b_id = mate.feature_b.id.to_string();
-    let feat_b = match load_feature(&feat_b_id, project_root) {
+    let feat_b = match cache.get_feature(&feat_b_id) {
         Some(f) => f,
         None => {
             issues.push(format!("Cannot find feature_b: {}", mate.feature_b));
@@ -646,7 +658,7 @@ fn check_stackup_values(
     path: &PathBuf,
     fix: bool,
     stats: &mut ValidationStats,
-    project_root: &Path,
+    cache: &EntityCache,
 ) -> Result<Vec<String>> {
     let mut issues = Vec::new();
 
@@ -665,7 +677,8 @@ fn check_stackup_values(
             None => continue,
         };
 
-        if let Some(feature) = load_feature(&feature_id, project_root) {
+        // O(1) lookup from cache instead of O(n) directory scan
+        if let Some(feature) = cache.get_feature(&feature_id) {
             // Check dimensional sync
             if contributor.is_out_of_sync(&feature) {
                 if fix {

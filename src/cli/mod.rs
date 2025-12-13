@@ -2,6 +2,7 @@
 
 pub mod args;
 pub mod commands;
+pub mod helpers;
 pub mod output;
 
 pub use args::{Cli, Commands, GlobalOpts, OutputFormat};

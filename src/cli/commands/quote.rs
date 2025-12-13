@@ -5,6 +5,7 @@ use console::style;
 use miette::{IntoDiagnostic, Result};
 use std::fs;
 
+use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
@@ -1120,31 +1121,4 @@ fn run_compare(args: CompareArgs, global: &GlobalOpts) -> Result<()> {
     }
 
     Ok(())
-}
-
-// Helper functions
-
-fn format_short_id(id: &EntityId) -> String {
-    let id_str = id.to_string();
-    if id_str.len() > 13 {
-        format!("{}...", &id_str[..13])
-    } else {
-        id_str
-    }
-}
-
-fn truncate_str(s: &str, max_len: usize) -> &str {
-    if s.len() > max_len {
-        &s[..max_len]
-    } else {
-        s
-    }
-}
-
-fn escape_csv(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
-        format!("\"{}\"", s.replace('"', "\"\""))
-    } else {
-        s.to_string()
-    }
 }

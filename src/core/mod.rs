@@ -3,6 +3,7 @@
 pub mod config;
 pub mod entity;
 pub mod identity;
+pub mod loader;
 pub mod project;
 pub mod shortid;
 

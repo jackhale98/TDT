@@ -5,6 +5,7 @@ use console::style;
 use miette::{IntoDiagnostic, Result};
 use std::fs;
 
+use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
@@ -595,14 +596,6 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     Ok(())
 }
 
-fn escape_csv(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
-        format!("\"{}\"", s.replace('"', "\"\""))
-    } else {
-        s.to_string()
-    }
-}
-
 fn run_new(args: NewArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let config = Config::load();
@@ -957,25 +950,6 @@ fn find_risk(project: &Project, id_query: &str) -> Result<Risk> {
                 id_query
             ))
         }
-    }
-}
-
-/// Format an entity ID for short display (prefix + first 8 chars of ULID)
-fn format_short_id(id: &EntityId) -> String {
-    let full = id.to_string();
-    if full.len() > 13 {
-        format!("{}...", &full[..13])
-    } else {
-        full
-    }
-}
-
-/// Truncate a string to a maximum length, adding "..." if truncated
-fn truncate_str(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
     }
 }
 

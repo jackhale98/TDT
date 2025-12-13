@@ -5,8 +5,9 @@ use miette::{IntoDiagnostic, Result};
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 
+use crate::cli::helpers::{escape_csv, format_short_id, format_short_id_str, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
-use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::identity::EntityPrefix;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::entities::requirement::Requirement;
@@ -229,8 +230,8 @@ fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
 
-            let short_id = format_id_short(&entity.id);
-            let label = format!("{}\\n{}", short_id, truncate(&entity.title, 20));
+            let short_id = format_short_id_str(&entity.id);
+            let label = format!("{}\\n{}", short_id, truncate_str(&entity.title, 20));
             println!("  \"{}\" [label=\"{}\"];", entity.id, label);
 
             for (link_type, target) in &entity.outgoing_links {
@@ -291,11 +292,11 @@ fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
 
             // Use alias (REQ@1) if --aliases flag set, otherwise truncated full ID
             let source_display = if let Some(ref idx) = short_ids {
-                idx.get_short_id(&entity.id).unwrap_or_else(|| format_id_short(&entity.id))
+                idx.get_short_id(&entity.id).unwrap_or_else(|| format_short_id_str(&entity.id))
             } else {
-                format_id_short(&entity.id)
+                format_short_id_str(&entity.id)
             };
-            let title = truncate(&entity.title, 28);
+            let title = truncate_str(&entity.title, 28);
 
             for (link_type, target) in &entity.outgoing_links {
                 // Apply target filter
@@ -310,9 +311,9 @@ fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
                 has_links = true;
                 // Use alias for target too
                 let target_display = if let Some(ref idx) = short_ids {
-                    idx.get_short_id(target).unwrap_or_else(|| format_id_short(target))
+                    idx.get_short_id(target).unwrap_or_else(|| format_short_id_str(target))
                 } else {
-                    format_id_short(target)
+                    format_short_id_str(target)
                 };
                 println!(
                     "{:<16} {:<30} {:<14} {:<16}",
@@ -374,12 +375,12 @@ fn run_rvm(entities: &[GenericEntity], short_ids: Option<&ShortIdIndex>, _global
         total_count += 1;
 
         let req_display = if let Some(idx) = short_ids {
-            idx.get_short_id(&req.id).unwrap_or_else(|| format_id_short(&req.id))
+            idx.get_short_id(&req.id).unwrap_or_else(|| format_short_id_str(&req.id))
         } else {
-            format_id_short(&req.id)
+            format_short_id_str(&req.id)
         };
 
-        let title = truncate(&req.title, 30);
+        let title = truncate_str(&req.title, 30);
 
         // Find all entities that verify this requirement
         let verifiers: Vec<String> = incoming_links.get(&req.id)
@@ -388,9 +389,9 @@ fn run_rvm(entities: &[GenericEntity], short_ids: Option<&ShortIdIndex>, _global
                     .filter(|(_, link_type)| link_type == "verifies")
                     .map(|(source_id, _)| {
                         if let Some(idx) = short_ids {
-                            idx.get_short_id(source_id).unwrap_or_else(|| format_id_short(source_id))
+                            idx.get_short_id(source_id).unwrap_or_else(|| format_short_id_str(source_id))
                         } else {
-                            format_id_short(source_id)
+                            format_short_id_str(source_id)
                         }
                     })
                     .collect()
@@ -502,11 +503,11 @@ fn run_from(args: FromArgs) -> Result<()> {
         if depth > 0 {
             let indent = "  ".repeat(depth);
             let id_display = if args.aliases {
-                short_ids.get_short_id(&id).unwrap_or_else(|| format_id_short(&id))
+                short_ids.get_short_id(&id).unwrap_or_else(|| format_short_id_str(&id))
             } else {
-                format_id_short(&id)
+                format_short_id_str(&id)
             };
-            let title = id_to_title.get(&id).map(|t| truncate(t, 40)).unwrap_or_default();
+            let title = id_to_title.get(&id).map(|t| truncate_str(t, 40)).unwrap_or_default();
             println!("{}← {} - {}", indent, style(&id_display).cyan(), title);
         }
 
@@ -596,11 +597,11 @@ fn run_to(args: ToArgs) -> Result<()> {
         if depth > 0 {
             let indent = "  ".repeat(depth);
             let id_display = if args.aliases {
-                short_ids.get_short_id(&id).unwrap_or_else(|| format_id_short(&id))
+                short_ids.get_short_id(&id).unwrap_or_else(|| format_short_id_str(&id))
             } else {
-                format_id_short(&id)
+                format_short_id_str(&id)
             };
-            let title = id_to_title.get(&id).map(|t| truncate(t, 40)).unwrap_or_default();
+            let title = id_to_title.get(&id).map(|t| truncate_str(t, 40)).unwrap_or_default();
             println!("{}→ {} - {}", indent, style(&id_display).cyan(), title);
         }
 
@@ -709,8 +710,8 @@ fn run_orphans(args: OrphansArgs, global: &GlobalOpts) -> Result<()> {
                 println!(
                     "{} {} - {} ({})",
                     style("○").yellow(),
-                    format_id_short(&entity.id),
-                    truncate(&entity.title, 40),
+                    format_short_id_str(&entity.id),
+                    truncate_str(&entity.title, 40),
                     style(reason).dim()
                 );
             }
@@ -841,7 +842,7 @@ fn run_coverage(args: CoverageArgs, global: &GlobalOpts) -> Result<()> {
                         "  {} {} - {}",
                         style("○").red(),
                         format_short_id(&req.id),
-                        truncate(&req.title, 45)
+                        truncate_str(&req.title, 45)
                     );
                 }
             } else if !uncovered_list.is_empty() {
@@ -1019,41 +1020,4 @@ fn load_generic_entity(path: &PathBuf, prefix: EntityPrefix) -> Result<GenericEn
         prefix,
         outgoing_links,
     })
-}
-
-/// Format an entity ID for short display
-fn format_short_id(id: &EntityId) -> String {
-    let full = id.to_string();
-    if full.len() > 12 {
-        format!("{}...", &full[..12])
-    } else {
-        full
-    }
-}
-
-/// Format a string ID for short display
-fn format_id_short(id: &str) -> String {
-    if id.len() > 16 {
-        format!("{}...", &id[..13])
-    } else {
-        id.to_string()
-    }
-}
-
-/// Truncate a string
-fn truncate(s: &str, max_len: usize) -> String {
-    if s.len() <= max_len {
-        s.to_string()
-    } else {
-        format!("{}...", &s[..max_len.saturating_sub(3)])
-    }
-}
-
-/// Escape a string for CSV
-fn escape_csv(s: &str) -> String {
-    if s.contains(',') || s.contains('"') || s.contains('\n') {
-        format!("\"{}\"", s.replace('"', "\"\""))
-    } else {
-        s.to_string()
-    }
 }

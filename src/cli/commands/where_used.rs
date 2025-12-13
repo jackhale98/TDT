@@ -4,6 +4,7 @@ use console::style;
 use miette::Result;
 use std::collections::HashMap;
 
+use crate::cli::helpers::format_short_id_str;
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -114,7 +115,7 @@ pub fn run(args: WhereUsedArgs, global: &GlobalOpts) -> Result<()> {
                 println!("{:<12} {:<20} {}", style("REF ID").bold(), style("TYPE").bold(), style("RELATIONSHIP").bold());
                 println!("{}", "-".repeat(60));
                 for (ref_id, ref_type, rel) in &found_refs {
-                    let ref_short = short_ids.get_short_id(ref_id).unwrap_or_else(|| truncate_id(ref_id));
+                    let ref_short = short_ids.get_short_id(ref_id).unwrap_or_else(|| format_short_id_str(ref_id));
                     println!("{:<12} {:<20} {}", style(&ref_short).cyan(), ref_type, rel);
                 }
                 println!();
@@ -392,12 +393,4 @@ fn find_generic_link_references(
     }
 
     Ok(())
-}
-
-fn truncate_id(s: &str) -> String {
-    if s.len() > 12 {
-        format!("{}...", &s[..9])
-    } else {
-        s.to_string()
-    }
 }
