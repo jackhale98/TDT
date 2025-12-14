@@ -6,7 +6,7 @@ use console::style;
 use miette::{IntoDiagnostic, Result};
 use std::fs;
 
-use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
+use crate::cli::helpers::{escape_csv, format_short_id, smart_round, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::entity::Entity;
 use crate::core::identity::{EntityId, EntityPrefix};
@@ -814,13 +814,19 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                 println!("{} ({}):", style("Contributors").bold(), stackup.contributors.len());
                 for c in &stackup.contributors {
                     let dir = if c.direction == crate::entities::stackup::Direction::Positive { "+" } else { "-" };
-                    println!("  {} {} {} ±{:.4}", dir, style(&c.name).cyan(), c.nominal, (c.plus_tol + c.minus_tol) / 2.0);
+                    // Use tolerance as reference for precision
+                    let ref_precision = c.plus_tol.max(c.minus_tol).max(0.001);
+                    let avg_tol = smart_round((c.plus_tol + c.minus_tol) / 2.0, ref_precision);
+                    println!("  {} {} {} ±{}", dir, style(&c.name).cyan(), c.nominal, avg_tol);
                 }
             }
 
             // Analysis Results
             let results = &stackup.analysis_results;
             if results.worst_case.is_some() || results.rss.is_some() || results.monte_carlo.is_some() {
+                // Use target tolerance band as reference for precision
+                let ref_precision = (stackup.target.upper_limit - stackup.target.lower_limit).abs().max(0.001);
+
                 println!();
                 println!("{}", style("Analysis Results:").bold());
                 if let Some(ref wc) = results.worst_case {
@@ -829,7 +835,8 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                         crate::entities::stackup::AnalysisResult::Fail => style("FAIL").red(),
                         crate::entities::stackup::AnalysisResult::Marginal => style("MARGINAL").yellow(),
                     };
-                    println!("  Worst Case: {} (margin: {:.4})", result_color, wc.margin);
+                    let margin_rounded = smart_round(wc.margin, ref_precision);
+                    println!("  Worst Case: {} (margin: {})", result_color, margin_rounded);
                 }
                 if let Some(ref rss) = results.rss {
                     println!("  RSS: Cpk={:.2}, Yield={:.1}%", rss.cpk, rss.yield_percent);
@@ -968,14 +975,17 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
         style(&args.id).cyan()
     );
 
+    // Use target tolerance band as reference for precision
+    let ref_precision = (stackup.target.upper_limit - stackup.target.lower_limit).abs().max(0.001);
+
     // Show results summary
     println!();
     println!(
-        "   Target: {} = {:.4} (LSL: {:.4}, USL: {:.4})",
+        "   Target: {} = {} (LSL: {}, USL: {})",
         style(&stackup.target.name).yellow(),
-        stackup.target.nominal,
-        stackup.target.lower_limit,
-        stackup.target.upper_limit
+        smart_round(stackup.target.nominal, ref_precision),
+        smart_round(stackup.target.lower_limit, ref_precision),
+        smart_round(stackup.target.upper_limit, ref_precision)
     );
 
     if let Some(ref wc) = stackup.analysis_results.worst_case {
@@ -990,19 +1000,20 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
         println!();
         println!("   {} Analysis:", style("Worst-Case").bold());
         println!(
-            "     Range: {:.4} to {:.4}",
-            wc.min, wc.max
+            "     Range: {} to {}",
+            smart_round(wc.min, ref_precision),
+            smart_round(wc.max, ref_precision)
         );
-        println!("     Margin: {:.4}", wc.margin);
+        println!("     Margin: {}", smart_round(wc.margin, ref_precision));
         println!("     Result: {}", result_style);
     }
 
     if let Some(ref rss) = stackup.analysis_results.rss {
         println!();
         println!("   {} Analysis:", style("RSS (Statistical)").bold());
-        println!("     Mean: {:.4}", rss.mean);
-        println!("     ±3σ: {:.4}", rss.sigma_3);
-        println!("     Margin: {:.4}", rss.margin);
+        println!("     Mean: {}", smart_round(rss.mean, ref_precision));
+        println!("     ±3σ: {}", smart_round(rss.sigma_3, ref_precision));
+        println!("     Margin: {}", smart_round(rss.margin, ref_precision));
         println!("     Cpk: {:.2}", rss.cpk);
         println!("     Yield: {:.2}%", rss.yield_percent);
     }
@@ -1014,15 +1025,17 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
             style("Monte Carlo").bold(),
             mc.iterations
         );
-        println!("     Mean: {:.4}", mc.mean);
-        println!("     Std Dev: {:.4}", mc.std_dev);
+        println!("     Mean: {}", smart_round(mc.mean, ref_precision));
+        println!("     Std Dev: {}", smart_round(mc.std_dev, ref_precision));
         println!(
-            "     Range: {:.4} to {:.4}",
-            mc.min, mc.max
+            "     Range: {} to {}",
+            smart_round(mc.min, ref_precision),
+            smart_round(mc.max, ref_precision)
         );
         println!(
-            "     95% CI: {:.4} to {:.4}",
-            mc.percentile_2_5, mc.percentile_97_5
+            "     95% CI: {} to {}",
+            smart_round(mc.percentile_2_5, ref_precision),
+            smart_round(mc.percentile_97_5, ref_precision)
         );
         println!("     Yield: {:.2}%", mc.yield_percent);
     }

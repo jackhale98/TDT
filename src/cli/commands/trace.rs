@@ -1031,6 +1031,40 @@ fn load_generic_entity(path: &PathBuf, prefix: EntityPrefix) -> Result<GenericEn
         }
     }
 
+    // Handle TOL entity contributors -> feature references
+    if prefix == EntityPrefix::Tol {
+        if let Some(contributors) = value.get("contributors").and_then(|v| v.as_sequence()) {
+            for contrib in contributors {
+                // Each contributor may have a feature reference with id
+                if let Some(feature_ref) = contrib.get("feature") {
+                    if let Some(feat_id) = feature_ref.get("id").and_then(|v| v.as_str()) {
+                        outgoing_links.push(("uses_feature".to_string(), feat_id.to_string()));
+                    }
+                }
+            }
+        }
+    }
+
+    // Handle MATE entity feature references (feature_a, feature_b)
+    if prefix == EntityPrefix::Mate {
+        for field in ["feature_a", "feature_b"] {
+            if let Some(feat_ref) = value.get(field) {
+                if let Some(feat_id) = feat_ref.get("id").and_then(|v| v.as_str()) {
+                    outgoing_links.push(("mates".to_string(), feat_id.to_string()));
+                }
+            }
+        }
+    }
+
+    // Handle FEAT entity component reference
+    if prefix == EntityPrefix::Feat {
+        if let Some(component) = value.get("component").and_then(|v| v.as_str()) {
+            if component.contains('-') && component.len() > 4 {
+                outgoing_links.push(("belongs_to".to_string(), component.to_string()));
+            }
+        }
+    }
+
     Ok(GenericEntity {
         id,
         title,

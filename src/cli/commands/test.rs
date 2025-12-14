@@ -14,7 +14,7 @@ use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
-use crate::entities::result::{Result as TestResult, Verdict};
+use crate::entities::result::{Result as TestResult, StepResult, StepResultRecord, Verdict};
 use crate::entities::test::{Test, TestLevel, TestMethod, TestType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
 use crate::schema::wizard::SchemaWizard;
@@ -1567,6 +1567,26 @@ fn run_run(args: RunArgs, global: &GlobalOpts) -> Result<()> {
     // Create result ID
     let result_id = EntityId::new(EntityPrefix::Rslt);
 
+    // Scaffold step results from test procedure
+    let step_results: Vec<StepResultRecord> = test.procedure.iter().map(|step| {
+        // Default step result based on overall verdict
+        let step_result = match verdict {
+            Verdict::Pass => StepResult::Pass,
+            Verdict::Fail => StepResult::Pass, // User will mark specific failures
+            Verdict::Conditional => StepResult::Pass,
+            Verdict::Incomplete => StepResult::Skip,
+            Verdict::NotApplicable => StepResult::NotApplicable,
+        };
+
+        StepResultRecord {
+            step: step.step,
+            result: step_result,
+            observed: None, // To be filled in by user
+            measurement: None,
+            notes: None,
+        }
+    }).collect();
+
     // Create result entity
     let result = TestResult {
         id: result_id.clone(),
@@ -1584,7 +1604,7 @@ fn run_run(args: RunArgs, global: &GlobalOpts) -> Result<()> {
         sample_info: None,
         environment: None,
         equipment_used: Vec::new(),
-        step_results: Vec::new(),
+        step_results,
         deviations: Vec::new(),
         failures: Vec::new(),
         attachments: Vec::new(),
@@ -1658,6 +1678,9 @@ fn run_run(args: RunArgs, global: &GlobalOpts) -> Result<()> {
                 }
             );
             println!("   Executed by: {}", executed_by);
+            if !test.procedure.is_empty() {
+                println!("   Steps scaffolded: {}", style(test.procedure.len()).cyan());
+            }
             println!("   {}", style(file_path.display()).dim());
         }
     }

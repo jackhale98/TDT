@@ -52,6 +52,10 @@ pub struct CompareArgs {
     /// Show only entity IDs, not filenames
     #[arg(long)]
     pub ids_only: bool,
+
+    /// Show full diff for modified files
+    #[arg(long, short = 'd')]
+    pub diff: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -193,6 +197,7 @@ fn run_compare(args: CompareArgs) -> Result<()> {
     let mut added = 0;
     let mut modified = 0;
     let mut deleted = 0;
+    let mut modified_files: Vec<String> = Vec::new();
 
     println!("{:<8} {:<12} {}", style("STATUS").bold(), style("ID").bold(), style("FILE").bold());
     println!("{}", "-".repeat(70));
@@ -205,7 +210,11 @@ fn run_compare(args: CompareArgs) -> Result<()> {
 
             let (_status_str, status_style) = match status {
                 "A" => { added += 1; ("Added", style("Added").green()) },
-                "M" => { modified += 1; ("Modified", style("Modified").yellow()) },
+                "M" => {
+                    modified += 1;
+                    modified_files.push(file.to_string());
+                    ("Modified", style("Modified").yellow())
+                },
                 "D" => { deleted += 1; ("Deleted", style("Deleted").red()) },
                 _ => ("Changed", style("Changed").dim()),
             };
@@ -235,6 +244,49 @@ fn run_compare(args: CompareArgs) -> Result<()> {
             style(added).green(),
             style(modified).yellow(),
             style(deleted).red());
+    }
+
+    // Show diffs for modified files if requested
+    if args.diff && !modified_files.is_empty() {
+        println!("\n{}", style("═".repeat(70)).dim());
+        println!("{}\n", style("Diffs for Modified Files:").bold());
+
+        for file in &modified_files {
+            let id = extract_entity_id(&project, file)
+                .and_then(|id| short_ids.get_short_id(&id).or(Some(id)))
+                .unwrap_or_else(|| "-".to_string());
+
+            println!("{} {} ({})",
+                style("───").dim(),
+                style(&id).cyan().bold(),
+                style(file).dim());
+
+            let diff_output = Command::new("git")
+                .args(["diff", &format!("{}..{}", baseline1, baseline2), "--", file])
+                .current_dir(project.root())
+                .output();
+
+            if let Ok(output) = diff_output {
+                let diff_text = String::from_utf8_lossy(&output.stdout);
+                // Skip the header lines and show just the content diff
+                let mut in_content = false;
+                for line in diff_text.lines() {
+                    if line.starts_with("@@") {
+                        in_content = true;
+                        println!("{}", style(line).dim());
+                    } else if in_content {
+                        if line.starts_with('+') && !line.starts_with("+++") {
+                            println!("{}", style(line).green());
+                        } else if line.starts_with('-') && !line.starts_with("---") {
+                            println!("{}", style(line).red());
+                        } else {
+                            println!("{}", line);
+                        }
+                    }
+                }
+            }
+            println!();
+        }
     }
 
     Ok(())

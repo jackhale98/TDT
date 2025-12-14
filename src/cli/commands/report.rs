@@ -8,11 +8,12 @@ use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
-use crate::cli::helpers::truncate_str;
+use crate::cli::helpers::{truncate_str, format_date_local};
 use crate::cli::GlobalOpts;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::entities::component::Component;
+use crate::entities::quote::Quote;
 use crate::entities::requirement::Requirement;
 use crate::entities::result::{Result as TestResult, Verdict};
 use crate::entities::risk::Risk;
@@ -123,6 +124,18 @@ fn run_rvm(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
         .map(|t| (t.id.to_string(), t))
         .collect();
 
+    // Build reverse lookup: which tests verify each requirement (from test.links.verifies)
+    let mut tests_verifying_req: HashMap<String, Vec<String>> = HashMap::new();
+    for test in &tests {
+        for req_id in &test.links.verifies {
+            let req_id_str = req_id.to_string();
+            tests_verifying_req
+                .entry(req_id_str)
+                .or_default()
+                .push(test.id.to_string());
+        }
+    }
+
     // Build result lookup by test ID (latest result for each test)
     let mut latest_results: HashMap<String, &TestResult> = HashMap::new();
     for result in &results {
@@ -157,8 +170,24 @@ fn run_rvm(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
     for req in &requirements {
         let req_short = short_ids.get_short_id(&req.id.to_string()).unwrap_or_else(|| req.id.to_string());
         let req_title = req.title.clone();
+        let req_id_str = req.id.to_string();
 
-        if req.links.verified_by.is_empty() {
+        // Merge links from both directions:
+        // 1. req.links.verified_by (tests listed in requirement)
+        // 2. test.links.verifies (tests that point to this requirement)
+        let mut all_test_ids: std::collections::HashSet<String> = req.links.verified_by
+            .iter()
+            .map(|id| id.to_string())
+            .collect();
+
+        // Add tests from reverse lookup (test.verifies -> this req)
+        if let Some(reverse_tests) = tests_verifying_req.get(&req_id_str) {
+            for test_id in reverse_tests {
+                all_test_ids.insert(test_id.clone());
+            }
+        }
+
+        if all_test_ids.is_empty() {
             // No linked tests - truly unverified
             if !args.unverified_only || true {
                 rows.push(RvmRow {
@@ -177,8 +206,7 @@ fn run_rvm(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
             let mut all_passed = true;
             let mut any_executed = false;
 
-            for test_id in &req.links.verified_by {
-                let test_id_str = test_id.to_string();
+            for test_id_str in all_test_ids {
                 let test_short = short_ids.get_short_id(&test_id_str).unwrap_or_else(|| test_id_str.clone());
 
                 let (test_title, result_id, verdict, test_passed) = if let Some(test) = test_map.get(&test_id_str) {
@@ -288,9 +316,9 @@ fn run_rvm(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
         output.push_str(&format!(
             "| {:<w_req_id$} | {:<w_req_title$} | {:<w_test_id$} | {:<w_test_title$} | {:<w_result$} | {:<w_verdict$} |\n",
             row.req_short,
-            truncate_str(&row.req_title, 40),
+            truncate_str(&row.req_title, 25),
             row.test_short,
-            truncate_str(&row.test_title, 35),
+            truncate_str(&row.test_title, 25),
             row.result_id,
             row.verdict,
             w_req_id = w_req_id, w_req_title = w_req_title, w_test_id = w_test_id,
@@ -355,9 +383,9 @@ fn run_fmea(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
 
     for risk in &risks {
         let risk_short = short_ids.get_short_id(&risk.id.to_string()).unwrap_or_else(|| risk.id.to_string());
-        let failure_mode = truncate_str(risk.failure_mode.as_deref().unwrap_or("-"), 30).to_string();
-        let cause = truncate_str(risk.cause.as_deref().unwrap_or("-"), 25).to_string();
-        let effect = truncate_str(risk.effect.as_deref().unwrap_or("-"), 25).to_string();
+        let failure_mode = truncate_str(risk.failure_mode.as_deref().unwrap_or("-"), 20).to_string();
+        let cause = truncate_str(risk.cause.as_deref().unwrap_or("-"), 15).to_string();
+        let effect = truncate_str(risk.effect.as_deref().unwrap_or("-"), 15).to_string();
         let s = risk.severity.map_or("-".to_string(), |v| v.to_string());
         let o = risk.occurrence.map_or("-".to_string(), |v| v.to_string());
         let d = risk.detection.map_or("-".to_string(), |v| v.to_string());
@@ -489,6 +517,12 @@ fn run_bom(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
         .map(|a| (a.id.to_string(), a))
         .collect();
 
+    // Load quotes for price lookup (used when --with-cost)
+    let quotes = load_all_quotes(&project);
+    let quote_map: HashMap<String, &Quote> = quotes.iter()
+        .map(|q| (q.id.to_string(), q))
+        .collect();
+
     // Generate indented BOM
     let mut output = String::new();
     output.push_str(&format!("# Bill of Materials: {}\n\n", assembly.title));
@@ -505,6 +539,7 @@ fn run_bom(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
         output: &mut String,
         component_map: &HashMap<String, &Component>,
         assembly_map: &HashMap<String, &crate::entities::assembly::Assembly>,
+        quote_map: &HashMap<String, &Quote>,
         short_ids: &ShortIdIndex,
         bom: &[crate::entities::assembly::BomItem],
         indent: usize,
@@ -525,11 +560,25 @@ fn run_bom(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
             // Check if it's a component or subassembly
             if let Some(cmp) = component_map.get(&item_id) {
                 let cost_str = if with_cost {
-                    cmp.unit_cost.map_or("".to_string(), |c| {
-                        let line_cost = c * item.quantity as f64;
+                    // Priority 1: Use selected quote if set
+                    let unit_price = if let Some(ref quote_id) = cmp.selected_quote {
+                        if let Some(quote) = quote_map.get(quote_id) {
+                            quote.price_for_qty(item.quantity).unwrap_or(0.0)
+                        } else {
+                            cmp.unit_cost.unwrap_or(0.0)
+                        }
+                    } else {
+                        // Priority 2: Fall back to unit_cost
+                        cmp.unit_cost.unwrap_or(0.0)
+                    };
+
+                    if unit_price > 0.0 {
+                        let line_cost = unit_price * item.quantity as f64;
                         *total_cost += line_cost;
                         format!(" ${:.2}", line_cost)
-                    })
+                    } else {
+                        "".to_string()
+                    }
                 } else {
                     "".to_string()
                 };
@@ -563,7 +612,7 @@ fn run_bom(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
 
                     visited.insert(item_id.clone());
                     print_bom_item(
-                        output, component_map, assembly_map, short_ids,
+                        output, component_map, assembly_map, quote_map, short_ids,
                         &asm.bom, indent + 1, total_cost, total_mass,
                         with_cost, with_mass, visited
                     );
@@ -581,7 +630,7 @@ fn run_bom(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
     let mut visited = std::collections::HashSet::new();
     visited.insert(assembly.id.to_string());
     print_bom_item(
-        &mut output, &component_map, &assembly_map, &short_ids,
+        &mut output, &component_map, &assembly_map, &quote_map, &short_ids,
         &assembly.bom, 0, &mut total_cost, &mut total_mass,
         args.with_cost, args.with_mass, &mut visited
     );
@@ -680,7 +729,7 @@ fn run_test_status(args: TestStatusArgs, _global: &GlobalOpts) -> Result<()> {
                 "| {} | {} | {} |\n",
                 test_short,
                 truncate_str(&test.title, 40),
-                result.executed_date.format("%Y-%m-%d")
+                format_date_local(&result.executed_date)
             ));
         }
     }
@@ -934,6 +983,29 @@ fn load_all_assemblies(project: &Project) -> Vec<crate::entities::assembly::Asse
     }
 
     assemblies
+}
+
+fn load_all_quotes(project: &Project) -> Vec<Quote> {
+    let mut quotes = Vec::new();
+
+    // Check both sourcing/quotes and bom/quotes directories
+    for dir_path in &["sourcing/quotes", "bom/quotes"] {
+        let dir = project.root().join(dir_path);
+        if dir.exists() {
+            for entry in walkdir::WalkDir::new(&dir)
+                .into_iter()
+                .filter_map(|e| e.ok())
+                .filter(|e| e.file_type().is_file())
+                .filter(|e| e.path().to_string_lossy().ends_with(".tdt.yaml"))
+            {
+                if let Ok(quote) = crate::yaml::parse_yaml_file::<Quote>(entry.path()) {
+                    quotes.push(quote);
+                }
+            }
+        }
+    }
+
+    quotes
 }
 
 fn load_assembly(project: &Project, id: &str) -> Result<crate::entities::assembly::Assembly> {

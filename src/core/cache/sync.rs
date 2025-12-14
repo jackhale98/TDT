@@ -302,27 +302,43 @@ impl EntityCache {
             ("component", "quotes_for"),
         ];
 
-        for (field, link_type) in link_fields {
+        // Helper to extract links from a value
+        let extract_links = |value: &serde_yml::Value, field: &str, link_type: &str| -> Vec<(String, String)> {
+            let mut links = Vec::new();
             if let Some(targets) = value[field].as_sequence() {
                 for target in targets {
                     if let Some(target_id) = target.as_str() {
-                        self.insert_link(source_id, target_id, link_type)?;
+                        links.push((target_id.to_string(), link_type.to_string()));
                     } else if let Some(target_obj) = target.as_mapping() {
                         if let Some(target_id) = target_obj
                             .get(serde_yml::Value::String("id".to_string()))
                             .and_then(|v| v.as_str())
                         {
-                            self.insert_link(source_id, target_id, link_type)?;
+                            links.push((target_id.to_string(), link_type.to_string()));
                         }
                     }
                 }
             } else if let Some(target_id) = value[field].as_str() {
+                links.push((target_id.to_string(), link_type.to_string()));
+            }
+            links
+        };
+
+        for (field, link_type) in link_fields {
+            // Check at top level
+            for (target_id, ltype) in extract_links(value, field, link_type) {
                 if field == "component" {
-                    self.insert_link(source_id, target_id, "references")?;
+                    self.insert_link(source_id, &target_id, "references")?;
                 } else if field == "parent" {
-                    self.insert_link(source_id, target_id, "contained_in")?;
+                    self.insert_link(source_id, &target_id, "contained_in")?;
                 } else {
-                    self.insert_link(source_id, target_id, link_type)?;
+                    self.insert_link(source_id, &target_id, &ltype)?;
+                }
+            }
+            // Also check nested under "links" object
+            if let Some(links_obj) = value.get("links") {
+                for (target_id, ltype) in extract_links(links_obj, field, link_type) {
+                    self.insert_link(source_id, &target_id, &ltype)?;
                 }
             }
         }

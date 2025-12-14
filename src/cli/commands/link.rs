@@ -71,13 +71,13 @@ LINK TYPES:
   General (all entities):
     related_to           Symmetric link to any related entity
 
-  Use -r/--reciprocal to automatically add the reverse link.
+  Reciprocal links are added by default. Use --no-reciprocal to skip.
 
 EXAMPLES:
-  tdt link add REQ@1 TEST@1 verified_by -r    # Link requirement to test (both ways)
-  tdt link add REQ@1 REQ@2 derives_from -r    # Requirement decomposition
-  tdt link add RISK@1 CMP@1 affects -r        # Risk affects component
-  tdt link add CAPA@1 PROC@1 processes_modified -r
+  tdt link add REQ@1 TEST@1 verified_by       # Links both directions automatically
+  tdt link add REQ@1 REQ@2 derives_from       # Requirement decomposition (both ways)
+  tdt link add RISK@1 CMP@1 affects           # Risk affects component (both ways)
+  tdt link add CAPA@1 PROC@1 processes_modified --no-reciprocal  # One-way only
 ")]
 pub struct AddLinkArgs {
     /// Source entity ID (or partial ID)
@@ -96,9 +96,13 @@ pub struct AddLinkArgs {
     #[arg(long = "link-type", short = 't')]
     pub link_type_flag: Option<String>,
 
-    /// Add reciprocal link (target -> source)
-    #[arg(long, short = 'r')]
+    /// Add reciprocal link (target -> source) - enabled by default
+    #[arg(long, short = 'r', default_value = "true", action = clap::ArgAction::Set)]
     pub reciprocal: bool,
+
+    /// Skip adding reciprocal link
+    #[arg(long)]
+    pub no_reciprocal: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -188,7 +192,7 @@ fn run_add(args: AddLinkArgs) -> Result<()> {
         format_short_id(&target.id)
     );
 
-    if args.reciprocal {
+    if args.reciprocal && !args.no_reciprocal {
         // Determine reciprocal link type and add it
         match add_reciprocal_link(&project, &source.id, &target.id, &link_type) {
             Ok(Some(recip_type)) => {

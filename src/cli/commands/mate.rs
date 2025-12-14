@@ -5,7 +5,7 @@ use console::style;
 use miette::{bail, IntoDiagnostic, Result};
 use std::fs;
 
-use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
+use crate::cli::helpers::{escape_csv, format_short_id, smart_round, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::entity::Entity;
 use crate::core::identity::{EntityId, EntityPrefix};
@@ -617,13 +617,20 @@ fn run_new(args: NewArgs) -> Result<()> {
 
     // Show fit analysis if calculated
     if let Some(ref analysis) = mate.fit_analysis {
+        // Use the clearance magnitude to determine precision for display
+        let ref_precision = analysis.worst_case_min_clearance.abs()
+            .max(analysis.worst_case_max_clearance.abs())
+            .max(0.001); // Minimum precision for tiny values
+        let min_rounded = smart_round(analysis.worst_case_min_clearance, ref_precision);
+        let max_rounded = smart_round(analysis.worst_case_max_clearance, ref_precision);
+
         println!();
         println!("   Fit Analysis:");
         println!(
-            "     Result: {} ({:.4} to {:.4})",
+            "     Result: {} ({} to {})",
             style(format!("{}", analysis.fit_result)).cyan(),
-            analysis.worst_case_min_clearance,
-            analysis.worst_case_max_clearance
+            min_rounded,
+            max_rounded
         );
     }
 
@@ -724,6 +731,13 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
 
             // Fit Analysis
             if let Some(ref fit) = mate.fit_analysis {
+                // Use the clearance magnitude to determine precision for display
+                let ref_precision = fit.worst_case_min_clearance.abs()
+                    .max(fit.worst_case_max_clearance.abs())
+                    .max(0.001);
+                let min_rounded = smart_round(fit.worst_case_min_clearance, ref_precision);
+                let max_rounded = smart_round(fit.worst_case_max_clearance, ref_precision);
+
                 println!();
                 println!("{}", style("Fit Analysis:").bold());
                 let fit_color = match fit.fit_result {
@@ -732,8 +746,8 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                     crate::entities::mate::FitResult::Transition => style("TRANSITION").yellow(),
                 };
                 println!("  {}: {}", style("Fit Type").dim(), fit_color);
-                println!("  {}: {:.4} mm", style("Min Clearance").dim(), fit.worst_case_min_clearance);
-                println!("  {}: {:.4} mm", style("Max Clearance").dim(), fit.worst_case_max_clearance);
+                println!("  {}: {} mm", style("Min Clearance").dim(), min_rounded);
+                println!("  {}: {} mm", style("Max Clearance").dim(), max_rounded);
             }
 
             // Tags
@@ -888,11 +902,18 @@ fn run_recalc(args: RecalcArgs) -> Result<()> {
     );
 
     if let Some(ref analysis) = mate.fit_analysis {
+        // Use the clearance magnitude to determine precision for display
+        let ref_precision = analysis.worst_case_min_clearance.abs()
+            .max(analysis.worst_case_max_clearance.abs())
+            .max(0.001);
+        let min_rounded = smart_round(analysis.worst_case_min_clearance, ref_precision);
+        let max_rounded = smart_round(analysis.worst_case_max_clearance, ref_precision);
+
         println!(
-            "   Result: {} ({:.4} to {:.4})",
+            "   Result: {} ({} to {})",
             style(format!("{}", analysis.fit_result)).cyan(),
-            analysis.worst_case_min_clearance,
-            analysis.worst_case_max_clearance
+            min_rounded,
+            max_rounded
         );
     } else {
         println!("   Could not calculate fit (features may not have dimensions)");
