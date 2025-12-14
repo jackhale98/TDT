@@ -1,6 +1,6 @@
 # TDT Process Entity (Manufacturing)
 
-This document describes the Process entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Process entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

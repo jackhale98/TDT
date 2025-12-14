@@ -1,6 +1,6 @@
 # TDT Mate Entity (Tolerances)
 
-This document describes the Mate entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Mate entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 
@@ -102,7 +102,7 @@ Calculation:
 
 ```yaml
 # Mate: Pin-Hole Mate
-# Created by TDT - Tessera Engineering Toolkit
+# Created by TDT - Tessera Design Toolkit
 
 id: MATE-01HC2JB7SMQX7RS1Y0GFKBHPTF
 title: "Pin-Hole Mate"

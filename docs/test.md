@@ -1,6 +1,6 @@
 # TDT Test Entity
 
-This document describes the Test entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Test entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

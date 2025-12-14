@@ -101,7 +101,7 @@ OPTIONS:
 
 #[derive(Parser)]
 #[command(name = "tdt")]
-#[command(author, version, about = "Tessera Engineering Toolkit")]
+#[command(author, version, about = "Tessera Design Toolkit")]
 #[command(long_about = "A Unix-style toolkit for managing engineering artifacts as plain text files under git version control.")]
 #[command(propagate_version = true)]
 #[command(help_template = HELP_TEMPLATE)]

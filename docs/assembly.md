@@ -1,6 +1,6 @@
 # TDT Assembly Entity (BOM)
 
-This document describes the Assembly entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Assembly entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

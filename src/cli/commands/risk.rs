@@ -21,6 +21,8 @@ use crate::schema::wizard::SchemaWizard;
 pub enum CliRiskType {
     Design,
     Process,
+    Use,
+    Software,
 }
 
 impl std::fmt::Display for CliRiskType {
@@ -28,6 +30,8 @@ impl std::fmt::Display for CliRiskType {
         match self {
             CliRiskType::Design => write!(f, "design"),
             CliRiskType::Process => write!(f, "process"),
+            CliRiskType::Use => write!(f, "use"),
+            CliRiskType::Software => write!(f, "software"),
         }
     }
 }
@@ -37,6 +41,8 @@ impl From<CliRiskType> for RiskType {
         match cli {
             CliRiskType::Design => RiskType::Design,
             CliRiskType::Process => RiskType::Process,
+            CliRiskType::Use => RiskType::Use,
+            CliRiskType::Software => RiskType::Software,
         }
     }
 }
@@ -67,6 +73,8 @@ pub enum RiskCommands {
 pub enum RiskTypeFilter {
     Design,
     Process,
+    Use,
+    Software,
     All,
 }
 
@@ -390,6 +398,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         let type_filter = match args.r#type {
             RiskTypeFilter::Design => Some("design"),
             RiskTypeFilter::Process => Some("process"),
+            RiskTypeFilter::Use => Some("use"),
+            RiskTypeFilter::Software => Some("software"),
             RiskTypeFilter::All => None,
         };
 
@@ -434,6 +444,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         let type_match = match args.r#type {
             RiskTypeFilter::Design => r.risk_type == RiskType::Design,
             RiskTypeFilter::Process => r.risk_type == RiskType::Process,
+            RiskTypeFilter::Use => r.risk_type == RiskType::Use,
+            RiskTypeFilter::Software => r.risk_type == RiskType::Software,
             RiskTypeFilter::All => true,
         };
 
@@ -964,6 +976,8 @@ fn run_edit(args: EditArgs) -> Result<()> {
     let risk_type = match risk.risk_type {
         RiskType::Design => "design",
         RiskType::Process => "process",
+        RiskType::Use => "use",
+        RiskType::Software => "software",
     };
     let file_path = project
         .root()
@@ -1283,6 +1297,8 @@ fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
     let type_filter = args.risk_type.map(|t| match t {
         CliRiskType::Design => "design",
         CliRiskType::Process => "process",
+        CliRiskType::Use => "use",
+        CliRiskType::Software => "software",
     });
 
     let cached_risks = cache.list_risks(

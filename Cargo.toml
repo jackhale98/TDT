@@ -2,7 +2,7 @@
 name = "tdt"
 version = "0.1.0"
 edition = "2021"
-description = "Tessera Engineering Toolkit"
+description = "Tessera Design Toolkit"
 license = "MIT"
 
 [dependencies]

@@ -1,4 +1,4 @@
-# TDT - Tessera Engineering Toolkit
+# TDT - Tessera Design Toolkit
 
 A CLI tool for managing engineering artifacts as plain-text YAML files. TDT provides structured tracking of requirements, risks, tests, and other entities with full traceability and validation.
 

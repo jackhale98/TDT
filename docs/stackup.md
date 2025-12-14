@@ -1,6 +1,6 @@
 # TDT Stackup Entity (Tolerance Analysis)
 
-This document describes the Stackup entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Stackup entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

@@ -1,4 +1,4 @@
-//! TDT: Tessera Engineering Toolkit
+//! TDT: Tessera Design Toolkit
 //!
 //! A Unix-style toolkit for managing engineering artifacts as plain text
 //! files under git version control.

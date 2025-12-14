@@ -1,6 +1,6 @@
 # TDT Feature Entity (Tolerances)
 
-This document describes the Feature entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Feature entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

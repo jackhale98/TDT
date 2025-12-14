@@ -168,14 +168,14 @@ Then link it to the parent requirement:
 
 ```bash
 # Positional syntax (link type as 3rd argument)
-# Use -r to add reciprocal link (REQ@1 gets derived_by -> REQ@5)
-tdt link add REQ@5 REQ@1 derives_from -r
+# REQ@1 automatically gets derived_by -> REQ@5 (reciprocal)
+tdt link add REQ@5 REQ@1 derives_from
 
 # Long form - equivalent
-tdt link add REQ@5 REQ@1 --link-type derives_from --reciprocal
+tdt link add REQ@5 REQ@1 --link-type derives_from
 ```
 
-> **Tip**: The `-r` flag adds the reverse link automatically, maintaining bidirectional traceability.
+> **Tip**: Reciprocal links are added by default, maintaining bidirectional traceability. Use `--no-reciprocal` to create one-way links.
 
 ---
 
@@ -574,6 +574,43 @@ tdt risk list
 
 Shows risk level (Critical/High/Medium/Low) and RPN scores.
 
+### Risk Matrix
+
+Visualize risks in a severity × occurrence matrix:
+
+```bash
+tdt risk matrix
+```
+
+```
+Risk Matrix
+                            OCCURRENCE
+              1    2    3    4    5    6    7    8    9   10
+         ┌────────────────────────────────────────────────────
+      10 │  -    -    -    -    -    -    -    -    -    -
+       9 │  -    -    -    -    -    -    -    -    -    -
+S      8 │  -    -    -    1    -    -    -    -    -    -
+E      7 │  -    -    -    -    -    -    -    -    -    -
+V      6 │  -    -    -    -    -    -    -    -    -    -
+E      5 │  -    -    -    -    -    -    -    -    -    -
+R      4 │  -    -    -    -    -    -    -    -    -    -
+I      3 │  -    -    -    -    -    -    -    -    -    -
+T      2 │  -    -    -    -    -    -    -    -    -    -
+Y      1 │  -    -    -    -    -    -    -    -    -    -
+
+Total: 1 risks | High: 1
+```
+
+Filter by risk type:
+
+```bash
+# Show only design risks
+tdt risk matrix --risk-type design
+
+# Show risk IDs in cells
+tdt risk matrix --show-ids
+```
+
 ---
 
 ## 9. Manufacturing Processes
@@ -602,11 +639,47 @@ tdt proc new --title "Final Assembly" --type assembly \
 # Link process to component it produces
 tdt link add PROC@1 CMP@1 produces
 
-# Link process to associated risks (bidirectional)
-tdt link add PROC@1 RISK@2 risks -r
+# Link process to associated risks (automatically bidirectional)
+tdt link add PROC@1 RISK@2 risks
 ```
 
-The `-r` flag ensures RISK@2 also links back to PROC@1 via its `affects` link.
+Links are bidirectional by default - RISK@2 automatically gets an `affects` link back to PROC@1.
+
+### Visualize Process Flow
+
+See your manufacturing process sequence with linked controls:
+
+```bash
+tdt proc flow
+```
+
+```
+Process Flow
+────────────────────────────────────────────────────────────────
+
+[OP-010] Housing CNC Machining (PROC@1)
+  │ Type: machining
+  │ Controls: CTRL@1 "LED Bore Diameter Check"
+  ▼
+[OP-020] Housing Anodizing (PROC@2)
+  │ Type: finishing
+  ▼
+[OP-030] Final Assembly (PROC@3)
+  │ Type: assembly
+```
+
+Options:
+
+```bash
+# Show controls for each process
+tdt proc flow --controls
+
+# Show work instructions
+tdt proc flow --work-instructions
+
+# Show flow for specific process only
+tdt proc flow PROC@1
+```
 
 ---
 
@@ -743,7 +816,44 @@ tdt test list
 
 Record the outcomes of test execution.
 
-### Create Test Results
+### Quick Test Execution with `test run`
+
+The fastest way to record test execution is with `tdt test run`:
+
+```bash
+# Execute a test and record the result
+tdt test run TEST@1 --verdict pass
+```
+
+Output:
+```
+✓ Created result RSLT@1 for test TEST@1 "Light Output Verification"
+   Verdict: pass
+   Executed by: Your Name
+   Steps scaffolded: 4
+   verification/results/RSLT-01KCA...tdt.yaml
+```
+
+The `test run` command:
+- Creates a linked result entity automatically
+- Scaffolds step results from the test's procedure steps
+- Sets execution date and author automatically
+- Prompts for verdict if not provided
+
+```bash
+# Run test with notes
+tdt test run TEST@2 --verdict pass --notes "All parameters within spec"
+
+# Run test and open editor for full details
+tdt test run TEST@3 --verdict fail --edit
+
+# Interactive mode (prompts for verdict)
+tdt test run TEST@4
+```
+
+### Create Test Results Manually
+
+For more control, create results directly:
 
 ```bash
 # Passing result
@@ -799,6 +909,35 @@ SHORT    TEST     VERDICT      STATUS     AUTHOR
 RSLT@1   TEST@1   pass         approved   Test Engineer
 RSLT@2   TEST@2   pass         draft      Test Engineer
 RSLT@3   TEST@3   fail         draft      Test Engineer
+```
+
+### Test Execution Summary
+
+Get aggregate statistics on test execution:
+
+```bash
+tdt rslt summary
+```
+
+```
+Test Results Summary
+────────────────────
+Total Results: 3
+  Pass:        2 (66.7%)
+  Fail:        1 (33.3%)
+  Conditional: 0 (0.0%)
+  Incomplete:  0 (0.0%)
+
+Recent Failures:
+  RSLT@3  TEST@3 "Water Resistance Test"  2024-01-15
+
+Requirement Coverage: 75.0% (3/4 requirements have passing tests)
+```
+
+Use `--detailed` for breakdown by test type:
+
+```bash
+tdt rslt summary --detailed
 ```
 
 ---
@@ -965,11 +1104,38 @@ links:
 ### Link NCR to Test Result
 
 ```bash
-# Link NCR to the failing test result (bidirectional)
-tdt link add NCR@1 RSLT@3 from_result -r
+# Link NCR to the failing test result (automatically bidirectional)
+tdt link add NCR@1 RSLT@3 from_result
 ```
 
 This creates both the `from_result` link on the NCR and a `created_ncr` link on the result.
+
+### Close an NCR
+
+When ready to close an NCR with disposition:
+
+```bash
+tdt ncr close NCR@1 --disposition rework --rationale "Bore can be re-machined to spec"
+```
+
+```
+Closing NCR@1 "Water Ingress at O-Ring Seal"
+  Current status: open
+  Disposition: rework
+  Rationale: Bore can be re-machined to spec
+
+✓ NCR closed
+```
+
+Available dispositions: `use-as-is`, `rework`, `scrap`, `return`
+
+```bash
+# Link to a CAPA when closing
+tdt ncr close NCR@1 --disposition rework --capa CAPA@1
+
+# Skip confirmation prompt
+tdt ncr close NCR@1 --disposition scrap -y
+```
 
 ### Create a CAPA
 
@@ -1025,6 +1191,32 @@ links:
 tdt link add CAPA@1 NCR@1 ncrs
 ```
 
+### Verify CAPA Effectiveness
+
+Record effectiveness verification when a CAPA is complete:
+
+```bash
+tdt capa verify CAPA@1 --result effective --method "Process audit and defect tracking"
+```
+
+```
+✓ CAPA@1 verified as Effective
+  Method: Process audit and defect tracking
+  Status: Closed
+```
+
+Verification results: `effective`, `partial`, `ineffective`
+
+```bash
+# Partial effectiveness - CAPA stays open
+tdt capa verify CAPA@1 --result partial --evidence "Defect rate reduced 50%"
+
+# Add detailed evidence
+tdt capa verify CAPA@1 --result effective \
+  --method "30-day production audit" \
+  --evidence "Zero O-ring seal failures in 150 units"
+```
+
 ---
 
 ## 15. Project Status & Validation
@@ -1076,6 +1268,37 @@ Uncovered Requirements:
   ○ REQ@5 - LED Selection
 ```
 
+### Generate Engineering Reports
+
+TDT can generate various engineering reports:
+
+```bash
+# Requirements Verification Matrix (RVM)
+tdt report rvm
+
+# FMEA report sorted by RPN
+tdt report fmea
+
+# Bill of Materials with costs
+tdt report bom ASM@1 --with-cost --with-mass
+
+# Test execution status
+tdt report test-status
+
+# All open issues (NCRs, CAPAs, failed tests)
+tdt report open-issues
+```
+
+Export reports to files:
+
+```bash
+# Save RVM as markdown
+tdt report rvm --output rvm-report.md
+
+# Export FMEA to CSV
+tdt report fmea --format csv --output fmea.csv
+```
+
 ---
 
 ## 16. Traceability
@@ -1089,12 +1312,14 @@ Links connect entities to establish traceability:
 ```bash
 # Basic syntax: source, target, link_type
 tdt link add REQ@1 TEST@1 verified_by
-
-# Use -r for reciprocal links (recommended)
-tdt link add REQ@1 TEST@1 verified_by -r
 ```
 
-The `-r` flag adds the reverse link automatically. For `verified_by`, this means TEST@1 also gets a `verifies` link back to REQ@1.
+**Reciprocal links are added by default.** For `verified_by`, this means TEST@1 automatically gets a `verifies` link back to REQ@1.
+
+```bash
+# Skip reciprocal link if needed (one-way only)
+tdt link add REQ@1 TEST@1 verified_by --no-reciprocal
+```
 
 ### Common Link Types
 
@@ -1328,6 +1553,14 @@ Modified (5):
 Removed (1):
   - FEAT@7 - Unused Feature (features)
 ```
+
+Show actual diffs for modified files:
+
+```bash
+tdt baseline compare v0.9 v1.0 --diff
+```
+
+This displays the git diff for each modified entity, making it easy to see exactly what changed between baselines.
 
 ### View Changes Since Baseline
 

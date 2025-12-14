@@ -1,6 +1,6 @@
 # TDT Entity Relationships
 
-This document explains how entities are connected in TDT (Tessera Engineering Toolkit).
+This document explains how entities are connected in TDT (Tessera Design Toolkit).
 
 ## Overview
 

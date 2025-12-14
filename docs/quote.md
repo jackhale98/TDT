@@ -1,6 +1,6 @@
 # TDT Quote Entity (Supplier Quotations)
 
-This document describes the Quote entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Quote entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

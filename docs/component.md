@@ -1,6 +1,6 @@
 # TDT Component Entity (BOM)
 
-This document describes the Component entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Component entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

@@ -13,8 +13,8 @@
     },
     "type": {
       "type": "string",
-      "enum": ["design", "process"],
-      "description": "Risk category - design or process risk"
+      "enum": ["design", "process", "use", "software"],
+      "description": "Risk category - design, process, use, or software risk"
     },
     "title": {
       "type": "string",

@@ -1,6 +1,6 @@
 # TDT Risk Entity (FMEA)
 
-This document describes the Risk entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Risk entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 
@@ -13,6 +13,8 @@ Risks capture potential failure modes and their analysis using FMEA (Failure Mod
 - **Directories**:
   - `risks/design/` - Design risks (product/component failures)
   - `risks/process/` - Process risks (manufacturing/operational failures)
+  - `risks/use/` - Use risks (user interaction/usability failures)
+  - `risks/software/` - Software risks (software-specific failures)
 
 ## Schema
 
@@ -21,7 +23,7 @@ Risks capture potential failure modes and their analysis using FMEA (Failure Mod
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | Unique identifier (RISK-[26-char ULID]) |
-| `type` | enum | `design` or `process` |
+| `type` | enum | `design`, `process`, `use`, or `software` |
 | `title` | string | Short descriptive title (1-200 chars) |
 | `description` | string | Detailed description of the risk |
 | `status` | enum | `draft`, `review`, `approved`, `released`, `obsolete` |
@@ -161,6 +163,12 @@ tdt risk new --title "Motor Failure" --severity 7 --occurrence 4 --detection 5
 # Create process risk
 tdt risk new --title "Assembly Error" --type process
 
+# Create use risk (user interaction/usability failures)
+tdt risk new --title "User Confusion at Interface" --type use
+
+# Create software risk
+tdt risk new --title "Data Corruption During Update" --type software
+
 # Create with interactive wizard
 tdt risk new -i
 
@@ -177,6 +185,8 @@ tdt risk list
 # Filter by type
 tdt risk list --type design
 tdt risk list --type process
+tdt risk list --type use
+tdt risk list --type software
 
 # Filter by status
 tdt risk list --status draft

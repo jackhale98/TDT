@@ -1,6 +1,6 @@
 # TDT Supplier Entity (Approved Suppliers)
 
-This document describes the Supplier entity type in TDT (Tessera Engineering Toolkit).
+This document describes the Supplier entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # TDT CAPA Entity (Corrective and Preventive Action)
 
-This document describes the CAPA entity type in TDT (Tessera Engineering Toolkit).
+This document describes the CAPA entity type in TDT (Tessera Design Toolkit).
 
 ## Overview
 

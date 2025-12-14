@@ -6,12 +6,18 @@ use serde::{Deserialize, Serialize};
 use crate::core::entity::{Entity, Status};
 use crate::core::identity::EntityId;
 
-/// Risk type - design or process risk
+/// Risk type - categorizes risk by source/domain
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum RiskType {
+    /// Design risks - product/component failure modes
     Design,
+    /// Process risks - manufacturing/operational failure modes
     Process,
+    /// Use risks - user interaction/usability failure modes
+    Use,
+    /// Software risks - software-specific failure modes
+    Software,
 }
 
 impl Default for RiskType {
@@ -25,6 +31,8 @@ impl std::fmt::Display for RiskType {
         match self {
             RiskType::Design => write!(f, "design"),
             RiskType::Process => write!(f, "process"),
+            RiskType::Use => write!(f, "use"),
+            RiskType::Software => write!(f, "software"),
         }
     }
 }
