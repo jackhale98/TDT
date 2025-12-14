@@ -77,6 +77,48 @@ tdt trace from REQ@1
 Short IDs are persistent per entity type - the same entity keeps its short ID across list commands.
 This enables cross-entity linking (e.g., linking `REQ@1` to `TEST@1`).
 
+## Quick Start Workflows
+
+Common multi-step tasks made easy:
+
+### Record a Test Result
+```bash
+tdt test list                          # Find test to execute
+tdt test run TEST@1 --verdict pass     # Record pass result (creates RSLT)
+tdt rslt summary                       # Check overall test status
+```
+
+### Close an NCR
+```bash
+tdt ncr list --ncr-status open         # Find open NCRs
+tdt ncr show NCR@1                     # Review details
+tdt ncr close NCR@1 -d rework --rationale "Re-machined to spec"
+```
+
+### Verify a CAPA
+```bash
+tdt capa list --capa-status implementation  # Find CAPAs ready for verification
+tdt capa verify CAPA@1 --result effective --method "30-day audit"
+```
+
+### Analyze Component Interactions
+```bash
+tdt cmp matrix                         # View design structure matrix
+tdt tol analyze TOL@1                  # Run tolerance stackup analysis
+```
+
+### Risk Assessment Review
+```bash
+tdt risk matrix                        # Visual severity × occurrence grid
+tdt risk list --by-rpn --top 5         # Top 5 risks by RPN
+```
+
+### Manufacturing Process Review
+```bash
+tdt proc flow --controls               # Process flow with control points
+tdt ctrl list --critical               # Review CTQ controls
+```
+
 ## Project Structure
 
 After `tdt init`, your project will have:
@@ -201,6 +243,8 @@ tdt risk list --min-rpn 100            # Filter by minimum RPN
 tdt risk list --unmitigated            # Show risks without mitigations
 tdt risk show RISK-01HC2               # Show details
 tdt risk edit RISK-01HC2               # Open in editor
+tdt risk matrix                        # Severity × Occurrence risk matrix
+tdt risk matrix --show-ids             # Show risk IDs in cells
 ```
 
 ### Tests (Verification/Validation)
@@ -218,6 +262,8 @@ tdt test list --method inspection             # Filter by IADT method
 tdt test list --orphans                       # Show tests without linked requirements
 tdt test show TEST-01HC2                      # Show details
 tdt test edit TEST-01HC2                      # Open in editor
+tdt test run TEST@1 --verdict pass            # Execute test and record result
+tdt test run TEST@1 --verdict fail --notes "See NCR@1"  # Record failure with notes
 ```
 
 ### Test Results
@@ -234,6 +280,8 @@ tdt rslt list --with-failures                 # Show only results with failures
 tdt rslt list --recent 7                      # Show results from last 7 days
 tdt rslt show RSLT-01HC2                      # Show details
 tdt rslt edit RSLT-01HC2                      # Open in editor
+tdt rslt summary                              # Test execution statistics dashboard
+tdt rslt summary --detailed                   # Breakdown by test type
 ```
 
 ### Components (BOM)
@@ -247,6 +295,8 @@ tdt cmp list --make-buy buy                   # Filter by make/buy
 tdt cmp list --category electrical            # Filter by category
 tdt cmp show CMP@1                            # Show details
 tdt cmp edit CMP@1                            # Open in editor
+tdt cmp matrix                                # Design structure matrix (component interactions)
+tdt cmp matrix --show-ids                     # Show component IDs in cells
 ```
 
 ### Assemblies (BOM)
@@ -337,6 +387,9 @@ tdt proc list --type machining                # Filter by process type
 tdt proc list --status approved               # Filter by status
 tdt proc show PROC@1                          # Show details
 tdt proc edit PROC@1                          # Open in editor
+tdt proc flow                                 # Visualize process flow with controls
+tdt proc flow --controls                      # Show linked control points
+tdt proc flow --work-instructions             # Show linked work instructions
 ```
 
 Process types: `machining`, `assembly`, `inspection`, `test`, `finishing`, `packaging`, `handling`, `heat_treat`, `welding`, `coating`
@@ -378,6 +431,8 @@ tdt ncr list --severity critical              # Filter by severity
 tdt ncr list --ncr-status open                # Filter by workflow status
 tdt ncr show NCR@1                            # Show details
 tdt ncr edit NCR@1                            # Open in editor
+tdt ncr close NCR@1 --disposition rework      # Close with disposition
+tdt ncr close NCR@1 -d use-as-is --rationale "Within tolerance"
 ```
 
 NCR types: `internal`, `supplier`, `customer`
@@ -395,6 +450,8 @@ tdt capa list --capa-status implementation    # Filter by workflow status
 tdt capa list --overdue                       # Show overdue CAPAs
 tdt capa show CAPA@1                          # Show details
 tdt capa edit CAPA@1                          # Open in editor
+tdt capa verify CAPA@1 --result effective     # Record effectiveness verification
+tdt capa verify CAPA@1 -r partial --method "Process audit"
 ```
 
 CAPA types: `corrective`, `preventive`

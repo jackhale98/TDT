@@ -241,6 +241,55 @@ tdt risk edit RISK-01HC2
 tdt risk edit RISK@1
 ```
 
+### Show risk matrix
+
+```bash
+# Display severity × occurrence risk matrix
+tdt risk matrix
+
+# Filter by risk type
+tdt risk matrix --risk-type design
+tdt risk matrix --risk-type process
+
+# Show risk IDs in cells instead of counts
+tdt risk matrix --show-ids
+
+# Use compact 5×5 matrix instead of 10×10
+tdt risk matrix --compact
+
+# Output as JSON for reporting
+tdt risk matrix -f json
+```
+
+**Example Output:**
+
+```
+Risk Matrix (Design Risks)
+23 risks displayed
+
+       │   1   2   3   4   5   6   7   8   9  10
+     ──┼────────────────────────────────────────
+    10 │   -   -   -   -   1   -   2   -   -   1
+     9 │   -   -   -   1   -   -   -   -   1   -
+     8 │   -   -   1   -   -   2   -   1   -   -
+     7 │   -   -   -   -   1   -   -   -   -   -
+     6 │   -   1   -   -   -   -   1   -   -   -
+     5 │   1   -   -   2   -   -   -   -   -   -
+     4 │   -   -   1   -   -   -   -   -   -   -
+     3 │   -   1   -   -   -   -   -   -   -   -
+     2 │   2   -   -   -   -   -   -   -   -   -
+     1 │   1   -   -   -   -   -   -   -   -   -
+
+                     OCCURRENCE →
+
+       ↑ SEVERITY
+
+Legend:
+  ■ Low (S×O < 10)  ■ Medium (10-20)  ■ High (20-40)  ■ Critical (>40)
+
+Total: 23 | 2 critical | 4 high | 8 medium | 9 low
+```
+
 ## FMEA Methodology
 
 ### Severity Rating (S)

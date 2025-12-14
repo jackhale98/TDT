@@ -260,6 +260,57 @@ tdt proc edit PROC-01KC5
 tdt proc edit PROC@1
 ```
 
+### Visualize process flow
+
+```bash
+# Display process flow diagram
+tdt proc flow
+
+# Show controls for each process
+tdt proc flow --controls
+
+# Show work instructions
+tdt proc flow --work-instructions
+
+# Show both controls and work instructions
+tdt proc flow -c -w
+
+# Filter to specific process
+tdt proc flow --process PROC@1
+
+# Output as JSON
+tdt proc flow -f json
+```
+
+**Example Output:**
+
+```
+Process Flow
+────────────────────────────────────────────────────────────────
+
+[OP-010] Rough Machining (PROC@1)
+  │ Type: Machining | Cycle: 45 min | Setup: 30 min
+  │ Equipment: CNC Mill #3
+  │ Controls: CTRL@1 "First article inspection"
+  │           CTRL@2 "In-process dimensional check"
+  ▼
+[OP-020] Heat Treatment (PROC@2)
+  │ Type: HeatTreat | Cycle: 180 min | Setup: 15 min
+  │ Equipment: Furnace #1
+  │ Controls: CTRL@3 "Temperature monitoring"
+  ▼
+[OP-030] Finish Machining (PROC@3)
+  │ Type: Machining | Cycle: 60 min | Setup: 20 min
+  │ Equipment: CNC Mill #5
+  │ Controls: CTRL@4 "Final dimensional inspection"
+  ▼
+[OP-040] Assembly (PROC@4)
+  │ Type: Assembly | Cycle: 30 min | Setup: 10 min
+  │ Work Inst: WORK@1 "Bearing installation procedure"
+
+4 processes in flow
+```
+
 ## Process vs Work Instruction
 
 | Aspect | Process (PROC) | Work Instruction (WORK) |

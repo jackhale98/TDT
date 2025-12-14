@@ -35,6 +35,9 @@ pub enum CmpCommands {
 
     /// Clear the selected quote (revert to manual unit_cost)
     ClearQuote(ClearQuoteArgs),
+
+    /// Show component interaction matrix from mates and tolerances
+    Matrix(MatrixArgs),
 }
 
 /// Make/buy filter for list command
@@ -275,6 +278,32 @@ pub struct ClearQuoteArgs {
     pub component: String,
 }
 
+/// Interaction type filter for matrix
+#[derive(Debug, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum InteractionType {
+    /// Show all interactions
+    All,
+    /// Only mate interactions
+    Mate,
+    /// Only tolerance stackup interactions
+    Tolerance,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct MatrixArgs {
+    /// Filter by interaction type
+    #[arg(long, short = 't', default_value = "all")]
+    pub interaction_type: InteractionType,
+
+    /// Show only interactions for specific component
+    #[arg(long, short = 'c')]
+    pub component: Option<String>,
+
+    /// Output as CSV (recommended for large matrices)
+    #[arg(long)]
+    pub csv: bool,
+}
+
 /// Run a component subcommand
 pub fn run(cmd: CmpCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -284,6 +313,7 @@ pub fn run(cmd: CmpCommands, global: &GlobalOpts) -> Result<()> {
         CmpCommands::Edit(args) => run_edit(args),
         CmpCommands::SetQuote(args) => run_set_quote(args),
         CmpCommands::ClearQuote(args) => run_clear_quote(args),
+        CmpCommands::Matrix(args) => run_matrix(args, global),
     }
 }
 
@@ -1267,6 +1297,453 @@ fn run_clear_quote(args: ClearQuoteArgs) -> Result<()> {
         println!("   Will use manual unit_cost: ${:.2}", cost);
     } else {
         println!("   {}", style("Note: No unit_cost set. BOM costing will show $0.00").yellow());
+    }
+
+    Ok(())
+}
+
+/// Component interaction record
+#[derive(Debug, Clone)]
+struct ComponentInteraction {
+    component_a: String,
+    component_a_name: String,
+    component_b: String,
+    component_b_name: String,
+    interaction_type: String,
+    source_id: String,
+    source_name: String,
+}
+
+fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Resolve component filter if provided
+    let component_filter = args.component.as_ref().map(|c| {
+        short_ids.resolve(c).unwrap_or_else(|| c.clone())
+    });
+
+    let mut interactions: Vec<ComponentInteraction> = Vec::new();
+
+    // Build feature-to-component lookup from feature files
+    let feature_dir = project.root().join("tolerances/features");
+    let mut feature_to_component: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
+
+    if feature_dir.exists() {
+        for entry in fs::read_dir(&feature_dir).into_diagnostic()?.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "yaml") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(feat) = serde_yml::from_str::<serde_json::Value>(&content) {
+                        let feat_id = feat.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                        let comp_id = feat.get("component").and_then(|v| v.as_str()).unwrap_or("");
+                        let comp_name = feat.get("title").and_then(|v| v.as_str()).unwrap_or("");
+
+                        if !feat_id.is_empty() && !comp_id.is_empty() {
+                            feature_to_component.insert(feat_id.to_string(), (comp_id.to_string(), comp_name.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Load component names for display
+    let mut component_names: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+    let cmp_dir = project.root().join("bom/components");
+    if cmp_dir.exists() {
+        for entry in fs::read_dir(&cmp_dir).into_diagnostic()?.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "yaml") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(cmp) = serde_yml::from_str::<serde_json::Value>(&content) {
+                        let cmp_id = cmp.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                        let cmp_title = cmp.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                        if !cmp_id.is_empty() {
+                            component_names.insert(cmp_id.to_string(), cmp_title.to_string());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Load mates to find component interactions
+    if args.interaction_type == InteractionType::All || args.interaction_type == InteractionType::Mate {
+        let mate_dir = project.root().join("tolerances/mates");
+        if mate_dir.exists() {
+            for entry in fs::read_dir(&mate_dir).into_diagnostic()?.flatten() {
+                let path = entry.path();
+                if path.extension().map_or(false, |e| e == "yaml") {
+                    if let Ok(content) = fs::read_to_string(&path) {
+                        if let Ok(mate) = serde_yml::from_str::<serde_json::Value>(&content) {
+                            let mate_id = mate.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                            let mate_title = mate.get("title").and_then(|v| v.as_str()).unwrap_or("");
+
+                            // Get component IDs from mate - handle three formats:
+                            // 1. Simple: feature_a: "FEAT-xxx" (string)
+                            // 2. Object with component: feature_a: { id: "...", component_id: "CMP-xxx", ... }
+                            // 3. Object without component: feature_a: { id: "FEAT-xxx" } (need lookup)
+                            let (comp_a, comp_a_name) = if let Some(feat_a) = mate.get("feature_a") {
+                                if let Some(feat_id) = feat_a.as_str() {
+                                    // Simple format - look up from feature file
+                                    let (cid, _) = feature_to_component.get(feat_id).cloned().unwrap_or_default();
+                                    let cname = component_names.get(&cid).cloned().unwrap_or_default();
+                                    (cid, cname)
+                                } else if let Some(comp_id) = feat_a.get("component_id").and_then(|v| v.as_str()) {
+                                    // Object format with component_id
+                                    let cname = feat_a.get("component_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                    (comp_id.to_string(), cname)
+                                } else if let Some(feat_id) = feat_a.get("id").and_then(|v| v.as_str()) {
+                                    // Object format with only id - look up from feature file
+                                    let (cid, _) = feature_to_component.get(feat_id).cloned().unwrap_or_default();
+                                    let cname = component_names.get(&cid).cloned().unwrap_or_default();
+                                    (cid, cname)
+                                } else {
+                                    (String::new(), String::new())
+                                }
+                            } else {
+                                (String::new(), String::new())
+                            };
+
+                            let (comp_b, comp_b_name) = if let Some(feat_b) = mate.get("feature_b") {
+                                if let Some(feat_id) = feat_b.as_str() {
+                                    // Simple format - look up from feature file
+                                    let (cid, _) = feature_to_component.get(feat_id).cloned().unwrap_or_default();
+                                    let cname = component_names.get(&cid).cloned().unwrap_or_default();
+                                    (cid, cname)
+                                } else if let Some(comp_id) = feat_b.get("component_id").and_then(|v| v.as_str()) {
+                                    // Object format with component_id
+                                    let cname = feat_b.get("component_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                    (comp_id.to_string(), cname)
+                                } else if let Some(feat_id) = feat_b.get("id").and_then(|v| v.as_str()) {
+                                    // Object format with only id - look up from feature file
+                                    let (cid, _) = feature_to_component.get(feat_id).cloned().unwrap_or_default();
+                                    let cname = component_names.get(&cid).cloned().unwrap_or_default();
+                                    (cid, cname)
+                                } else {
+                                    (String::new(), String::new())
+                                }
+                            } else {
+                                (String::new(), String::new())
+                            };
+
+                            if !comp_a.is_empty() && !comp_b.is_empty() && comp_a != comp_b {
+                                // Apply component filter
+                                if let Some(ref filter) = component_filter {
+                                    if !comp_a.contains(filter) && !comp_b.contains(filter) {
+                                        continue;
+                                    }
+                                }
+
+                                interactions.push(ComponentInteraction {
+                                    component_a: comp_a,
+                                    component_a_name: comp_a_name,
+                                    component_b: comp_b,
+                                    component_b_name: comp_b_name,
+                                    interaction_type: "mate".to_string(),
+                                    source_id: mate_id.to_string(),
+                                    source_name: mate_title.to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Load tolerance stackups to find component interactions
+    if args.interaction_type == InteractionType::All || args.interaction_type == InteractionType::Tolerance {
+        let stackup_dir = project.root().join("tolerances/stackups");
+        if stackup_dir.exists() {
+            for entry in fs::read_dir(&stackup_dir).into_diagnostic()?.flatten() {
+                let path = entry.path();
+                if path.extension().map_or(false, |e| e == "yaml") {
+                    if let Ok(content) = fs::read_to_string(&path) {
+                        if let Ok(stackup) = serde_yml::from_str::<serde_json::Value>(&content) {
+                            let stackup_id = stackup.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                            let stackup_title = stackup.get("title").and_then(|v| v.as_str()).unwrap_or("");
+
+                            // Collect all unique components in the stackup
+                            // Handle multiple formats:
+                            // 1. feature_id: "FEAT-xxx" (simple, need lookup)
+                            // 2. feature: { id: "...", component_id: "CMP-xxx", ... } (object with component)
+                            // 3. feature: { id: "FEAT-xxx" } (object without component, need lookup)
+                            let mut stackup_components: Vec<(String, String)> = Vec::new();
+
+                            if let Some(contributors) = stackup.get("contributors").and_then(|c| c.as_array()) {
+                                for contrib in contributors {
+                                    let (comp_id, comp_name) = if let Some(feat_id) = contrib.get("feature_id").and_then(|v| v.as_str()) {
+                                        // Simple feature_id format - look up from feature file
+                                        if let Some((cid, _)) = feature_to_component.get(feat_id) {
+                                            let cname = component_names.get(cid).cloned().unwrap_or_default();
+                                            (cid.clone(), cname)
+                                        } else {
+                                            continue;
+                                        }
+                                    } else if let Some(feature) = contrib.get("feature") {
+                                        // Nested feature object
+                                        if let Some(cid) = feature.get("component_id").and_then(|v| v.as_str()) {
+                                            // Has component_id directly
+                                            let cname = feature.get("component_name").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                                            (cid.to_string(), cname)
+                                        } else if let Some(feat_id) = feature.get("id").and_then(|v| v.as_str()) {
+                                            // Only has feature id - look up component
+                                            if let Some((cid, _)) = feature_to_component.get(feat_id) {
+                                                let cname = component_names.get(cid).cloned().unwrap_or_default();
+                                                (cid.clone(), cname)
+                                            } else {
+                                                continue;
+                                            }
+                                        } else {
+                                            continue;
+                                        }
+                                    } else {
+                                        continue;
+                                    };
+
+                                    if !comp_id.is_empty() && !stackup_components.iter().any(|(id, _)| id == &comp_id) {
+                                        stackup_components.push((comp_id, comp_name));
+                                    }
+                                }
+                            }
+
+                            // Create interactions for all pairs in the stackup
+                            for i in 0..stackup_components.len() {
+                                for j in (i + 1)..stackup_components.len() {
+                                    let (ref comp_a, ref comp_a_name) = stackup_components[i];
+                                    let (ref comp_b, ref comp_b_name) = stackup_components[j];
+
+                                    // Apply component filter
+                                    if let Some(ref filter) = component_filter {
+                                        if !comp_a.contains(filter) && !comp_b.contains(filter) {
+                                            continue;
+                                        }
+                                    }
+
+                                    interactions.push(ComponentInteraction {
+                                        component_a: comp_a.clone(),
+                                        component_a_name: comp_a_name.clone(),
+                                        component_b: comp_b.clone(),
+                                        component_b_name: comp_b_name.clone(),
+                                        interaction_type: "tolerance".to_string(),
+                                        source_id: stackup_id.to_string(),
+                                        source_name: stackup_title.to_string(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if interactions.is_empty() {
+        println!("{}", style("No component interactions found.").yellow());
+        if args.interaction_type == InteractionType::Mate {
+            println!("Tip: Create mates with `tdt mate new` to track component interfaces.");
+        } else if args.interaction_type == InteractionType::Tolerance {
+            println!("Tip: Create tolerance stackups with `tdt tol new` to track dimensional chains.");
+        }
+        return Ok(());
+    }
+
+    // Collect unique components for matrix
+    let mut components: std::collections::BTreeSet<(String, String)> = std::collections::BTreeSet::new();
+    for interaction in &interactions {
+        components.insert((interaction.component_a.clone(), interaction.component_a_name.clone()));
+        components.insert((interaction.component_b.clone(), interaction.component_b_name.clone()));
+    }
+    let components: Vec<(String, String)> = components.into_iter().collect();
+
+    // Build interaction matrix: [row_idx][col_idx] -> Vec<interaction_type>
+    let mut matrix: Vec<Vec<Vec<&str>>> = vec![vec![Vec::new(); components.len()]; components.len()];
+
+    for interaction in &interactions {
+        let row = components.iter().position(|(id, _)| id == &interaction.component_a);
+        let col = components.iter().position(|(id, _)| id == &interaction.component_b);
+
+        if let (Some(r), Some(c)) = (row, col) {
+            let itype = if interaction.interaction_type == "mate" { "M" } else { "T" };
+            if !matrix[r][c].contains(&itype) {
+                matrix[r][c].push(itype);
+            }
+            if !matrix[c][r].contains(&itype) {
+                matrix[c][r].push(itype);
+            }
+        }
+    }
+
+    // Output based on format
+    if args.csv || global.format == OutputFormat::Csv {
+        // CSV output (recommended for large matrices)
+        // Header row: empty, then component names
+        print!("\"Component\"");
+        for (id, name) in &components {
+            let short = short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 8));
+            print!(",\"{}\"", if name.is_empty() { &short } else { name });
+        }
+        println!();
+
+        // Data rows
+        for (row_idx, (row_id, row_name)) in components.iter().enumerate() {
+            let short = short_ids.get_short_id(row_id).unwrap_or_else(|| truncate_str(row_id, 8));
+            print!("\"{}\"", if row_name.is_empty() { &short } else { row_name });
+
+            for col_idx in 0..components.len() {
+                let cell = &matrix[row_idx][col_idx];
+                if cell.is_empty() {
+                    print!(",\"\"");
+                } else {
+                    print!(",\"{}\"", cell.join("+"));
+                }
+            }
+            println!();
+        }
+
+        // Print legend at bottom
+        println!();
+        println!("# Legend: M=Mate, T=Tolerance stackup");
+        return Ok(());
+    }
+
+    match global.format {
+        OutputFormat::Json => {
+            let json_output = serde_json::json!({
+                "components": components.iter().map(|(id, name)| {
+                    let short = short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 8));
+                    serde_json::json!({
+                        "id": id,
+                        "short_id": short,
+                        "name": name
+                    })
+                }).collect::<Vec<_>>(),
+                "interactions": interactions.iter().map(|i| {
+                    serde_json::json!({
+                        "component_a": i.component_a,
+                        "component_b": i.component_b,
+                        "type": i.interaction_type,
+                        "source_id": i.source_id,
+                        "source_name": i.source_name
+                    })
+                }).collect::<Vec<_>>(),
+                "total_interactions": interactions.len(),
+                "total_components": components.len()
+            });
+            println!("{}", serde_json::to_string_pretty(&json_output).unwrap_or_default());
+            return Ok(());
+        }
+        OutputFormat::Yaml => {
+            let yaml_output = serde_json::json!({
+                "components": components.len(),
+                "interactions": interactions.iter().map(|i| {
+                    serde_json::json!({
+                        "a": i.component_a,
+                        "b": i.component_b,
+                        "type": i.interaction_type,
+                        "source": i.source_id
+                    })
+                }).collect::<Vec<_>>()
+            });
+            println!("{}", serde_yml::to_string(&yaml_output).unwrap_or_default());
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    // Human-readable matrix output
+    println!();
+    println!("{}", style("Component Interaction Matrix").bold().cyan());
+    println!("{}", style(format!("{} components, {} interactions", components.len(), interactions.len())).dim());
+    println!();
+
+    // For large matrices, suggest CSV
+    if components.len() > 10 {
+        println!(
+            "{}",
+            style("Tip: For large matrices, use --csv for better readability").dim()
+        );
+        println!();
+    }
+
+    // Calculate column width
+    let max_name_len = components.iter()
+        .map(|(id, name)| {
+            if name.is_empty() {
+                short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 8)).len()
+            } else {
+                name.len().min(12)
+            }
+        })
+        .max()
+        .unwrap_or(8);
+
+    let cell_width = 4;
+
+    // Header row
+    print!("{:width$} ", "", width = max_name_len);
+    for (idx, _) in components.iter().enumerate() {
+        print!("{:^width$}", idx + 1, width = cell_width);
+    }
+    println!();
+
+    // Separator
+    print!("{:width$} ", "", width = max_name_len);
+    println!("{}", "─".repeat(components.len() * cell_width));
+
+    // Data rows
+    for (row_idx, (row_id, row_name)) in components.iter().enumerate() {
+        let short = short_ids.get_short_id(row_id).unwrap_or_else(|| truncate_str(row_id, 8));
+        let display_name = if row_name.is_empty() {
+            truncate_str(&short, max_name_len)
+        } else {
+            truncate_str(row_name, max_name_len)
+        };
+
+        print!("{:<width$} ", display_name, width = max_name_len);
+
+        for col_idx in 0..components.len() {
+            if row_idx == col_idx {
+                print!("{:^width$}", style("·").dim(), width = cell_width);
+            } else {
+                let cell = &matrix[row_idx][col_idx];
+                if cell.is_empty() {
+                    print!("{:^width$}", "-", width = cell_width);
+                } else {
+                    let symbol = cell.join("");
+                    let styled = if cell.contains(&"M") && cell.contains(&"T") {
+                        style(symbol).magenta().bold()
+                    } else if cell.contains(&"M") {
+                        style(symbol).cyan()
+                    } else {
+                        style(symbol).yellow()
+                    };
+                    print!("{:^width$}", styled, width = cell_width);
+                }
+            }
+        }
+        println!();
+    }
+
+    // Legend and component index
+    println!();
+    println!("{}", style("Legend:").bold());
+    println!("  {} = Mate interaction", style("M").cyan());
+    println!("  {} = Tolerance stackup", style("T").yellow());
+    println!("  {} = Both mate and tolerance", style("MT").magenta().bold());
+
+    println!();
+    println!("{}", style("Components:").bold());
+    for (idx, (id, name)) in components.iter().enumerate() {
+        let short = short_ids.get_short_id(id).unwrap_or_else(|| truncate_str(id, 8));
+        println!(
+            "  {:>2}. {} {}",
+            idx + 1,
+            style(&short).cyan(),
+            if name.is_empty() { "" } else { name }
+        );
     }
 
     Ok(())

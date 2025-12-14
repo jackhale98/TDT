@@ -321,7 +321,46 @@ tdt capa edit CAPA-01KC5
 tdt capa edit CAPA@1
 ```
 
-Note: To add action items, modify root cause analysis, or record effectiveness verification, use `tdt capa edit` to edit the YAML file directly.
+### Verify CAPA effectiveness
+
+```bash
+# Record effectiveness verification result
+tdt capa verify CAPA@1 --result effective
+
+# Verify as partially effective
+tdt capa verify CAPA@1 --result partial
+
+# Verify as ineffective (requires further action)
+tdt capa verify CAPA@1 --result ineffective
+
+# Include evidence
+tdt capa verify CAPA@1 --result effective --evidence "No recurrence in 60 days, Cpk improved"
+
+# Skip confirmation prompt
+tdt capa verify CAPA@1 --result effective -y
+```
+
+**Example Output:**
+
+```
+Verifying CAPA Effectiveness
+──────────────────────────────────────────────────
+CAPA: CAPA@2 "Tool Wear Detection Improvement"
+Current Status: Implementation
+
+Recording verification result: Effective
+Evidence: No bore diameter NCRs in 60 days
+
+Note: CAPA will be closed automatically (result = effective)
+
+Continue? [y/N] y
+
+✓ CAPA@2 verified as Effective
+  Evidence: No bore diameter NCRs in 60 days
+  Status: Closed
+```
+
+**Note:** If the verification result is `effective`, the CAPA status is automatically set to `closed`. For `partial` or `ineffective` results, the status is set to `verification` for further action.
 
 ## CAPA Workflow
 

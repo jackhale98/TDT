@@ -57,6 +57,9 @@ pub enum RiskCommands {
 
     /// Show risk statistics summary
     Summary(SummaryArgs),
+
+    /// Display severity × occurrence risk matrix
+    Matrix(MatrixArgs),
 }
 
 /// Risk type filter
@@ -285,6 +288,21 @@ pub struct SummaryArgs {
     pub detailed: bool,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct MatrixArgs {
+    /// Filter by risk type (design, process)
+    #[arg(long, short = 't')]
+    pub risk_type: Option<CliRiskType>,
+
+    /// Show risk IDs in cells instead of counts
+    #[arg(long)]
+    pub show_ids: bool,
+
+    /// Use compact 5×5 matrix instead of 10×10
+    #[arg(long)]
+    pub compact: bool,
+}
+
 pub fn run(cmd: RiskCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
         RiskCommands::List(args) => run_list(args, global),
@@ -292,6 +310,7 @@ pub fn run(cmd: RiskCommands, global: &GlobalOpts) -> Result<()> {
         RiskCommands::Show(args) => run_show(args, global),
         RiskCommands::Edit(args) => run_edit(args),
         RiskCommands::Summary(args) => run_summary(args, global),
+        RiskCommands::Matrix(args) => run_matrix(args, global),
     }
 }
 
@@ -1250,6 +1269,248 @@ fn run_summary(args: SummaryArgs, global: &GlobalOpts) -> Result<()> {
             }
         }
     }
+
+    Ok(())
+}
+
+fn run_matrix(args: MatrixArgs, global: &GlobalOpts) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Collect risks using cache for speed
+    let cache = EntityCache::open(&project)?;
+
+    let type_filter = args.risk_type.map(|t| match t {
+        CliRiskType::Design => "design",
+        CliRiskType::Process => "process",
+    });
+
+    let cached_risks = cache.list_risks(
+        None,              // status
+        type_filter,       // type
+        None,              // level
+        None,              // category
+        None,              // min_rpn
+        None,              // author
+        None,              // search
+        None,              // limit
+    );
+
+    if cached_risks.is_empty() {
+        println!("{}", style("No risks found in project.").yellow());
+        return Ok(());
+    }
+
+    // Use either 10×10 or 5×5 (compact) matrix
+    let size = if args.compact { 5 } else { 10 };
+
+    // Build the matrix: [severity][occurrence] -> Vec<(id, short_id)>
+    let mut matrix: Vec<Vec<Vec<(String, String)>>> = vec![vec![Vec::new(); size + 1]; size + 1];
+
+    // Populate matrix from cached risks
+    for risk in &cached_risks {
+        let sev = risk.severity.unwrap_or(0) as usize;
+        let occ = risk.occurrence.unwrap_or(0) as usize;
+
+        // Map to matrix indices (1-10 or 1-5 for compact)
+        let sev_idx = if args.compact {
+            ((sev + 1) / 2).min(size).max(1)  // Map 1-2 -> 1, 3-4 -> 2, etc.
+        } else {
+            sev.min(size).max(1)
+        };
+
+        let occ_idx = if args.compact {
+            ((occ + 1) / 2).min(size).max(1)
+        } else {
+            occ.min(size).max(1)
+        };
+
+        let short_id = short_ids.get_short_id(&risk.id)
+            .unwrap_or_else(|| truncate_str(&risk.id, 6));
+        matrix[sev_idx][occ_idx].push((risk.id.clone(), short_id));
+    }
+
+    // JSON/YAML output
+    match global.format {
+        OutputFormat::Json => {
+            let mut json_matrix: Vec<serde_json::Value> = Vec::new();
+            for sev in (1..=size).rev() {
+                for occ in 1..=size {
+                    if !matrix[sev][occ].is_empty() {
+                        json_matrix.push(serde_json::json!({
+                            "severity": sev,
+                            "occurrence": occ,
+                            "count": matrix[sev][occ].len(),
+                            "risks": matrix[sev][occ].iter().map(|(id, _)| id).collect::<Vec<_>>()
+                        }));
+                    }
+                }
+            }
+            let summary = serde_json::json!({
+                "size": size,
+                "compact": args.compact,
+                "type_filter": type_filter,
+                "total_risks": cached_risks.len(),
+                "cells": json_matrix
+            });
+            println!("{}", serde_json::to_string_pretty(&summary).unwrap_or_default());
+            return Ok(());
+        }
+        OutputFormat::Yaml => {
+            let mut yaml_matrix: Vec<serde_json::Value> = Vec::new();
+            for sev in (1..=size).rev() {
+                for occ in 1..=size {
+                    if !matrix[sev][occ].is_empty() {
+                        yaml_matrix.push(serde_json::json!({
+                            "severity": sev,
+                            "occurrence": occ,
+                            "count": matrix[sev][occ].len(),
+                            "risks": matrix[sev][occ].iter().map(|(id, _)| id).collect::<Vec<_>>()
+                        }));
+                    }
+                }
+            }
+            let summary = serde_json::json!({
+                "size": size,
+                "cells": yaml_matrix
+            });
+            println!("{}", serde_yml::to_string(&summary).unwrap_or_default());
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    // Human-readable matrix output
+    println!();
+    let title = if let Some(rt) = args.risk_type {
+        format!("Risk Matrix ({} Risks)", rt)
+    } else {
+        "Risk Matrix".to_string()
+    };
+    println!("{}", style(title).bold().cyan());
+    println!("{}", style(format!("{} risks displayed", cached_risks.len())).dim());
+    println!();
+
+    // Determine cell width based on content
+    let cell_width = if args.show_ids { 8 } else { 4 };
+
+    // Print header row (OCCURRENCE)
+    print!("{:>4} ", "");  // Space for severity label
+    print!("{}", style("│").dim());
+    for occ in 1..=size {
+        print!("{:^width$}", occ, width = cell_width);
+    }
+    println!();
+
+    // Print separator
+    print!("{:>4} ", "");
+    print!("{}", style("┼").dim());
+    println!("{}", style("─".repeat(size * cell_width)).dim());
+
+    // Print rows (SEVERITY - high to low)
+    for sev in (1..=size).rev() {
+        // Severity label
+        print!("{:>4} ", sev);
+        print!("{}", style("│").dim());
+
+        for occ in 1..=size {
+            let cell = &matrix[sev][occ];
+            let count = cell.len();
+
+            // Calculate RPN for this cell to determine color
+            // RPN = S × O × D (assuming D=5 for color coding purposes)
+            let estimated_rpn = sev * occ * 5;
+
+            let content = if args.show_ids && count > 0 {
+                // Show first risk ID
+                cell.first().map(|(_, short)| short.clone()).unwrap_or_default()
+            } else if count > 0 {
+                count.to_string()
+            } else {
+                "-".to_string()
+            };
+
+            // Color based on risk level (using S×O as proxy)
+            let styled_content = if count == 0 {
+                style(content).dim()
+            } else if estimated_rpn > 200 {
+                // High: S×O > 40 (e.g., 7×7=49)
+                style(content).red().bold()
+            } else if estimated_rpn > 100 {
+                // Medium-high
+                style(content).red()
+            } else if estimated_rpn > 50 {
+                // Medium
+                style(content).yellow()
+            } else {
+                // Low
+                style(content).green()
+            };
+
+            print!("{:^width$}", styled_content, width = cell_width);
+        }
+        println!();
+    }
+
+    // Legend
+    println!();
+    print!("{:>4} ", "");
+    for _ in 0..((size * cell_width) / 2 - 5) {
+        print!(" ");
+    }
+    println!("{}", style("OCCURRENCE →").dim());
+
+    // Severity label (vertical)
+    println!();
+    println!(
+        "{}",
+        style("       ↑ SEVERITY").dim()
+    );
+
+    // Color legend
+    println!();
+    println!("{}", style("Legend:").bold());
+    println!(
+        "  {} Low (S×O < 10)  {} Medium (10-20)  {} High (20-40)  {} Critical (>40)",
+        style("■").green(),
+        style("■").yellow(),
+        style("■").red(),
+        style("■").red().bold()
+    );
+
+    // Summary stats
+    let mut critical_count = 0;
+    let mut high_count = 0;
+    let mut medium_count = 0;
+    let mut low_count = 0;
+
+    for sev in 1..=size {
+        for occ in 1..=size {
+            let count = matrix[sev][occ].len();
+            if count > 0 {
+                let so = sev * occ;
+                if so > 40 {
+                    critical_count += count;
+                } else if so > 20 {
+                    high_count += count;
+                } else if so > 10 {
+                    medium_count += count;
+                } else {
+                    low_count += count;
+                }
+            }
+        }
+    }
+
+    println!();
+    println!(
+        "Total: {} | {} critical | {} high | {} medium | {} low",
+        cached_risks.len(),
+        style(critical_count).red().bold(),
+        style(high_count).red(),
+        style(medium_count).yellow(),
+        style(low_count).green()
+    );
 
     Ok(())
 }

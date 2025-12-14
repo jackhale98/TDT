@@ -294,6 +294,44 @@ tdt ncr edit NCR-01KC5
 tdt ncr edit NCR@1
 ```
 
+### Close an NCR
+
+```bash
+# Close with disposition decision
+tdt ncr close NCR@1 --disposition rework
+
+# Close with rationale
+tdt ncr close NCR@1 --disposition scrap --rationale "Cannot rework to spec"
+
+# Close and link to CAPA
+tdt ncr close NCR@1 --disposition use-as-is --capa CAPA@2
+
+# Available dispositions: use-as-is, rework, scrap, return
+tdt ncr close NCR@1 --disposition return
+
+# Skip confirmation prompt
+tdt ncr close NCR@1 --disposition rework -y
+```
+
+**Example Output:**
+
+```
+Closing NCR
+──────────────────────────────────────────────────
+NCR: NCR@3 "Out-of-spec bearing bore diameter"
+Current Status: Disposition
+Severity: Major
+
+Disposition: Rework
+Rationale: Bore can be re-machined to spec
+
+Confirm close? [y/N] y
+
+✓ NCR NCR@3 closed
+  Disposition: Rework
+  Linked CAPA: CAPA@2
+```
+
 ## NCR Workflow
 
 ```

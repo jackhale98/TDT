@@ -12,7 +12,7 @@ use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
-use crate::entities::capa::{Capa, CapaStatus, CapaType, SourceType};
+use crate::entities::capa::{Capa, CapaStatus, CapaType, Effectiveness, EffectivenessResult, SourceType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
 use crate::schema::wizard::SchemaWizard;
 
@@ -29,6 +29,9 @@ pub enum CapaCommands {
 
     /// Edit a CAPA in your editor
     Edit(EditArgs),
+
+    /// Record effectiveness verification
+    Verify(VerifyArgs),
 }
 
 /// CAPA type filter
@@ -173,6 +176,32 @@ pub struct EditArgs {
     pub id: String,
 }
 
+/// Verification result CLI option
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum VerifyResult {
+    Effective,
+    Partial,
+    Ineffective,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct VerifyArgs {
+    /// CAPA ID or short ID (CAPA@N)
+    pub capa: String,
+
+    /// Verification result
+    #[arg(long, short = 'r')]
+    pub result: VerifyResult,
+
+    /// Evidence or notes (optional)
+    #[arg(long, short = 'e')]
+    pub evidence: Option<String>,
+
+    /// Skip confirmation prompt
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
 /// Run a CAPA subcommand
 pub fn run(cmd: CapaCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -180,6 +209,7 @@ pub fn run(cmd: CapaCommands, global: &GlobalOpts) -> Result<()> {
         CapaCommands::New(args) => run_new(args),
         CapaCommands::Show(args) => run_show(args, global),
         CapaCommands::Edit(args) => run_edit(args),
+        CapaCommands::Verify(args) => run_verify(args, global),
     }
 }
 
@@ -913,6 +943,162 @@ fn output_cached_capas(
         OutputFormat::Json | OutputFormat::Yaml | OutputFormat::Auto => {
             // Should not reach here - cache bypassed for these formats
             unreachable!();
+        }
+    }
+
+    Ok(())
+}
+
+fn run_verify(args: VerifyArgs, global: &GlobalOpts) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+
+    // Resolve short ID if needed
+    let short_ids = ShortIdIndex::load(&project);
+    let resolved_id = short_ids
+        .resolve(&args.capa)
+        .unwrap_or_else(|| args.capa.clone());
+
+    // Find the CAPA file
+    let capa_dir = project.root().join("manufacturing/capas");
+    let mut found_path = None;
+
+    if capa_dir.exists() {
+        for entry in fs::read_dir(&capa_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&resolved_id) || filename.starts_with(&resolved_id) {
+                    found_path = Some(path);
+                    break;
+                }
+            }
+        }
+    }
+
+    let path = found_path.ok_or_else(|| miette::miette!("No CAPA found matching '{}'", args.capa))?;
+
+    // Read and parse CAPA
+    let content = fs::read_to_string(&path).into_diagnostic()?;
+    let mut capa: Capa = serde_yml::from_str(&content).into_diagnostic()?;
+
+    // Get display ID for user messages
+    let display_id = short_ids.get_short_id(&capa.id.to_string())
+        .unwrap_or_else(|| format_short_id(&capa.id));
+
+    // Validate status allows verification
+    match capa.capa_status {
+        CapaStatus::Closed => {
+            return Err(miette::miette!(
+                "CAPA {} is already closed and cannot be verified again",
+                display_id
+            ));
+        }
+        CapaStatus::Initiation | CapaStatus::Investigation => {
+            return Err(miette::miette!(
+                "CAPA {} is in {} status. Actions must be implemented before verification.",
+                display_id,
+                capa.capa_status
+            ));
+        }
+        _ => {} // Implementation or Verification status is OK
+    }
+
+    // Convert CLI result to entity enum
+    let effectiveness_result = match args.result {
+        VerifyResult::Effective => EffectivenessResult::Effective,
+        VerifyResult::Partial => EffectivenessResult::PartiallyEffective,
+        VerifyResult::Ineffective => EffectivenessResult::Ineffective,
+    };
+
+    // Show current state and confirmation
+    if !args.yes {
+        println!();
+        println!("{}", style("Verifying CAPA Effectiveness").bold().cyan());
+        println!("{}", style("─".repeat(50)).dim());
+        println!("CAPA: {} \"{}\"", style(&display_id).cyan(), &capa.title);
+        println!("Current Status: {}", capa.capa_status);
+        println!();
+        println!("Recording verification result: {}", style(format!("{:?}", args.result)).yellow());
+        if let Some(ref evidence) = args.evidence {
+            println!("Evidence: {}", evidence);
+        }
+
+        // Auto-close if effective
+        if matches!(args.result, VerifyResult::Effective) {
+            println!();
+            println!("{}", style("Note: CAPA will be closed automatically (result = effective)").dim());
+        }
+        println!();
+
+        // Simple confirmation
+        print!("Continue? [y/N] ");
+        std::io::Write::flush(&mut std::io::stdout()).into_diagnostic()?;
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).into_diagnostic()?;
+        if !input.trim().eq_ignore_ascii_case("y") {
+            println!("Cancelled.");
+            return Ok(());
+        }
+    }
+
+    // Update effectiveness
+    let today = chrono::Local::now().date_naive();
+    capa.effectiveness = Some(Effectiveness {
+        verified: true,
+        verified_date: Some(today),
+        result: Some(effectiveness_result),
+        evidence: args.evidence.clone(),
+    });
+
+    // Auto-close if effective
+    if matches!(args.result, VerifyResult::Effective) {
+        capa.capa_status = CapaStatus::Closed;
+    } else {
+        capa.capa_status = CapaStatus::Verification;
+    }
+
+    // Increment revision
+    capa.entity_revision += 1;
+
+    // Write updated CAPA
+    let yaml_content = serde_yml::to_string(&capa).into_diagnostic()?;
+    fs::write(&path, &yaml_content).into_diagnostic()?;
+
+    // Output based on format
+    match global.format {
+        OutputFormat::Json => {
+            let result = serde_json::json!({
+                "id": capa.id.to_string(),
+                "short_id": display_id,
+                "verified": true,
+                "result": effectiveness_result.to_string(),
+                "status": capa.capa_status.to_string(),
+            });
+            println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+        }
+        OutputFormat::Yaml => {
+            let result = serde_json::json!({
+                "id": capa.id.to_string(),
+                "verified": true,
+                "result": effectiveness_result.to_string(),
+                "status": capa.capa_status.to_string(),
+            });
+            println!("{}", serde_yml::to_string(&result).unwrap_or_default());
+        }
+        _ => {
+            println!();
+            println!(
+                "{} {} verified as {}",
+                style("✓").green(),
+                style(&display_id).cyan(),
+                style(format!("{:?}", args.result)).yellow()
+            );
+            if let Some(ref evidence) = args.evidence {
+                println!("  Evidence: {}", evidence);
+            }
+            println!("  Status: {}", style(capa.capa_status.to_string()).white());
         }
     }
 

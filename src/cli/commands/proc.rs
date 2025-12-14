@@ -79,6 +79,9 @@ pub enum ProcCommands {
 
     /// Edit a process in your editor
     Edit(EditArgs),
+
+    /// Visualize process flow with linked controls
+    Flow(FlowArgs),
 }
 
 /// Process type filter
@@ -238,6 +241,21 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct FlowArgs {
+    /// Filter by process ID (optional - shows all if omitted)
+    #[arg(long, short = 'p')]
+    pub process: Option<String>,
+
+    /// Show controls for each process
+    #[arg(long, short = 'c')]
+    pub controls: bool,
+
+    /// Show work instructions
+    #[arg(long, short = 'w')]
+    pub work_instructions: bool,
+}
+
 /// Run a process subcommand
 pub fn run(cmd: ProcCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -245,6 +263,7 @@ pub fn run(cmd: ProcCommands, global: &GlobalOpts) -> Result<()> {
         ProcCommands::New(args) => run_new(args),
         ProcCommands::Show(args) => run_show(args, global),
         ProcCommands::Edit(args) => run_edit(args),
+        ProcCommands::Flow(args) => run_flow(args, global),
     }
 }
 
@@ -950,6 +969,226 @@ fn output_cached_processes(
             unreachable!();
         }
     }
+
+    Ok(())
+}
+
+fn run_flow(args: FlowArgs, global: &GlobalOpts) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let proc_dir = project.root().join("manufacturing/processes");
+
+    if !proc_dir.exists() {
+        println!("{}", style("No processes found in project.").yellow());
+        return Ok(());
+    }
+
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Load all processes
+    let mut processes: Vec<Process> = Vec::new();
+
+    for entry in fs::read_dir(&proc_dir).into_diagnostic()? {
+        let entry = entry.into_diagnostic()?;
+        let path = entry.path();
+
+        if path.extension().map_or(false, |e| e == "yaml") {
+            let content = fs::read_to_string(&path).into_diagnostic()?;
+            if let Ok(proc) = serde_yml::from_str::<Process>(&content) {
+                // If filtering by process ID, skip non-matching
+                if let Some(ref filter) = args.process {
+                    let resolved = short_ids.resolve(filter).unwrap_or_else(|| filter.clone());
+                    if !proc.id.to_string().contains(&resolved) {
+                        continue;
+                    }
+                }
+                processes.push(proc);
+            }
+        }
+    }
+
+    if processes.is_empty() {
+        println!("{}", style("No processes found.").yellow());
+        return Ok(());
+    }
+
+    // Sort by operation number (natural sort)
+    processes.sort_by(|a, b| {
+        let op_a = a.operation_number.as_deref().unwrap_or("ZZ-999");
+        let op_b = b.operation_number.as_deref().unwrap_or("ZZ-999");
+        op_a.cmp(op_b)
+    });
+
+    // Load controls and work instructions if requested
+    let controls_dir = project.root().join("manufacturing/controls");
+    let work_dir = project.root().join("manufacturing/work_instructions");
+
+    let mut controls_by_process: std::collections::HashMap<String, Vec<(String, String)>> =
+        std::collections::HashMap::new();
+    let mut work_by_process: std::collections::HashMap<String, Vec<(String, String)>> =
+        std::collections::HashMap::new();
+
+    if args.controls && controls_dir.exists() {
+        for entry in fs::read_dir(&controls_dir).into_diagnostic()?.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "yaml") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(ctrl) = serde_yml::from_str::<serde_json::Value>(&content) {
+                        let ctrl_id = ctrl.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                        let ctrl_title = ctrl.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                        let proc_id = ctrl.get("process").and_then(|v| v.as_str()).unwrap_or("");
+
+                        if !proc_id.is_empty() {
+                            let short = short_ids.get_short_id(ctrl_id)
+                                .unwrap_or_else(|| truncate_str(ctrl_id, 8));
+                            controls_by_process
+                                .entry(proc_id.to_string())
+                                .or_default()
+                                .push((short, ctrl_title.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if args.work_instructions && work_dir.exists() {
+        for entry in fs::read_dir(&work_dir).into_diagnostic()?.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "yaml") {
+                if let Ok(content) = fs::read_to_string(&path) {
+                    if let Ok(work) = serde_yml::from_str::<serde_json::Value>(&content) {
+                        let work_id = work.get("id").and_then(|v| v.as_str()).unwrap_or("");
+                        let work_title = work.get("title").and_then(|v| v.as_str()).unwrap_or("");
+                        let proc_id = work.get("process").and_then(|v| v.as_str()).unwrap_or("");
+
+                        if !proc_id.is_empty() {
+                            let short = short_ids.get_short_id(work_id)
+                                .unwrap_or_else(|| truncate_str(work_id, 8));
+                            work_by_process
+                                .entry(proc_id.to_string())
+                                .or_default()
+                                .push((short, work_title.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // JSON/YAML output
+    match global.format {
+        OutputFormat::Json => {
+            let flow: Vec<serde_json::Value> = processes.iter().map(|p| {
+                let proc_id = p.id.to_string();
+                serde_json::json!({
+                    "id": proc_id,
+                    "operation_number": p.operation_number,
+                    "title": p.title,
+                    "process_type": p.process_type.to_string(),
+                    "cycle_time_minutes": p.cycle_time_minutes,
+                    "setup_time_minutes": p.setup_time_minutes,
+                    "equipment": p.equipment.iter().map(|e| e.name.clone()).collect::<Vec<_>>(),
+                    "controls": controls_by_process.get(&proc_id).cloned().unwrap_or_default(),
+                    "work_instructions": work_by_process.get(&proc_id).cloned().unwrap_or_default(),
+                })
+            }).collect();
+            println!("{}", serde_json::to_string_pretty(&flow).unwrap_or_default());
+            return Ok(());
+        }
+        OutputFormat::Yaml => {
+            let flow: Vec<serde_json::Value> = processes.iter().map(|p| {
+                let proc_id = p.id.to_string();
+                serde_json::json!({
+                    "id": proc_id,
+                    "operation_number": p.operation_number,
+                    "title": p.title,
+                    "process_type": p.process_type.to_string(),
+                    "controls": controls_by_process.get(&proc_id).cloned().unwrap_or_default(),
+                    "work_instructions": work_by_process.get(&proc_id).cloned().unwrap_or_default(),
+                })
+            }).collect();
+            println!("{}", serde_yml::to_string(&flow).unwrap_or_default());
+            return Ok(());
+        }
+        _ => {}
+    }
+
+    // Human-readable flow diagram
+    println!();
+    println!("{}", style("Process Flow").bold().cyan());
+    println!("{}", style("─".repeat(60)).dim());
+    println!();
+
+    for (i, proc) in processes.iter().enumerate() {
+        let proc_id = proc.id.to_string();
+        let short_id = short_ids.get_short_id(&proc_id)
+            .unwrap_or_else(|| truncate_str(&proc_id, 8));
+        let op_num = proc.operation_number.as_deref().unwrap_or("???");
+
+        // Process header
+        println!(
+            "[{}] {} ({})",
+            style(op_num).cyan().bold(),
+            style(&proc.title).bold(),
+            style(&short_id).dim()
+        );
+
+        // Details line
+        let mut details = vec![format!("Type: {}", proc.process_type)];
+        if let Some(cycle) = proc.cycle_time_minutes {
+            details.push(format!("Cycle: {:.0} min", cycle));
+        }
+        if let Some(setup) = proc.setup_time_minutes {
+            details.push(format!("Setup: {:.0} min", setup));
+        }
+        println!("  {} {}", style("│").dim(), style(details.join(" | ")).dim());
+
+        // Equipment
+        if !proc.equipment.is_empty() {
+            let equip_names: Vec<&str> = proc.equipment.iter().map(|e| e.name.as_str()).collect();
+            println!("  {} Equipment: {}", style("│").dim(), equip_names.join(", "));
+        }
+
+        // Controls
+        if args.controls {
+            if let Some(ctrls) = controls_by_process.get(&proc_id) {
+                for (ctrl_short, ctrl_title) in ctrls {
+                    println!(
+                        "  {} Controls: {} \"{}\"",
+                        style("│").dim(),
+                        style(ctrl_short).yellow(),
+                        truncate_str(ctrl_title, 35)
+                    );
+                }
+            }
+        }
+
+        // Work instructions
+        if args.work_instructions {
+            if let Some(works) = work_by_process.get(&proc_id) {
+                for (work_short, work_title) in works {
+                    println!(
+                        "  {} Work Inst: {} \"{}\"",
+                        style("│").dim(),
+                        style(work_short).magenta(),
+                        truncate_str(work_title, 35)
+                    );
+                }
+            }
+        }
+
+        // Arrow to next process (if not last)
+        if i < processes.len() - 1 {
+            println!("  {}", style("▼").cyan());
+        }
+    }
+
+    println!();
+    println!(
+        "{} process{} in flow",
+        style(processes.len()).cyan(),
+        if processes.len() == 1 { "" } else { "es" }
+    );
 
     Ok(())
 }

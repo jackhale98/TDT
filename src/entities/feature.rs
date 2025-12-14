@@ -18,8 +18,10 @@ use crate::entities::stackup::Distribution;
 #[serde(rename_all = "snake_case")]
 pub enum FeatureType {
     /// Internal feature (hole, bore, pocket, slot) - material is removed, MMC = smallest
+    #[serde(alias = "hole", alias = "bore", alias = "pocket", alias = "slot")]
     Internal,
     /// External feature (shaft, boss, pin) - material remains, MMC = largest
+    #[serde(alias = "shaft", alias = "boss", alias = "pin")]
     External,
 }
 

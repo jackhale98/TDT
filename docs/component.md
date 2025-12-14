@@ -205,6 +205,72 @@ tdt cmp edit CMP-01HC2
 tdt cmp edit CMP@1
 ```
 
+### Show component interaction matrix (DSM)
+
+Display a Design Structure Matrix showing how components interact through mates and tolerance stackups.
+
+```bash
+# Show all component interactions
+tdt cmp matrix
+
+# Filter by interaction type
+tdt cmp matrix --interaction-type mate       # Only mate interactions
+tdt cmp matrix --interaction-type tolerance  # Only tolerance stackup interactions
+
+# Filter to show interactions for specific component
+tdt cmp matrix --component CMP@1
+
+# Export as CSV (recommended for large matrices)
+tdt cmp matrix --csv
+
+# Output as JSON for programmatic use
+tdt cmp matrix -f json
+```
+
+**Example Output:**
+
+```
+Component Interaction Matrix
+5 components, 8 interactions
+
+              1   2   3   4   5
+             ──────────────────────
+Housing       ·   M   MT  T   ·
+Shaft         M   ·   M   ·   ·
+Bearing       MT  M   ·   T   M
+Cover         T   ·   T   ·   T
+Bracket       ·   ·   M   T   ·
+
+Legend:
+  M = Mate interaction
+  T = Tolerance stackup
+  MT = Both mate and tolerance
+
+Components:
+   1. CMP@1 Housing
+   2. CMP@2 Shaft
+   3. CMP@3 Bearing
+   4. CMP@4 Cover
+   5. CMP@5 Bracket
+```
+
+**CSV Output Example:**
+
+```csv
+"Component","Housing","Shaft","Bearing","Cover","Bracket"
+"Housing","","M","MT","T",""
+"Shaft","M","","M","",""
+"Bearing","MT","M","","T","M"
+"Cover","T","","T","","T"
+"Bracket","","","M","T",""
+```
+
+**Notes:**
+- The matrix is symmetric (A interacts with B = B interacts with A)
+- Interactions are derived from mate definitions (`tdt mate`) and tolerance stackups (`tdt tol`)
+- Use `--csv` for large matrices that don't fit in terminal width
+- JSON output includes full component IDs for integration with other tools
+
 ## Make vs Buy Classification
 
 | Type | Description | Typical Use |

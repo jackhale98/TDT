@@ -408,6 +408,42 @@ tdt rslt edit RSLT-01HC2
 tdt rslt edit RSLT@1
 ```
 
+### Show result summary
+
+```bash
+# Show overall test execution statistics
+tdt rslt summary
+
+# Filter to specific test
+tdt rslt summary --test TEST@1
+
+# Include detailed breakdown by test type
+tdt rslt summary --detailed
+
+# Output as JSON for reporting
+tdt rslt summary -f json
+```
+
+**Example Output:**
+
+```
+Test Results Summary
+──────────────────────────────────────────────────
+Total Results: 45
+
+  Pass:        38 ( 84.4%)
+  Fail:         4 (  8.9%)
+  Conditional:  2 (  4.4%)
+  Incomplete:   1 (  2.2%)
+
+Recent Failures (last 30 days):
+  RSLT@12 TEST@5 "Load Test"           2024-01-15
+  RSLT@8  TEST@3 "Dimensional Check"   2024-01-10
+
+Requirement Coverage:
+  78.5% (45/57 requirements have tests)
+```
+
 ## Validation
 
 Results are validated against a JSON Schema. Run validation with:

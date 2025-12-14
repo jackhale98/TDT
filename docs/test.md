@@ -327,6 +327,45 @@ tdt test edit TEST-01HC2
 tdt test edit TEST@1
 ```
 
+### Execute a test and record result
+
+```bash
+# Execute test and record result (interactive verdict prompt)
+tdt test run TEST@1
+
+# Execute with verdict specified
+tdt test run TEST@1 --verdict pass
+tdt test run TEST@1 --verdict fail
+tdt test run TEST@1 --verdict conditional
+tdt test run TEST@1 --verdict incomplete
+
+# Specify who executed the test
+tdt test run TEST@1 --verdict pass --by "John Smith"
+
+# Add notes
+tdt test run TEST@1 --verdict pass --notes "Minor overshoot during ramp"
+
+# Open result in editor for full details
+tdt test run TEST@1 --verdict pass --edit
+
+# Output result ID only (for scripting)
+tdt test run TEST@1 --verdict pass -f id
+```
+
+**Example Output:**
+
+```
+✓ Created result RSLT@5 for test TEST@3 "Housing Dimensional Inspection"
+   Verdict: pass
+   Executed by: John Smith
+   verification/results/RSLT-01JEH7QXYZ123456789ABCDEFG.tdt.yaml
+```
+
+**Notes:**
+- Results are saved to `verification/results/` or `validation/results/` based on the test type
+- A new RSLT entity is created and linked to the test
+- Use `tdt rslt edit RSLT@N` to add step results, measurements, and attachments
+
 ## Validation
 
 Tests are validated against a JSON Schema. Run validation with:

@@ -14,6 +14,7 @@ use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
+use crate::entities::result::{Result as TestResult, Verdict};
 use crate::entities::test::{Test, TestLevel, TestMethod, TestType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
 use crate::schema::wizard::SchemaWizard;
@@ -149,6 +150,9 @@ pub enum TestCommands {
 
     /// Edit a test in your editor
     Edit(EditArgs),
+
+    /// Execute a test and record a result
+    Run(RunArgs),
 }
 
 /// Test type filter
@@ -371,12 +375,48 @@ pub struct EditArgs {
     pub id: String,
 }
 
+/// Verdict options for test execution
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum CliVerdict {
+    Pass,
+    Fail,
+    Conditional,
+    Incomplete,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct RunArgs {
+    /// Test ID or short ID (TEST@N)
+    pub test: String,
+
+    /// Test verdict
+    #[arg(long)]
+    pub verdict: Option<CliVerdict>,
+
+    /// Executed by (default: from config)
+    #[arg(long)]
+    pub by: Option<String>,
+
+    /// Open editor for full result details
+    #[arg(long, short = 'e')]
+    pub edit: bool,
+
+    /// Skip editor (create minimal result)
+    #[arg(long)]
+    pub no_edit: bool,
+
+    /// Notes or observations
+    #[arg(long)]
+    pub notes: Option<String>,
+}
+
 pub fn run(cmd: TestCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
         TestCommands::List(args) => run_list(args, global),
         TestCommands::New(args) => run_new(args),
         TestCommands::Show(args) => run_show(args, global),
         TestCommands::Edit(args) => run_edit(args),
+        TestCommands::Run(args) => run_run(args, global),
     }
 }
 
@@ -1436,4 +1476,198 @@ fn load_all_results(project: &Project) -> Vec<crate::entities::result::Result> {
     }
 
     results
+}
+
+fn run_run(args: RunArgs, global: &GlobalOpts) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let config = Config::load();
+
+    // Resolve test ID
+    let short_ids = ShortIdIndex::load(&project);
+    let resolved_test_id = short_ids
+        .resolve(&args.test)
+        .unwrap_or_else(|| args.test.clone());
+
+    // Find and load the test protocol
+    let ver_dir = project.root().join("verification/protocols");
+    let val_dir = project.root().join("validation/protocols");
+    let mut test: Option<Test> = None;
+    let mut test_type_str = "verification";
+
+    // Search verification protocols
+    if ver_dir.exists() {
+        for entry in fs::read_dir(&ver_dir).into_diagnostic()?.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&resolved_test_id) {
+                    let content = fs::read_to_string(&path).into_diagnostic()?;
+                    if let Ok(t) = serde_yml::from_str::<Test>(&content) {
+                        test = Some(t);
+                        test_type_str = "verification";
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // Search validation protocols if not found
+    if test.is_none() && val_dir.exists() {
+        for entry in fs::read_dir(&val_dir).into_diagnostic()?.flatten() {
+            let path = entry.path();
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&resolved_test_id) {
+                    let content = fs::read_to_string(&path).into_diagnostic()?;
+                    if let Ok(t) = serde_yml::from_str::<Test>(&content) {
+                        test = Some(t);
+                        test_type_str = "validation";
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    let test = test.ok_or_else(|| miette::miette!("No test found matching '{}'", args.test))?;
+
+    // Get display ID
+    let test_short_id = short_ids.get_short_id(&test.id.to_string())
+        .unwrap_or_else(|| format_short_id(&test.id));
+
+    // Determine verdict - prompt if not provided
+    let verdict = match args.verdict {
+        Some(CliVerdict::Pass) => Verdict::Pass,
+        Some(CliVerdict::Fail) => Verdict::Fail,
+        Some(CliVerdict::Conditional) => Verdict::Conditional,
+        Some(CliVerdict::Incomplete) => Verdict::Incomplete,
+        None => {
+            // Prompt for verdict interactively
+            use dialoguer::{Select, theme::ColorfulTheme};
+            let items = &["Pass", "Fail", "Conditional", "Incomplete"];
+            let selection = Select::with_theme(&ColorfulTheme::default())
+                .with_prompt("Test verdict")
+                .items(items)
+                .default(0)
+                .interact()
+                .into_diagnostic()?;
+            match selection {
+                0 => Verdict::Pass,
+                1 => Verdict::Fail,
+                2 => Verdict::Conditional,
+                _ => Verdict::Incomplete,
+            }
+        }
+    };
+
+    // Determine executor
+    let executed_by = args.by.unwrap_or_else(|| config.author().to_string());
+
+    // Create result ID
+    let result_id = EntityId::new(EntityPrefix::Rslt);
+
+    // Create result entity
+    let result = TestResult {
+        id: result_id.clone(),
+        test_id: test.id.clone(),
+        test_revision: Some(test.revision),
+        title: Some(format!("Result for {}", test.title)),
+        verdict: verdict.clone(),
+        verdict_rationale: None,
+        category: test.category.clone(),
+        tags: Vec::new(),
+        executed_date: chrono::Utc::now(),
+        executed_by: executed_by.clone(),
+        reviewed_by: None,
+        reviewed_date: None,
+        sample_info: None,
+        environment: None,
+        equipment_used: Vec::new(),
+        step_results: Vec::new(),
+        deviations: Vec::new(),
+        failures: Vec::new(),
+        attachments: Vec::new(),
+        duration: None,
+        notes: args.notes.clone(),
+        status: crate::core::entity::Status::default(),
+        links: Default::default(),
+        created: chrono::Utc::now(),
+        author: executed_by.clone(),
+        revision: 1,
+    };
+
+    // Serialize to YAML
+    let yaml_content = serde_yml::to_string(&result).into_diagnostic()?;
+
+    // Determine output directory based on test type
+    let output_dir = project.root().join(format!("{}/results", test_type_str));
+    if !output_dir.exists() {
+        fs::create_dir_all(&output_dir).into_diagnostic()?;
+    }
+
+    let file_path = output_dir.join(format!("{}.tdt.yaml", result_id));
+    fs::write(&file_path, &yaml_content).into_diagnostic()?;
+
+    // Add to short ID index
+    let mut short_ids = ShortIdIndex::load(&project);
+    let result_short_id = short_ids.add(result_id.to_string());
+    let _ = short_ids.save(&project);
+
+    // Output based on format
+    match global.format {
+        OutputFormat::Json => {
+            let output = serde_json::json!({
+                "id": result_id.to_string(),
+                "short_id": result_short_id,
+                "test_id": test.id.to_string(),
+                "test_short_id": test_short_id,
+                "verdict": verdict.to_string(),
+                "executed_by": executed_by,
+                "file": file_path.display().to_string(),
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap_or_default());
+        }
+        OutputFormat::Yaml => {
+            let output = serde_json::json!({
+                "id": result_id.to_string(),
+                "test_id": test.id.to_string(),
+                "verdict": verdict.to_string(),
+            });
+            println!("{}", serde_yml::to_string(&output).unwrap_or_default());
+        }
+        OutputFormat::Id => {
+            println!("{}", result_id);
+        }
+        _ => {
+            println!(
+                "{} Created result {} for test {} \"{}\"",
+                style("✓").green(),
+                style(result_short_id.unwrap_or_else(|| format_short_id(&result_id))).cyan(),
+                style(&test_short_id).cyan(),
+                truncate_str(&test.title, 35)
+            );
+            println!(
+                "   Verdict: {}",
+                match verdict {
+                    Verdict::Pass => style("pass").green(),
+                    Verdict::Fail => style("fail").red(),
+                    Verdict::Conditional => style("conditional").yellow(),
+                    Verdict::Incomplete => style("incomplete").yellow(),
+                    Verdict::NotApplicable => style("n/a").dim(),
+                }
+            );
+            println!("   Executed by: {}", executed_by);
+            println!("   {}", style(file_path.display()).dim());
+        }
+    }
+
+    // Open in editor if requested
+    if args.edit && !args.no_edit {
+        println!();
+        println!("Opening in {}...", style(config.editor()).yellow());
+        config.run_editor(&file_path).into_diagnostic()?;
+    }
+
+    Ok(())
 }

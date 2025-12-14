@@ -29,6 +29,9 @@ pub enum RsltCommands {
 
     /// Edit a result in your editor
     Edit(EditArgs),
+
+    /// Show test execution statistics and coverage
+    Summary(SummaryArgs),
 }
 
 /// Verdict filter
@@ -205,12 +208,24 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct SummaryArgs {
+    /// Show results for specific test only
+    #[arg(long, short = 't')]
+    pub test: Option<String>,
+
+    /// Include detailed breakdown by test type
+    #[arg(long, short = 'd')]
+    pub detailed: bool,
+}
+
 pub fn run(cmd: RsltCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
         RsltCommands::List(args) => run_list(args, global),
         RsltCommands::New(args) => run_new(args),
         RsltCommands::Show(args) => run_show(args, global),
         RsltCommands::Edit(args) => run_edit(args),
+        RsltCommands::Summary(args) => run_summary(args, global),
     }
 }
 
@@ -1196,4 +1211,260 @@ fn find_result(project: &Project, id_query: &str) -> Result<TestResult> {
             ))
         }
     }
+}
+
+fn run_summary(args: SummaryArgs, global: &GlobalOpts) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let cache = EntityCache::open(&project)?;
+    let short_ids = ShortIdIndex::load(&project);
+
+    // Resolve test filter if provided
+    let test_filter = args.test.as_ref().map(|t| {
+        short_ids.resolve(t).unwrap_or_else(|| t.clone())
+    });
+
+    // Get all results from cache
+    let results = cache.list_results(
+        None,                      // status
+        test_filter.as_deref(),    // test_id
+        None,                      // verdict
+        None,                      // author
+        None,                      // search
+        None,                      // limit
+    );
+
+    if results.is_empty() {
+        match global.format {
+            OutputFormat::Json => println!("{{}}"),
+            OutputFormat::Yaml => println!("{{}}"),
+            _ => {
+                println!("No test results found.");
+                println!();
+                println!("Create one with: {}", style("tdt rslt new --test <TEST_ID>").yellow());
+            }
+        }
+        return Ok(());
+    }
+
+    // Calculate statistics
+    let total = results.len();
+    let mut pass_count = 0usize;
+    let mut fail_count = 0usize;
+    let mut conditional_count = 0usize;
+    let mut incomplete_count = 0usize;
+    let mut na_count = 0usize;
+    let mut verification_count = 0usize;
+    let mut validation_count = 0usize;
+
+    // Track recent failures (last 30 days)
+    let thirty_days_ago = chrono::Utc::now() - chrono::Duration::days(30);
+    let mut recent_failures: Vec<&crate::core::cache::CachedResult> = Vec::new();
+
+    for result in &results {
+        // Count by verdict
+        match result.verdict.as_deref() {
+            Some("pass") => pass_count += 1,
+            Some("fail") => {
+                fail_count += 1;
+                // Check if recent failure
+                if let Some(date_str) = &result.executed_date {
+                    if let Ok(date) = chrono::NaiveDate::parse_from_str(date_str, "%Y-%m-%d") {
+                        if date >= thirty_days_ago.date_naive() {
+                            recent_failures.push(result);
+                        }
+                    }
+                }
+            }
+            Some("conditional") => conditional_count += 1,
+            Some("incomplete") => incomplete_count += 1,
+            Some("not_applicable") => na_count += 1,
+            _ => {}
+        }
+
+        // Count by test type (inferred from file path)
+        let path_str = result.file_path.to_string_lossy();
+        if path_str.contains("verification") {
+            verification_count += 1;
+        } else if path_str.contains("validation") {
+            validation_count += 1;
+        }
+    }
+
+    let pass_rate = if total > 0 {
+        (pass_count as f64 / total as f64) * 100.0
+    } else {
+        0.0
+    };
+
+    // Get requirement coverage
+    let coverage = cache.requirement_coverage();
+
+    // Output based on format
+    match global.format {
+        OutputFormat::Json => {
+            let summary = serde_json::json!({
+                "total": total,
+                "by_verdict": {
+                    "pass": pass_count,
+                    "fail": fail_count,
+                    "conditional": conditional_count,
+                    "incomplete": incomplete_count,
+                    "not_applicable": na_count
+                },
+                "pass_rate": pass_rate,
+                "by_type": {
+                    "verification": verification_count,
+                    "validation": validation_count
+                },
+                "recent_failures": recent_failures.iter().map(|r| {
+                    serde_json::json!({
+                        "id": r.id,
+                        "test_id": r.test_id,
+                        "title": r.title,
+                        "executed_date": r.executed_date
+                    })
+                }).collect::<Vec<_>>(),
+                "requirement_coverage": {
+                    "total": coverage.total_requirements,
+                    "with_tests": coverage.with_tests,
+                    "without_tests": coverage.without_tests,
+                    "percent": coverage.coverage_percent
+                }
+            });
+            println!("{}", serde_json::to_string_pretty(&summary).unwrap_or_default());
+        }
+        OutputFormat::Yaml => {
+            let summary = serde_json::json!({
+                "total": total,
+                "by_verdict": {
+                    "pass": pass_count,
+                    "fail": fail_count,
+                    "conditional": conditional_count,
+                    "incomplete": incomplete_count,
+                    "not_applicable": na_count
+                },
+                "pass_rate": pass_rate,
+                "by_type": {
+                    "verification": verification_count,
+                    "validation": validation_count
+                },
+                "requirement_coverage": {
+                    "total": coverage.total_requirements,
+                    "with_tests": coverage.with_tests,
+                    "percent": coverage.coverage_percent
+                }
+            });
+            println!("{}", serde_yml::to_string(&summary).unwrap_or_default());
+        }
+        _ => {
+            // Human-readable output
+            println!();
+            println!("{}", style("Test Results Summary").bold().cyan());
+            println!("{}", style("─".repeat(50)).dim());
+
+            if let Some(ref test_id) = args.test {
+                let display_id = short_ids.get_short_id(&test_filter.clone().unwrap_or_default())
+                    .unwrap_or_else(|| test_id.clone());
+                println!("Filtered by test: {}", style(display_id).yellow());
+                println!();
+            }
+
+            println!("{}: {}", style("Total Results").bold(), total);
+            println!();
+
+            // Verdict breakdown with colors
+            let pass_pct = if total > 0 { (pass_count as f64 / total as f64) * 100.0 } else { 0.0 };
+            let fail_pct = if total > 0 { (fail_count as f64 / total as f64) * 100.0 } else { 0.0 };
+            let cond_pct = if total > 0 { (conditional_count as f64 / total as f64) * 100.0 } else { 0.0 };
+            let inc_pct = if total > 0 { (incomplete_count as f64 / total as f64) * 100.0 } else { 0.0 };
+
+            println!(
+                "  {}: {:>4} ({:>5.1}%)",
+                style("Pass").green(),
+                pass_count,
+                pass_pct
+            );
+            println!(
+                "  {}: {:>4} ({:>5.1}%)",
+                style("Fail").red(),
+                fail_count,
+                fail_pct
+            );
+            println!(
+                "  {}: {:>4} ({:>5.1}%)",
+                style("Conditional").yellow(),
+                conditional_count,
+                cond_pct
+            );
+            println!(
+                "  {}: {:>4} ({:>5.1}%)",
+                style("Incomplete").yellow(),
+                incomplete_count,
+                inc_pct
+            );
+            if na_count > 0 {
+                let na_pct = (na_count as f64 / total as f64) * 100.0;
+                println!(
+                    "  {}: {:>4} ({:>5.1}%)",
+                    style("N/A").dim(),
+                    na_count,
+                    na_pct
+                );
+            }
+
+            if args.detailed {
+                println!();
+                println!("{}", style("By Type:").bold());
+                println!("  Verification: {} results", verification_count);
+                println!("  Validation:   {} results", validation_count);
+            }
+
+            // Recent failures
+            if !recent_failures.is_empty() {
+                println!();
+                println!("{}", style("Recent Failures (last 30 days):").bold().red());
+                // Sort by date descending
+                let mut sorted_failures = recent_failures.clone();
+                sorted_failures.sort_by(|a, b| {
+                    b.executed_date.as_ref().cmp(&a.executed_date.as_ref())
+                });
+                for failure in sorted_failures.iter().take(5) {
+                    let short_id = short_ids.get_short_id(&failure.id)
+                        .unwrap_or_else(|| truncate_str(&failure.id, 8));
+                    let test_short = failure.test_id.as_ref()
+                        .and_then(|t| short_ids.get_short_id(t))
+                        .unwrap_or_else(|| "?".to_string());
+                    println!(
+                        "  {} {} \"{}\" {}",
+                        style(short_id).red(),
+                        style(test_short).dim(),
+                        truncate_str(&failure.title, 30),
+                        style(failure.executed_date.as_deref().unwrap_or("-")).dim()
+                    );
+                }
+                if sorted_failures.len() > 5 {
+                    println!("  ... and {} more", sorted_failures.len() - 5);
+                }
+            }
+
+            // Requirement coverage
+            println!();
+            println!("{}", style("Requirement Coverage:").bold());
+            let cov_color = if coverage.coverage_percent >= 80.0 {
+                console::Style::new().green()
+            } else if coverage.coverage_percent >= 50.0 {
+                console::Style::new().yellow()
+            } else {
+                console::Style::new().red()
+            };
+            println!(
+                "  {} ({}/{} requirements have tests)",
+                cov_color.apply_to(format!("{:.1}%", coverage.coverage_percent)),
+                coverage.with_tests,
+                coverage.total_requirements
+            );
+        }
+    }
+
+    Ok(())
 }

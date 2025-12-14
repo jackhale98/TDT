@@ -12,7 +12,7 @@ use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::Config;
-use crate::entities::ncr::{Ncr, NcrCategory, NcrSeverity, NcrStatus, NcrType};
+use crate::entities::ncr::{Disposition, DispositionDecision, Ncr, NcrCategory, NcrSeverity, NcrStatus, NcrType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
 use crate::schema::wizard::SchemaWizard;
 
@@ -125,6 +125,9 @@ pub enum NcrCommands {
 
     /// Edit an NCR in your editor
     Edit(EditArgs),
+
+    /// Close an NCR with disposition
+    Close(CloseArgs),
 }
 
 /// NCR type filter
@@ -282,6 +285,41 @@ pub struct EditArgs {
     pub id: String,
 }
 
+/// Disposition decision for CLI
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum CliDisposition {
+    /// Use the part as-is
+    UseAsIs,
+    /// Rework the part to spec
+    Rework,
+    /// Scrap the part
+    Scrap,
+    /// Return to supplier
+    Return,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct CloseArgs {
+    /// NCR ID or short ID (NCR@N)
+    pub ncr: String,
+
+    /// Disposition decision
+    #[arg(long, short = 'd')]
+    pub disposition: CliDisposition,
+
+    /// Disposition justification/rationale
+    #[arg(long, short = 'r')]
+    pub rationale: Option<String>,
+
+    /// Link to CAPA (create if needed)
+    #[arg(long)]
+    pub capa: Option<String>,
+
+    /// Skip confirmation prompt
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
 /// Run an NCR subcommand
 pub fn run(cmd: NcrCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -289,6 +327,7 @@ pub fn run(cmd: NcrCommands, global: &GlobalOpts) -> Result<()> {
         NcrCommands::New(args) => run_new(args),
         NcrCommands::Show(args) => run_show(args, global),
         NcrCommands::Edit(args) => run_edit(args),
+        NcrCommands::Close(args) => run_close(args, global),
     }
 }
 
@@ -1039,6 +1078,157 @@ fn output_cached_ncrs(
         OutputFormat::Json | OutputFormat::Yaml | OutputFormat::Auto => {
             // Should not reach here - cache bypassed for these formats
             unreachable!();
+        }
+    }
+
+    Ok(())
+}
+
+fn run_close(args: CloseArgs, global: &GlobalOpts) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let config = Config::load();
+
+    // Resolve short ID if needed
+    let short_ids = ShortIdIndex::load(&project);
+    let resolved_id = short_ids
+        .resolve(&args.ncr)
+        .unwrap_or_else(|| args.ncr.clone());
+
+    // Find the NCR file
+    let ncr_dir = project.root().join("manufacturing/ncrs");
+    let mut found_path = None;
+
+    if ncr_dir.exists() {
+        for entry in fs::read_dir(&ncr_dir).into_diagnostic()? {
+            let entry = entry.into_diagnostic()?;
+            let path = entry.path();
+
+            if path.extension().map_or(false, |e| e == "yaml") {
+                let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+                if filename.contains(&resolved_id) || filename.starts_with(&resolved_id) {
+                    found_path = Some(path);
+                    break;
+                }
+            }
+        }
+    }
+
+    let path = found_path.ok_or_else(|| miette::miette!("No NCR found matching '{}'", args.ncr))?;
+
+    // Read and parse NCR
+    let content = fs::read_to_string(&path).into_diagnostic()?;
+    let mut ncr: Ncr = serde_yml::from_str(&content).into_diagnostic()?;
+
+    // Get display ID for user messages
+    let display_id = short_ids.get_short_id(&ncr.id.to_string())
+        .unwrap_or_else(|| format_short_id(&ncr.id));
+
+    // Validate status allows closing
+    if ncr.ncr_status == NcrStatus::Closed {
+        return Err(miette::miette!(
+            "NCR {} is already closed",
+            display_id
+        ));
+    }
+
+    // Convert CLI disposition to entity enum
+    let disposition_decision = match args.disposition {
+        CliDisposition::UseAsIs => DispositionDecision::UseAsIs,
+        CliDisposition::Rework => DispositionDecision::Rework,
+        CliDisposition::Scrap => DispositionDecision::Scrap,
+        CliDisposition::Return => DispositionDecision::ReturnToSupplier,
+    };
+
+    // Resolve CAPA link if provided
+    let capa_ref = args.capa.as_ref().map(|c| {
+        short_ids.resolve(c).unwrap_or_else(|| c.clone())
+    });
+
+    // Show current state and confirmation
+    if !args.yes {
+        println!();
+        println!("{}", style("Closing NCR").bold().cyan());
+        println!("{}", style("─".repeat(50)).dim());
+        println!("NCR: {} \"{}\"", style(&display_id).cyan(), &ncr.title);
+        println!("Current Status: {}", ncr.ncr_status);
+        println!("Severity: {}", ncr.severity);
+        println!();
+        println!("Disposition: {}", style(format!("{:?}", args.disposition)).yellow());
+        if let Some(ref rationale) = args.rationale {
+            println!("Rationale: {}", rationale);
+        }
+        if let Some(ref capa) = capa_ref {
+            let capa_display = short_ids.get_short_id(capa).unwrap_or_else(|| capa.clone());
+            println!("Linked CAPA: {}", style(&capa_display).cyan());
+        }
+        println!();
+
+        // Simple confirmation
+        print!("Confirm close? [y/N] ");
+        std::io::Write::flush(&mut std::io::stdout()).into_diagnostic()?;
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input).into_diagnostic()?;
+        if !input.trim().eq_ignore_ascii_case("y") {
+            println!("Cancelled.");
+            return Ok(());
+        }
+    }
+
+    // Update disposition
+    let today = chrono::Local::now().date_naive();
+    ncr.disposition = Some(Disposition {
+        decision: Some(disposition_decision),
+        decision_date: Some(today),
+        decision_by: Some(config.author().to_string()),
+        justification: args.rationale.clone(),
+        mrb_required: false,
+    });
+
+    // Update status
+    ncr.ncr_status = NcrStatus::Closed;
+
+    // Add CAPA link if provided
+    if let Some(ref capa_id) = capa_ref {
+        if let Ok(entity_id) = capa_id.parse::<EntityId>() {
+            ncr.links.capa = Some(entity_id);
+        }
+    }
+
+    // Increment revision
+    ncr.entity_revision += 1;
+
+    // Write updated NCR
+    let yaml_content = serde_yml::to_string(&ncr).into_diagnostic()?;
+    fs::write(&path, &yaml_content).into_diagnostic()?;
+
+    // Output based on format
+    match global.format {
+        OutputFormat::Json => {
+            let result = serde_json::json!({
+                "id": ncr.id.to_string(),
+                "short_id": display_id,
+                "ncr_status": "closed",
+                "disposition": disposition_decision.to_string(),
+                "capa": capa_ref,
+            });
+            println!("{}", serde_json::to_string_pretty(&result).unwrap_or_default());
+        }
+        OutputFormat::Yaml => {
+            let result = serde_json::json!({
+                "id": ncr.id.to_string(),
+                "ncr_status": "closed",
+                "disposition": disposition_decision.to_string(),
+            });
+            println!("{}", serde_yml::to_string(&result).unwrap_or_default());
+        }
+        _ => {
+            println!();
+            println!("{} NCR {} closed", style("✓").green(), style(&display_id).cyan());
+            println!("  Disposition: {}", style(format!("{:?}", args.disposition)).yellow());
+            if let Some(ref capa_id) = capa_ref {
+                let capa_display = short_ids.get_short_id(capa_id).unwrap_or_else(|| capa_id.clone());
+                println!("  Linked CAPA: {}", style(&capa_display).cyan());
+            }
         }
     }
 
