@@ -146,6 +146,8 @@ impl SchemaWizard {
                 "rpn", "risk_level", "initial_risk", "mitigations",
                 // Test result fields handled separately
                 "test_revision", "reviewed_by", "reviewed_date",
+                // Feature fields - component is provided via -c, dimensions are complex nested objects
+                "component", "dimensions", "gdt", "drawing",
             ];
 
             // First add fields in preferred order

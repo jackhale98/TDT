@@ -11,6 +11,7 @@ pub mod ctrl;
 pub mod diff;
 pub mod feat;
 pub mod history;
+pub mod import;
 pub mod init;
 pub mod link;
 pub mod mate;

@@ -5,6 +5,8 @@ use console::style;
 use miette::{IntoDiagnostic, Result};
 use std::fs;
 
+use dialoguer::{theme::ColorfulTheme, Input};
+
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
@@ -274,7 +276,17 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 features.truncate(limit);
             }
 
-            return output_cached_features(&features, &short_ids, &args, format);
+            // Build component lookup map for displaying part numbers and titles
+            let component_info: std::collections::HashMap<String, (String, String)> = cache
+                .list_components(None, None, None, None, None, None)
+                .into_iter()
+                .map(|c| {
+                    let pn = c.part_number.unwrap_or_default();
+                    (c.id, (pn, c.title))
+                })
+                .collect();
+
+            return output_cached_features(&features, &short_ids, &args, format, &component_info);
         }
     }
 
@@ -397,6 +409,21 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     short_ids.ensure_all(features.iter().map(|f| f.id.to_string()));
     let _ = short_ids.save(&project);
 
+    // Load component info for display
+    let component_info: std::collections::HashMap<String, (String, String)> =
+        if let Ok(cache) = EntityCache::open(&project) {
+            cache
+                .list_components(None, None, None, None, None, None)
+                .into_iter()
+                .map(|c| {
+                    let pn = c.part_number.unwrap_or_default();
+                    (c.id, (pn, c.title))
+                })
+                .collect()
+        } else {
+            std::collections::HashMap::new()
+        };
+
     match format {
         OutputFormat::Json => {
             let json = serde_json::to_string_pretty(&features).into_diagnostic()?;
@@ -407,14 +434,21 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             print!("{}", yaml);
         }
         OutputFormat::Csv => {
-            println!("short_id,id,component,feature_type,title,dims,status");
+            println!("short_id,id,component,part_number,component_title,feature_type,title,dims,status");
             for feat in &features {
                 let short_id = short_ids.get_short_id(&feat.id.to_string()).unwrap_or_default();
+                let cmp_alias = short_ids.get_short_id(&feat.component).unwrap_or_default();
+                let (part_number, cmp_title) = component_info
+                    .get(&feat.component)
+                    .map(|(pn, t)| (pn.as_str(), t.as_str()))
+                    .unwrap_or(("", ""));
                 println!(
-                    "{},{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{},{},{}",
                     short_id,
                     feat.id,
-                    truncate_str(&feat.component, 13),
+                    cmp_alias,
+                    escape_csv(part_number),
+                    escape_csv(cmp_title),
                     feat.feature_type,
                     escape_csv(&feat.title),
                     feat.dimensions.len(),
@@ -432,7 +466,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                     ListColumn::Title => (style("TITLE").bold().to_string(), 20),
                     ListColumn::Description => (style("DESCRIPTION").bold().to_string(), 30),
                     ListColumn::FeatureType => (style("TYPE").bold().to_string(), 10),
-                    ListColumn::Component => (style("COMPONENT").bold().to_string(), 8),
+                    ListColumn::Component => (style("COMPONENT").bold().to_string(), 40),
                     ListColumn::Status => (style("STATUS").bold().to_string(), 10),
                     ListColumn::Author => (style("AUTHOR").bold().to_string(), 14),
                     ListColumn::Created => (style("CREATED").bold().to_string(), 12),
@@ -458,9 +492,20 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                         }
                         ListColumn::FeatureType => format!("{:<width$}", feat.feature_type, width = width),
                         ListColumn::Component => {
-                            // Show component alias (CMP@N) instead of truncated full ID
-                            let cmp_alias = short_ids.get_short_id(&feat.component).unwrap_or_else(|| truncate_str(&feat.component, width - 2).to_string());
-                            format!("{:<width$}", cmp_alias, width = width)
+                            // Show component alias, part number, and title
+                            let cmp_alias = short_ids.get_short_id(&feat.component).unwrap_or_else(|| "?".to_string());
+                            let (part_number, cmp_title) = component_info
+                                .get(&feat.component)
+                                .map(|(pn, t)| (pn.as_str(), t.as_str()))
+                                .unwrap_or(("", ""));
+                            let display = if !part_number.is_empty() {
+                                format!("{} ({}) {}", cmp_alias, part_number, truncate_str(cmp_title, 20))
+                            } else if !cmp_title.is_empty() {
+                                format!("{} {}", cmp_alias, truncate_str(cmp_title, 25))
+                            } else {
+                                cmp_alias
+                            };
+                            format!("{:<width$}", truncate_str(&display, width - 2), width = width)
                         }
                         ListColumn::Status => format!("{:<width$}", feat.status(), width = width),
                         ListColumn::Author => format!("{:<width$}", truncate_str(&feat.author, width - 2), width = width),
@@ -512,6 +557,7 @@ fn output_cached_features(
     short_ids: &ShortIdIndex,
     args: &ListArgs,
     format: OutputFormat,
+    component_info: &std::collections::HashMap<String, (String, String)>,
 ) -> Result<()> {
     if features.is_empty() {
         println!("No features found.");
@@ -525,14 +571,21 @@ fn output_cached_features(
 
     match format {
         OutputFormat::Csv => {
-            println!("short_id,id,component,feature_type,title,status");
+            println!("short_id,id,component,part_number,component_title,feature_type,title,status");
             for feat in features {
                 let short_id = short_ids.get_short_id(&feat.id).unwrap_or_default();
+                let cmp_alias = short_ids.get_short_id(&feat.component_id).unwrap_or_default();
+                let (part_number, cmp_title) = component_info
+                    .get(&feat.component_id)
+                    .map(|(pn, t)| (pn.as_str(), t.as_str()))
+                    .unwrap_or(("", ""));
                 println!(
-                    "{},{},{},{},{},{}",
+                    "{},{},{},{},{},{},{},{}",
                     short_id,
                     feat.id,
-                    truncate_str(&feat.component_id, 13),
+                    cmp_alias,
+                    escape_csv(part_number),
+                    escape_csv(cmp_title),
                     feat.feature_type,
                     escape_csv(&feat.title),
                     feat.status
@@ -549,7 +602,7 @@ fn output_cached_features(
                     ListColumn::Title => (style("TITLE").bold().to_string(), 20),
                     ListColumn::Description => (style("DESCRIPTION").bold().to_string(), 30),
                     ListColumn::FeatureType => (style("TYPE").bold().to_string(), 10),
-                    ListColumn::Component => (style("COMPONENT").bold().to_string(), 8),
+                    ListColumn::Component => (style("COMPONENT").bold().to_string(), 40),
                     ListColumn::Status => (style("STATUS").bold().to_string(), 10),
                     ListColumn::Author => (style("AUTHOR").bold().to_string(), 14),
                     ListColumn::Created => (style("CREATED").bold().to_string(), 12),
@@ -572,8 +625,20 @@ fn output_cached_features(
                         ListColumn::Description => format!("{:<width$}", "-", width = width), // No desc in cache
                         ListColumn::FeatureType => format!("{:<width$}", feat.feature_type, width = width),
                         ListColumn::Component => {
-                            let cmp_alias = short_ids.get_short_id(&feat.component_id).unwrap_or_else(|| truncate_str(&feat.component_id, width - 2).to_string());
-                            format!("{:<width$}", cmp_alias, width = width)
+                            // Show component alias, part number, and title
+                            let cmp_alias = short_ids.get_short_id(&feat.component_id).unwrap_or_else(|| "?".to_string());
+                            let (part_number, cmp_title) = component_info
+                                .get(&feat.component_id)
+                                .map(|(pn, t)| (pn.as_str(), t.as_str()))
+                                .unwrap_or(("", ""));
+                            let display = if !part_number.is_empty() {
+                                format!("{} ({}) {}", cmp_alias, part_number, truncate_str(cmp_title, 20))
+                            } else if !cmp_title.is_empty() {
+                                format!("{} {}", cmp_alias, truncate_str(cmp_title, 25))
+                            } else {
+                                cmp_alias
+                            };
+                            format!("{:<width$}", truncate_str(&display, width - 2), width = width)
                         }
                         ListColumn::Status => format!("{:<width$}", feat.status, width = width),
                         ListColumn::Author => format!("{:<width$}", truncate_str(&feat.author, width - 2), width = width),
@@ -655,9 +720,13 @@ fn run_new(args: NewArgs) -> Result<()> {
 
     let title: String;
     let feature_type: String;
+    let mut dimension_name = String::from("diameter");
+    let mut nominal: f64 = 10.0;
+    let mut plus_tol: f64 = 0.1;
+    let mut minus_tol: f64 = 0.05;
 
     if args.interactive {
-        // Use schema-driven wizard
+        // Use schema-driven wizard for title and feature_type
         let wizard = SchemaWizard::new();
         let result = wizard.run(EntityPrefix::Feat)?;
 
@@ -670,6 +739,38 @@ fn run_new(args: NewArgs) -> Result<()> {
             .get_string("feature_type")
             .map(String::from)
             .unwrap_or_else(|| "internal".to_string());
+
+        // Custom prompts for primary dimension (wizard can't handle nested objects)
+        let theme = ColorfulTheme::default();
+        println!();
+        println!("{}", style("Primary Dimension:").bold());
+
+        dimension_name = Input::with_theme(&theme)
+            .with_prompt("Dimension name (e.g., diameter, width, depth)")
+            .default("diameter".to_string())
+            .interact_text()
+            .into_diagnostic()?;
+
+        let nominal_str: String = Input::with_theme(&theme)
+            .with_prompt("Nominal value")
+            .default("10.0".to_string())
+            .interact_text()
+            .into_diagnostic()?;
+        nominal = nominal_str.parse().unwrap_or(10.0);
+
+        let plus_str: String = Input::with_theme(&theme)
+            .with_prompt("Plus tolerance (+)")
+            .default("0.1".to_string())
+            .interact_text()
+            .into_diagnostic()?;
+        plus_tol = plus_str.parse().unwrap_or(0.1);
+
+        let minus_str: String = Input::with_theme(&theme)
+            .with_prompt("Minus tolerance (-)")
+            .default("0.05".to_string())
+            .interact_text()
+            .into_diagnostic()?;
+        minus_tol = minus_str.parse().unwrap_or(0.05);
     } else {
         title = args.title.ok_or_else(|| miette::miette!("Title is required (use --title or -i for interactive)"))?;
         feature_type = args.feature_type.to_string();
@@ -685,9 +786,18 @@ fn run_new(args: NewArgs) -> Result<()> {
         .with_component_id(&component_id)
         .with_feature_type(&feature_type);
 
-    let yaml_content = generator
+    let mut yaml_content = generator
         .generate_feature(&ctx)
         .map_err(|e| miette::miette!("{}", e))?;
+
+    // Replace default dimension values with user-provided ones (for interactive mode)
+    if args.interactive {
+        yaml_content = yaml_content
+            .replace("name: \"diameter\"", &format!("name: \"{}\"", dimension_name))
+            .replace("nominal: 10.0", &format!("nominal: {}", nominal))
+            .replace("plus_tol: 0.1", &format!("plus_tol: {}", plus_tol))
+            .replace("minus_tol: 0.05", &format!("minus_tol: {}", minus_tol));
+    }
 
     // Write file
     let output_dir = project.root().join("tolerances/features");

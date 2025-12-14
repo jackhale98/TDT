@@ -35,9 +35,9 @@ pub struct ValidateArgs {
     #[arg(long, short = 't')]
     pub entity_type: Option<String>,
 
-    /// Continue validation after first error
+    /// Stop validation on first error (default: validate all files)
     #[arg(long)]
-    pub keep_going: bool,
+    pub fail_fast: bool,
 
     /// Show summary only, don't show individual errors
     #[arg(long)]
@@ -65,6 +65,41 @@ struct ValidationStats {
 /// Validation needs full Feature data for FitAnalysis calculations.
 struct FeatureLoader {
     features: HashMap<String, Feature>,
+}
+
+/// Extract entity ID from YAML content
+fn extract_entity_id(content: &str) -> Option<String> {
+    for line in content.lines() {
+        let line = line.trim();
+        if line.starts_with("id:") {
+            let id = line.strip_prefix("id:")?.trim();
+            // Handle quoted strings
+            let id = id.trim_matches('"').trim_matches('\'');
+            if !id.is_empty() {
+                return Some(id.to_string());
+            }
+        }
+    }
+    None
+}
+
+/// Format file path with short ID alias if available
+fn format_path_with_alias(
+    path: &PathBuf,
+    content: Option<&str>,
+    cache: &Option<EntityCache>,
+) -> String {
+    // Try to get short ID alias
+    let alias = content
+        .and_then(|c| extract_entity_id(c))
+        .and_then(|id| {
+            cache.as_ref().and_then(|c| c.get_short_id(&id))
+        });
+
+    match alias {
+        Some(short_id) => format!("{} ({})", path.display(), style(&short_id).cyan()),
+        None => path.display().to_string(),
+    }
 }
 
 impl FeatureLoader {
@@ -105,8 +140,8 @@ pub fn run(args: ValidateArgs) -> Result<()> {
     let registry = SchemaRegistry::default();
     let validator = Validator::new(&registry);
 
-    // Sync the core cache to ensure short IDs are up-to-date
-    let _ = EntityCache::open(&project);
+    // Sync the core cache to ensure short IDs are up-to-date (use Option for graceful fallback)
+    let cache = EntityCache::open(&project).ok();
 
     // Load features for mate/stackup validation (needs full Feature data)
     let feature_loader = FeatureLoader::load(&project)?;
@@ -168,7 +203,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                 stats.files_failed += 1;
                 stats.total_errors += 1;
                 had_error = true;
-                if !args.keep_going {
+                if args.fail_fast {
                     break;
                 }
                 continue;
@@ -216,7 +251,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                         println!(
                             "{} {}",
                             style("✓").green(),
-                            path.display()
+                            format_path_with_alias(path, Some(&content), &cache)
                         );
                     }
                 } else {
@@ -227,7 +262,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                             println!(
                                 "{} {} (fixed)",
                                 style("✓").green(),
-                                path.display()
+                                format_path_with_alias(path, Some(&content), &cache)
                             );
                         }
                     } else {
@@ -236,7 +271,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                             println!(
                                 "{} {} - {} calculation warning(s)",
                                 style("!").yellow(),
-                                path.display(),
+                                format_path_with_alias(path, Some(&content), &cache),
                                 calc_issues.len()
                             );
                             for issue in &calc_issues {
@@ -261,7 +296,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                     println!(
                         "{} {} - {} error(s)",
                         style("✗").red(),
-                        path.display(),
+                        format_path_with_alias(path, Some(&content), &cache),
                         e.violation_count()
                     );
 
@@ -270,7 +305,7 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                     println!("{:?}", report);
                 }
 
-                if !args.keep_going {
+                if args.fail_fast {
                     break;
                 }
             }

@@ -45,6 +45,7 @@ fn main() -> Result<()> {
         Commands::Blame(args) => tdt::cli::commands::blame::run(args),
         Commands::Diff(args) => tdt::cli::commands::diff::run(args),
         Commands::Baseline(cmd) => tdt::cli::commands::baseline::run(cmd),
+        Commands::Import(args) => tdt::cli::commands::import::run(args),
         Commands::Bulk(cmd) => tdt::cli::commands::bulk::run(cmd),
         Commands::Status(args) => tdt::cli::commands::status::run(args, &global),
         Commands::Cache(cmd) => tdt::cli::commands::cache::run(cmd),

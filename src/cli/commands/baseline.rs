@@ -122,7 +122,7 @@ fn run_create(args: CreateArgs) -> Result<()> {
                 entity_type: None,
                 strict: false,
                 staged: false,
-                keep_going: false,
+                fail_fast: false,
                 summary: false,
                 fix: false,
             }

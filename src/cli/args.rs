@@ -15,6 +15,7 @@ use crate::cli::commands::{
     diff::DiffArgs,
     feat::FeatCommands,
     history::HistoryArgs,
+    import::ImportArgs,
     init::InitArgs,
     link::LinkCommands,
     mate::MateCommands,
@@ -89,6 +90,7 @@ VERSION CONTROL:
   baseline    Baseline management (create, compare, list, changed)
 
 UTILITIES:
+  import      Import entities from CSV files
   bulk        Bulk operations on multiple entities
   cache       Entity cache management (rebuild, sync, status, query)
   help        Print this message or the help of the given subcommand(s)
@@ -279,6 +281,9 @@ pub enum Commands {
     // ─────────────────────────────────────────────────────────────────────
     // UTILITIES
     // ─────────────────────────────────────────────────────────────────────
+
+    /// Import entities from CSV files
+    Import(ImportArgs),
 
     /// Bulk operations on multiple entities
     #[command(subcommand)]

@@ -136,80 +136,176 @@ fn run_rvm(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
         }
     }
 
-    // Generate report
-    let mut output = String::new();
-    output.push_str("# Requirements Verification Matrix (RVM)\n\n");
-    output.push_str("| REQ ID | REQ Title | Test ID | Test Title | Result | Verdict |\n");
-    output.push_str("|--------|-----------|---------|------------|--------|--------|\n");
+    // First pass: collect all row data to determine column widths
+    struct RvmRow {
+        req_short: String,
+        req_title: String,
+        test_short: String,
+        test_title: String,
+        result_id: String,
+        verdict: String,
+        is_verified: bool,  // true verification = test passed
+    }
+    let mut rows: Vec<RvmRow> = Vec::new();
 
-    let mut verified_count = 0;
-    let mut unverified_count = 0;
+    let mut verified_count = 0;  // Has linked tests that passed
+    let mut partial_count = 0;   // Has linked tests but not all passed
+    let mut unverified_count = 0; // No linked tests
     let mut passed_count = 0;
     let mut failed_count = 0;
 
     for req in &requirements {
         let req_short = short_ids.get_short_id(&req.id.to_string()).unwrap_or_else(|| req.id.to_string());
-        let req_title = truncate_str(&req.title, 30);
+        let req_title = req.title.clone();
 
         if req.links.verified_by.is_empty() {
-            if args.unverified_only || !args.unverified_only {
-                if !args.unverified_only || req.links.verified_by.is_empty() {
-                    output.push_str(&format!(
-                        "| {} | {} | - | (unverified) | - | - |\n",
-                        req_short, req_title
-                    ));
-                }
+            // No linked tests - truly unverified
+            if !args.unverified_only || true {
+                rows.push(RvmRow {
+                    req_short: req_short.clone(),
+                    req_title: req_title.clone(),
+                    test_short: "-".to_string(),
+                    test_title: "(no tests linked)".to_string(),
+                    result_id: "-".to_string(),
+                    verdict: "-".to_string(),
+                    is_verified: false,
+                });
             }
             unverified_count += 1;
         } else {
-            verified_count += 1;
+            // Has linked tests - check if they passed
+            let mut all_passed = true;
+            let mut any_executed = false;
+
             for test_id in &req.links.verified_by {
                 let test_id_str = test_id.to_string();
                 let test_short = short_ids.get_short_id(&test_id_str).unwrap_or_else(|| test_id_str.clone());
 
-                let (test_title, result_id, verdict) = if let Some(test) = test_map.get(&test_id_str) {
-                    let title = truncate_str(&test.title, 25);
+                let (test_title, result_id, verdict, test_passed) = if let Some(test) = test_map.get(&test_id_str) {
+                    let title = test.title.clone();
                     if let Some(result) = latest_results.get(&test_id_str) {
+                        any_executed = true;
                         let result_short = short_ids.get_short_id(&result.id.to_string())
                             .unwrap_or_else(|| result.id.to_string());
-                        let verdict_str = match result.verdict {
+                        let (verdict_str, passed) = match result.verdict {
                             Verdict::Pass => {
                                 passed_count += 1;
-                                "✓ Pass"
+                                ("✓ Pass".to_string(), true)
                             }
                             Verdict::Fail => {
                                 failed_count += 1;
-                                "✗ Fail"
+                                all_passed = false;
+                                ("✗ Fail".to_string(), false)
                             }
-                            Verdict::Conditional => "⚠ Conditional",
-                            Verdict::Incomplete => "… Incomplete",
-                            Verdict::NotApplicable => "N/A",
+                            Verdict::Conditional => {
+                                all_passed = false;
+                                ("⚠ Conditional".to_string(), false)
+                            }
+                            Verdict::Incomplete => {
+                                all_passed = false;
+                                ("… Incomplete".to_string(), false)
+                            }
+                            Verdict::NotApplicable => ("N/A".to_string(), true),
                         };
-                        (title, result_short, verdict_str.to_string())
+                        (title, result_short, verdict_str, passed)
                     } else {
-                        (title, "-".to_string(), "(no result)".to_string())
+                        all_passed = false;
+                        (title, "-".to_string(), "(not executed)".to_string(), false)
                     }
                 } else {
-                    ("(test not found)".to_string(), "-".to_string(), "-".to_string())
+                    all_passed = false;
+                    ("(test not found)".to_string(), "-".to_string(), "-".to_string(), false)
                 };
 
                 if !args.unverified_only {
-                    output.push_str(&format!(
-                        "| {} | {} | {} | {} | {} | {} |\n",
-                        req_short, req_title, test_short, test_title, result_id, verdict
-                    ));
+                    rows.push(RvmRow {
+                        req_short: req_short.clone(),
+                        req_title: req_title.clone(),
+                        test_short,
+                        test_title,
+                        result_id,
+                        verdict,
+                        is_verified: test_passed,
+                    });
                 }
+            }
+
+            // Determine requirement verification status
+            if any_executed && all_passed {
+                verified_count += 1;
+            } else if any_executed {
+                partial_count += 1;
+            } else {
+                unverified_count += 1;
             }
         }
     }
 
+    // Filter for unverified_only if requested
+    if args.unverified_only {
+        rows.retain(|r| !r.is_verified);
+    }
+
+    // Calculate column widths (min widths for headers)
+    let mut w_req_id = "REQ ID".len();
+    let mut w_req_title = "REQ Title".len();
+    let mut w_test_id = "Test ID".len();
+    let mut w_test_title = "Test Title".len();
+    let mut w_result = "Result".len();
+    let mut w_verdict = "Verdict".len();
+
+    for row in &rows {
+        w_req_id = w_req_id.max(row.req_short.len());
+        w_req_title = w_req_title.max(row.req_title.len().min(40)); // Cap at 40
+        w_test_id = w_test_id.max(row.test_short.len());
+        w_test_title = w_test_title.max(row.test_title.len().min(35)); // Cap at 35
+        w_result = w_result.max(row.result_id.len());
+        w_verdict = w_verdict.max(row.verdict.len());
+    }
+
+    // Generate report with dynamic column widths
+    let mut output = String::new();
+    output.push_str("# Requirements Verification Matrix (RVM)\n\n");
+
+    // Header
+    output.push_str(&format!(
+        "| {:<w_req_id$} | {:<w_req_title$} | {:<w_test_id$} | {:<w_test_title$} | {:<w_result$} | {:<w_verdict$} |\n",
+        "REQ ID", "REQ Title", "Test ID", "Test Title", "Result", "Verdict",
+        w_req_id = w_req_id, w_req_title = w_req_title, w_test_id = w_test_id,
+        w_test_title = w_test_title, w_result = w_result, w_verdict = w_verdict
+    ));
+
+    // Separator
+    output.push_str(&format!(
+        "|{:-<w1$}|{:-<w2$}|{:-<w3$}|{:-<w4$}|{:-<w5$}|{:-<w6$}|\n",
+        "", "", "", "", "", "",
+        w1 = w_req_id + 2, w2 = w_req_title + 2, w3 = w_test_id + 2,
+        w4 = w_test_title + 2, w5 = w_result + 2, w6 = w_verdict + 2
+    ));
+
+    // Data rows
+    for row in &rows {
+        output.push_str(&format!(
+            "| {:<w_req_id$} | {:<w_req_title$} | {:<w_test_id$} | {:<w_test_title$} | {:<w_result$} | {:<w_verdict$} |\n",
+            row.req_short,
+            truncate_str(&row.req_title, 40),
+            row.test_short,
+            truncate_str(&row.test_title, 35),
+            row.result_id,
+            row.verdict,
+            w_req_id = w_req_id, w_req_title = w_req_title, w_test_id = w_test_id,
+            w_test_title = w_test_title, w_result = w_result, w_verdict = w_verdict
+        ));
+    }
+
     // Summary
     output.push_str("\n## Summary\n\n");
-    let total = verified_count + unverified_count;
+    let total = requirements.len();
     let coverage = if total > 0 { (verified_count as f64 / total as f64) * 100.0 } else { 0.0 };
     output.push_str(&format!("- **Total Requirements:** {}\n", total));
-    output.push_str(&format!("- **Verified:** {} ({:.1}%)\n", verified_count, coverage));
-    output.push_str(&format!("- **Unverified:** {}\n", unverified_count));
+    output.push_str(&format!("- **Verified (all tests pass):** {} ({:.1}%)\n", verified_count, coverage));
+    output.push_str(&format!("- **Partial (some tests fail):** {}\n", partial_count));
+    output.push_str(&format!("- **Unverified (no tests or not executed):** {}\n", unverified_count));
     output.push_str(&format!("- **Tests Passed:** {}\n", passed_count));
     output.push_str(&format!("- **Tests Failed:** {}\n", failed_count));
 
@@ -240,20 +336,28 @@ fn run_fmea(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
     // Sort by RPN descending
     risks.sort_by(|a, b| b.rpn.unwrap_or(0).cmp(&a.rpn.unwrap_or(0)));
 
-    // Generate report
-    let mut output = String::new();
-    output.push_str("# FMEA Report\n\n");
-    output.push_str("| ID | Failure Mode | Cause | Effect | S | O | D | RPN | Level | Mitigations |\n");
-    output.push_str("|----|--------------|-------|--------|---|---|---|-----|-------|-------------|\n");
-
+    // First pass: collect all row data
+    struct FmeaRow {
+        id: String,
+        failure_mode: String,
+        cause: String,
+        effect: String,
+        s: String,
+        o: String,
+        d: String,
+        rpn: String,
+        level: String,
+        mitigations: String,
+    }
+    let mut rows: Vec<FmeaRow> = Vec::new();
     let mut total_rpn: u32 = 0;
     let mut by_level: HashMap<String, usize> = HashMap::new();
 
     for risk in &risks {
         let risk_short = short_ids.get_short_id(&risk.id.to_string()).unwrap_or_else(|| risk.id.to_string());
-        let failure_mode = risk.failure_mode.as_deref().unwrap_or("-");
-        let cause = risk.cause.as_deref().unwrap_or("-");
-        let effect = risk.effect.as_deref().unwrap_or("-");
+        let failure_mode = truncate_str(risk.failure_mode.as_deref().unwrap_or("-"), 30).to_string();
+        let cause = truncate_str(risk.cause.as_deref().unwrap_or("-"), 25).to_string();
+        let effect = truncate_str(risk.effect.as_deref().unwrap_or("-"), 25).to_string();
         let s = risk.severity.map_or("-".to_string(), |v| v.to_string());
         let o = risk.occurrence.map_or("-".to_string(), |v| v.to_string());
         let d = risk.detection.map_or("-".to_string(), |v| v.to_string());
@@ -273,13 +377,73 @@ fn run_fmea(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
             *by_level.entry(lvl.to_string()).or_insert(0) += 1;
         }
 
+        rows.push(FmeaRow {
+            id: risk_short,
+            failure_mode,
+            cause,
+            effect,
+            s,
+            o,
+            d,
+            rpn,
+            level,
+            mitigations,
+        });
+    }
+
+    // Calculate column widths (min widths for headers)
+    let mut w_id = "ID".len();
+    let mut w_fm = "Failure Mode".len();
+    let mut w_cause = "Cause".len();
+    let mut w_effect = "Effect".len();
+    let mut w_s = "S".len();
+    let mut w_o = "O".len();
+    let mut w_d = "D".len();
+    let mut w_rpn = "RPN".len();
+    let mut w_level = "Level".len();
+    let mut w_mit = "Mitigations".len();
+
+    for row in &rows {
+        w_id = w_id.max(row.id.len());
+        w_fm = w_fm.max(row.failure_mode.len());
+        w_cause = w_cause.max(row.cause.len());
+        w_effect = w_effect.max(row.effect.len());
+        w_s = w_s.max(row.s.len());
+        w_o = w_o.max(row.o.len());
+        w_d = w_d.max(row.d.len());
+        w_rpn = w_rpn.max(row.rpn.len());
+        w_level = w_level.max(row.level.len());
+        w_mit = w_mit.max(row.mitigations.len());
+    }
+
+    // Generate report with dynamic column widths
+    let mut output = String::new();
+    output.push_str("# FMEA Report\n\n");
+
+    // Header
+    output.push_str(&format!(
+        "| {:<w_id$} | {:<w_fm$} | {:<w_cause$} | {:<w_effect$} | {:<w_s$} | {:<w_o$} | {:<w_d$} | {:<w_rpn$} | {:<w_level$} | {:<w_mit$} |\n",
+        "ID", "Failure Mode", "Cause", "Effect", "S", "O", "D", "RPN", "Level", "Mitigations",
+        w_id = w_id, w_fm = w_fm, w_cause = w_cause, w_effect = w_effect,
+        w_s = w_s, w_o = w_o, w_d = w_d, w_rpn = w_rpn, w_level = w_level, w_mit = w_mit
+    ));
+
+    // Separator
+    output.push_str(&format!(
+        "|{:-<w1$}|{:-<w2$}|{:-<w3$}|{:-<w4$}|{:-<w5$}|{:-<w6$}|{:-<w7$}|{:-<w8$}|{:-<w9$}|{:-<w10$}|\n",
+        "", "", "", "", "", "", "", "", "", "",
+        w1 = w_id + 2, w2 = w_fm + 2, w3 = w_cause + 2, w4 = w_effect + 2,
+        w5 = w_s + 2, w6 = w_o + 2, w7 = w_d + 2, w8 = w_rpn + 2, w9 = w_level + 2, w10 = w_mit + 2
+    ));
+
+    // Data rows
+    for row in &rows {
         output.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |\n",
-            risk_short,
-            truncate_str(failure_mode, 20),
-            truncate_str(cause, 15),
-            truncate_str(effect, 15),
-            s, o, d, rpn, level, mitigations
+            "| {:<w_id$} | {:<w_fm$} | {:<w_cause$} | {:<w_effect$} | {:<w_s$} | {:<w_o$} | {:<w_d$} | {:<w_rpn$} | {:<w_level$} | {:<w_mit$} |\n",
+            row.id, row.failure_mode, row.cause, row.effect,
+            row.s, row.o, row.d, row.rpn, row.level, row.mitigations,
+            w_id = w_id, w_fm = w_fm, w_cause = w_cause, w_effect = w_effect,
+            w_s = w_s, w_o = w_o, w_d = w_d, w_rpn = w_rpn, w_level = w_level, w_mit = w_mit
         ));
     }
 
