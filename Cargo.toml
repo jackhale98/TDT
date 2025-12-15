@@ -1,9 +1,23 @@
 [package]
-name = "tdt"
+name = "tessera-design-toolkit"
 version = "0.1.0"
 edition = "2021"
-description = "Tessera Design Toolkit"
+description = "Tessera Design Toolkit - A CLI for managing engineering artifacts as plain-text YAML files with full traceability"
 license = "MIT"
+repository = "https://github.com/jackhale98/tdt"
+homepage = "https://github.com/jackhale98/tdt"
+readme = "README.md"
+keywords = ["engineering", "requirements", "traceability", "fmea", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+authors = ["Jack Hale"]
+
+[lib]
+name = "tdt"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tdt"
+path = "src/main.rs"
 
 [dependencies]
 # CLI

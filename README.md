@@ -17,13 +17,15 @@ A CLI tool for managing engineering artifacts as plain-text YAML files. TDT prov
 ## Installation
 
 ```bash
-cargo install tdt
+cargo install tessera-design-toolkit
 ```
+
+This installs the `tdt` binary.
 
 Or build from source:
 
 ```bash
-git clone https://github.com/yourorg/tdt.git
+git clone https://github.com/jackhale98/tdt.git
 cd tdt
 cargo build --release
 ```

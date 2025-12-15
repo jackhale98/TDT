@@ -128,6 +128,7 @@ pub fn format_naive_date(date: &NaiveDate) -> String {
 ///
 /// # Examples
 /// ```
+/// use tdt::cli::helpers::smart_round;
 /// // If tolerance is 0.01, round to 3 decimal places (one more)
 /// let result = smart_round(0.019999999999999574, 0.01);
 /// assert!((result - 0.02).abs() < 1e-10);
