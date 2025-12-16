@@ -60,9 +60,7 @@ pub fn import(project: &Project, file_path: &PathBuf, args: &ImportArgs) -> Resu
 
         // Test ID - use CSV column or --test flag (required for results)
         let csv_test = get_field(&record, &header_map, "test");
-        let test_id_str = csv_test
-            .or_else(|| args.test.clone())
-            .unwrap_or_default();
+        let test_id_str = csv_test.or_else(|| args.test.clone()).unwrap_or_default();
         if test_id_str.is_empty() {
             eprintln!(
                 "{} Row {}: Missing required field 'test' (provide in CSV or use --test flag)",
@@ -80,7 +78,9 @@ pub fn import(project: &Project, file_path: &PathBuf, args: &ImportArgs) -> Resu
         }
 
         // Resolve short ID to full ID
-        let resolved_test_id = short_ids.resolve(&test_id_str).unwrap_or_else(|| test_id_str.clone());
+        let resolved_test_id = short_ids
+            .resolve(&test_id_str)
+            .unwrap_or_else(|| test_id_str.clone());
         let test_entity_id = match resolved_test_id.parse::<EntityId>() {
             Ok(eid) => eid,
             Err(e) => {
@@ -135,13 +135,19 @@ pub fn import(project: &Project, file_path: &PathBuf, args: &ImportArgs) -> Resu
                 // Allow either date-only or full ISO format
                 if date.contains('T') {
                     yaml = yaml.replace(
-                        &format!("executed_date: {}", chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")),
+                        &format!(
+                            "executed_date: {}",
+                            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
+                        ),
                         &format!("executed_date: {}", date),
                     );
                 } else {
                     // Convert date-only to full ISO format
                     yaml = yaml.replace(
-                        &format!("executed_date: {}", chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")),
+                        &format!(
+                            "executed_date: {}",
+                            chrono::Utc::now().format("%Y-%m-%dT%H:%M:%SZ")
+                        ),
                         &format!("executed_date: {}T00:00:00Z", date),
                     );
                 }

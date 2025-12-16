@@ -619,7 +619,10 @@ impl EntityCache {
         };
 
         stmt.query_row(params![id], |row| {
-            Ok((row.get::<_, Option<String>>(0)?, row.get::<_, Option<String>>(1)?))
+            Ok((
+                row.get::<_, Option<String>>(0)?,
+                row.get::<_, Option<String>>(1)?,
+            ))
         })
         .ok()
     }

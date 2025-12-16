@@ -208,7 +208,13 @@ pub fn run(args: DmmArgs, _global: &GlobalOpts) -> Result<()> {
     match args.output.as_str() {
         "csv" => output_csv(&dmm, args.full_ids),
         "json" => output_json(&dmm, args.row_type, args.col_type),
-        _ => output_table(&dmm, args.full_ids, args.stats, args.row_type, args.col_type),
+        _ => output_table(
+            &dmm,
+            args.full_ids,
+            args.stats,
+            args.row_type,
+            args.col_type,
+        ),
     }
 
     Ok(())

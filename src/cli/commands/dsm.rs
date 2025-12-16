@@ -516,8 +516,16 @@ fn add_mate_relationships(project: &Project, dsm: &mut Dsm) -> Result<()> {
                 if let Ok(content) = fs::read_to_string(&path) {
                     if let Ok(mate) = serde_yml::from_str::<serde_json::Value>(&content) {
                         // Get component IDs from mate via feature_a and feature_b
-                        let comp_a = get_component_from_feature_field(&mate, "feature_a", &feature_to_component);
-                        let comp_b = get_component_from_feature_field(&mate, "feature_b", &feature_to_component);
+                        let comp_a = get_component_from_feature_field(
+                            &mate,
+                            "feature_a",
+                            &feature_to_component,
+                        );
+                        let comp_b = get_component_from_feature_field(
+                            &mate,
+                            "feature_b",
+                            &feature_to_component,
+                        );
 
                         if let (Some(cmp1), Some(cmp2)) = (comp_a, comp_b) {
                             if cmp1 != cmp2 {
@@ -1023,14 +1031,22 @@ fn output_csv(dsm: &Dsm, opts: &DisplayOptions) {
     // Header row
     print!("Component");
     for cmp in &dsm.components {
-        let label = if opts.full_ids { &cmp.id } else { &cmp.short_id };
+        let label = if opts.full_ids {
+            &cmp.id
+        } else {
+            &cmp.short_id
+        };
         print!(",{}", label);
     }
     println!();
 
     // Data rows
     for (i, cmp) in dsm.components.iter().enumerate() {
-        let label = if opts.full_ids { &cmp.id } else { &cmp.short_id };
+        let label = if opts.full_ids {
+            &cmp.id
+        } else {
+            &cmp.short_id
+        };
         print!("{}", label);
 
         for (j, _) in dsm.components.iter().enumerate() {

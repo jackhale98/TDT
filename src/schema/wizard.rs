@@ -305,21 +305,20 @@ impl SchemaWizard {
         } else {
             // Handle both simple types ("string") and union types (["string", "null"])
             let type_value = schema.get("type");
-            let primary_type = type_value
-                .and_then(|t| {
-                    // If it's a string, use it directly
-                    if let Some(s) = t.as_str() {
-                        Some(s.to_string())
-                    } else if let Some(arr) = t.as_array() {
-                        // If it's an array like ["string", "null"], get the first non-null type
-                        arr.iter()
-                            .filter_map(|v| v.as_str())
-                            .find(|s| *s != "null")
-                            .map(String::from)
-                    } else {
-                        None
-                    }
-                });
+            let primary_type = type_value.and_then(|t| {
+                // If it's a string, use it directly
+                if let Some(s) = t.as_str() {
+                    Some(s.to_string())
+                } else if let Some(arr) = t.as_array() {
+                    // If it's an array like ["string", "null"], get the first non-null type
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .find(|s| *s != "null")
+                        .map(String::from)
+                } else {
+                    None
+                }
+            });
 
             match primary_type.as_deref() {
                 Some("string") => FieldType::String {
@@ -452,7 +451,11 @@ impl SchemaWizard {
             }
 
             FieldType::Number { .. } => {
-                let default_val = field.default.as_ref().and_then(|d| d.as_f64()).unwrap_or(0.0);
+                let default_val = field
+                    .default
+                    .as_ref()
+                    .and_then(|d| d.as_f64())
+                    .unwrap_or(0.0);
 
                 let value: String = Input::with_theme(&self.theme)
                     .with_prompt(&prompt)

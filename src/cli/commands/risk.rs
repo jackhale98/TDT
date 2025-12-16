@@ -775,76 +775,86 @@ fn run_new(args: NewArgs) -> Result<()> {
     let config = Config::load();
 
     // Determine values - either from schema-driven wizard or args
-    let (risk_type, title, category, severity, occurrence, detection, description, failure_mode, cause, effect) =
-        if args.interactive {
-            // Use the schema-driven wizard
-            let wizard = SchemaWizard::new();
-            let result = wizard.run(EntityPrefix::Risk)?;
+    let (
+        risk_type,
+        title,
+        category,
+        severity,
+        occurrence,
+        detection,
+        description,
+        failure_mode,
+        cause,
+        effect,
+    ) = if args.interactive {
+        // Use the schema-driven wizard
+        let wizard = SchemaWizard::new();
+        let result = wizard.run(EntityPrefix::Risk)?;
 
-            let risk_type = result
-                .get_string("type")
-                .map(|s| match s {
-                    "process" => RiskType::Process,
-                    _ => RiskType::Design,
-                })
-                .unwrap_or(RiskType::Design);
+        let risk_type = result
+            .get_string("type")
+            .map(|s| match s {
+                "process" => RiskType::Process,
+                _ => RiskType::Design,
+            })
+            .unwrap_or(RiskType::Design);
 
-            let title = result
-                .get_string("title")
-                .map(String::from)
-                .unwrap_or_else(|| "New Risk".to_string());
+        let title = result
+            .get_string("title")
+            .map(String::from)
+            .unwrap_or_else(|| "New Risk".to_string());
 
-            let category = result
-                .get_string("category")
-                .map(String::from)
-                .unwrap_or_default();
+        let category = result
+            .get_string("category")
+            .map(String::from)
+            .unwrap_or_default();
 
-            let severity = result
-                .get_string("severity")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(5);
+        let severity = result
+            .get_string("severity")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(5);
 
-            let occurrence = result
-                .get_string("occurrence")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(5);
+        let occurrence = result
+            .get_string("occurrence")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(5);
 
-            let detection = result
-                .get_string("detection")
-                .and_then(|s| s.parse().ok())
-                .unwrap_or(5);
+        let detection = result
+            .get_string("detection")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(5);
 
-            // Extract FMEA text fields
-            let description = result.get_string("description").map(String::from);
-            let failure_mode = result.get_string("failure_mode").map(String::from);
-            let cause = result.get_string("cause").map(String::from);
-            let effect = result.get_string("effect").map(String::from);
+        // Extract FMEA text fields
+        let description = result.get_string("description").map(String::from);
+        let failure_mode = result.get_string("failure_mode").map(String::from);
+        let cause = result.get_string("cause").map(String::from);
+        let effect = result.get_string("effect").map(String::from);
 
-            (
-                risk_type,
-                title,
-                category,
-                severity,
-                occurrence,
-                detection,
-                description,
-                failure_mode,
-                cause,
-                effect,
-            )
-        } else {
-            // Default mode - use args with defaults
-            let risk_type: RiskType = args.r#type.into();
-            let title = args.title.unwrap_or_else(|| "New Risk".to_string());
-            let category = args.category.unwrap_or_default();
-            let severity = args.severity.unwrap_or(5);
-            let occurrence = args.occurrence.unwrap_or(5);
-            let detection = args.detection.unwrap_or(5);
+        (
+            risk_type,
+            title,
+            category,
+            severity,
+            occurrence,
+            detection,
+            description,
+            failure_mode,
+            cause,
+            effect,
+        )
+    } else {
+        // Default mode - use args with defaults
+        let risk_type: RiskType = args.r#type.into();
+        let title = args.title.unwrap_or_else(|| "New Risk".to_string());
+        let category = args.category.unwrap_or_default();
+        let severity = args.severity.unwrap_or(5);
+        let occurrence = args.occurrence.unwrap_or(5);
+        let detection = args.detection.unwrap_or(5);
 
-            (
-                risk_type, title, category, severity, occurrence, detection, None, None, None, None,
-            )
-        };
+        (
+            risk_type, title, category, severity, occurrence, detection, None, None, None, None,
+        )
+    };
 
     // Calculate RPN and determine risk level
     let rpn = severity as u16 * occurrence as u16 * detection as u16;

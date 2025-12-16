@@ -912,7 +912,14 @@ fn run_new(args: NewArgs) -> Result<()> {
 
         let verdict_rationale = result.get_string("verdict_rationale").map(String::from);
 
-        (test_id, verdict, title, category, executed_by, verdict_rationale)
+        (
+            test_id,
+            verdict,
+            title,
+            category,
+            executed_by,
+            verdict_rationale,
+        )
     } else {
         // Default mode - use args with defaults
         let test_id = if let Some(test_query) = &args.test {
@@ -1085,7 +1092,8 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                 style("ID").bold(),
                 style(&result.id.to_string()).cyan()
             );
-            let test_display = format_link_with_title(&result.test_id.to_string(), &short_ids, &cache);
+            let test_display =
+                format_link_with_title(&result.test_id.to_string(), &short_ids, &cache);
             println!(
                 "{}: {}",
                 style("Test").bold(),

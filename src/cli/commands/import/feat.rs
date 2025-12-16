@@ -132,7 +132,10 @@ pub fn import(project: &Project, file_path: &PathBuf, args: &ImportArgs) -> Resu
             yaml = yaml.replace("plus_tolerance: 0.0", &format!("plus_tolerance: {}", plus));
         }
         if let Some(minus) = minus_tolerance {
-            yaml = yaml.replace("minus_tolerance: 0.0", &format!("minus_tolerance: {}", minus));
+            yaml = yaml.replace(
+                "minus_tolerance: 0.0",
+                &format!("minus_tolerance: {}", minus),
+            );
         }
         yaml = yaml.replace("units: \"mm\"", &format!("units: \"{}\"", units));
 

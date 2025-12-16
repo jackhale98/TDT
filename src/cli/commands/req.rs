@@ -1016,7 +1016,16 @@ fn run_new(args: NewArgs) -> Result<()> {
             let category = args.category.unwrap_or_default();
             let tags = args.tags;
 
-            (req_type, title, priority, category, tags, None, None, vec![])
+            (
+                req_type,
+                title,
+                priority,
+                category,
+                tags,
+                None,
+                None,
+                vec![],
+            )
         };
 
     // Generate entity ID and create from template
@@ -1056,8 +1065,10 @@ fn run_new(args: NewArgs) -> Result<()> {
         }
         if let Some(ref rationale_value) = rationale {
             if !rationale_value.is_empty() {
-                yaml_content =
-                    yaml_content.replace("rationale: \"\"", &format!("rationale: \"{}\"", rationale_value));
+                yaml_content = yaml_content.replace(
+                    "rationale: \"\"",
+                    &format!("rationale: \"{}\"", rationale_value),
+                );
             }
         }
         if !acceptance_criteria.is_empty() {

@@ -125,13 +125,7 @@ pub fn get_csv_headers(entity_type: EntityPrefix) -> Vec<&'static str> {
             "cost",
             "tags",
         ],
-        EntityPrefix::Asm => vec![
-            "part_number",
-            "title",
-            "description",
-            "parent",
-            "tags",
-        ],
+        EntityPrefix::Asm => vec!["part_number", "title", "description", "parent", "tags"],
         EntityPrefix::Sup => vec![
             "short_name",
             "title",

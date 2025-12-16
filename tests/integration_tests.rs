@@ -2880,8 +2880,15 @@ fn test_dsm_weighted_flag() {
     tdt()
         .current_dir(tmp.path())
         .args([
-            "proc", "new", "--title", "Assembly Process",
-            "--type", "assembly", "--op-number", "OP-010", "--no-edit"
+            "proc",
+            "new",
+            "--title",
+            "Assembly Process",
+            "--type",
+            "assembly",
+            "--op-number",
+            "OP-010",
+            "--no-edit",
         ])
         .assert()
         .success();
@@ -2998,8 +3005,13 @@ fn test_dmm_cmp_req() {
     tdt()
         .current_dir(tmp.path())
         .args([
-            "req", "new", "--type", "input", "-T", "Force Requirement",
-            "--no-edit"
+            "req",
+            "new",
+            "--type",
+            "input",
+            "-T",
+            "Force Requirement",
+            "--no-edit",
         ])
         .assert()
         .success();
@@ -3035,8 +3047,15 @@ fn test_dmm_cmp_proc() {
     tdt()
         .current_dir(tmp.path())
         .args([
-            "proc", "new", "--title", "Machining",
-            "--type", "machining", "--op-number", "OP-010", "--no-edit"
+            "proc",
+            "new",
+            "--title",
+            "Machining",
+            "--type",
+            "machining",
+            "--op-number",
+            "OP-010",
+            "--no-edit",
         ])
         .assert()
         .success();
@@ -3072,8 +3091,13 @@ fn test_dmm_csv_output() {
     tdt()
         .current_dir(tmp.path())
         .args([
-            "req", "new", "--type", "input", "-T", "Test Req",
-            "--no-edit"
+            "req",
+            "new",
+            "--type",
+            "input",
+            "-T",
+            "Test Req",
+            "--no-edit",
         ])
         .assert()
         .success();
@@ -3109,8 +3133,13 @@ fn test_dmm_json_output() {
     tdt()
         .current_dir(tmp.path())
         .args([
-            "req", "new", "--type", "input", "-T", "Test Req",
-            "--no-edit"
+            "req",
+            "new",
+            "--type",
+            "input",
+            "-T",
+            "Test Req",
+            "--no-edit",
         ])
         .assert()
         .success();

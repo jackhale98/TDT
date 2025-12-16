@@ -1,19 +1,19 @@
 //! `tdt import` command - Import entities from CSV files
 
+mod asm;
+mod capa;
+mod cmp;
 mod common;
+mod ctrl;
+mod feat;
+mod ncr;
+mod proc;
+mod quote;
 mod req;
 mod risk;
-mod cmp;
-mod asm;
-mod sup;
-mod quote;
-mod test;
 mod rslt;
-mod proc;
-mod ctrl;
-mod ncr;
-mod capa;
-mod feat;
+mod sup;
+mod test;
 
 use console::style;
 use miette::Result;

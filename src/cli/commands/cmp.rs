@@ -828,14 +828,14 @@ fn run_new(args: NewArgs) -> Result<()> {
         revision = result.get_string("revision").map(String::from);
         material = result.get_string("material").map(String::from);
         description = result.get_string("description").map(String::from);
-        mass_kg = result
-            .values
-            .get("mass_kg")
-            .and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok())));
-        unit_cost = result
-            .values
-            .get("unit_cost")
-            .and_then(|v| v.as_f64().or_else(|| v.as_str().and_then(|s| s.parse().ok())));
+        mass_kg = result.values.get("mass_kg").and_then(|v| {
+            v.as_f64()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        });
+        unit_cost = result.values.get("unit_cost").and_then(|v| {
+            v.as_f64()
+                .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
+        });
     } else {
         part_number = args
             .part_number
