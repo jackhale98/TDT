@@ -6,6 +6,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::cli::helpers::format_short_id;
+use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -279,6 +280,11 @@ fn run_add(args: AddLinkArgs) -> Result<()> {
         }
     }
 
+    // Update cache to reflect new links
+    if let Ok(mut cache) = EntityCache::open(&project) {
+        let _ = cache.sync();
+    }
+
     Ok(())
 }
 
@@ -317,6 +323,11 @@ fn run_remove(args: RemoveLinkArgs) -> Result<()> {
         style(&link_type).cyan(),
         format_short_id(&target.id)
     );
+
+    // Update cache to reflect removed links
+    if let Ok(mut cache) = EntityCache::open(&project) {
+        let _ = cache.sync();
+    }
 
     Ok(())
 }
