@@ -822,7 +822,7 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                         }
                     }
                     // Fall back to component_name if available
-                    cmp_name.map(|name| name.clone())
+                    cmp_name.cloned()
                 };
 
             println!("  Feature A: {}", style(&feat_a_display).cyan());

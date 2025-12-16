@@ -190,18 +190,16 @@ fn run_rvm(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
         }
 
         if all_test_ids.is_empty() {
-            // No linked tests - truly unverified
-            if !args.unverified_only || true {
-                rows.push(RvmRow {
-                    req_short: req_short.clone(),
-                    req_title: req_title.clone(),
-                    test_short: "-".to_string(),
-                    test_title: "(no tests linked)".to_string(),
-                    result_id: "-".to_string(),
-                    verdict: "-".to_string(),
-                    is_verified: false,
-                });
-            }
+            // No linked tests - truly unverified (always show in both modes)
+            rows.push(RvmRow {
+                req_short: req_short.clone(),
+                req_title: req_title.clone(),
+                test_short: "-".to_string(),
+                test_title: "(no tests linked)".to_string(),
+                result_id: "-".to_string(),
+                verdict: "-".to_string(),
+                is_verified: false,
+            });
             unverified_count += 1;
         } else {
             // Has linked tests - check if they passed
