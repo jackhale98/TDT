@@ -88,6 +88,7 @@ OPTIONS:
 #[command(help_template = HELP_TEMPLATE)]
 #[command(subcommand_required = true)]
 #[command(disable_help_subcommand = false)]
+#[command(infer_subcommands = true)]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
