@@ -312,6 +312,7 @@ impl EntityCache {
             .into_diagnostic()?;
 
         let link_fields = [
+            // Basic traceability
             ("traces_to", "traces_to"),
             ("traces_from", "traces_from"),
             ("verifies", "verifies"),
@@ -319,19 +320,41 @@ impl EntityCache {
             ("mitigates", "mitigates"),
             ("mitigated_by", "mitigated_by"),
             ("references", "references"),
+            ("related_to", "related_to"),
+            // BOM structure
             ("components", "contains"),
             ("children", "contains"),
-            ("requirements", "verifies"),
-            ("risks", "mitigates"),
             ("parent", "contained_in"),
-            ("component", "quotes_for"),
-            // Process-specific links
-            ("produces", "references"),
-            ("controls", "references"),
-            ("work_instructions", "references"),
-            // Requirement allocation
-            ("allocated_to", "references"),
-            ("satisfies", "references"),
+            ("used_in", "used_in"),
+            // Requirement links
+            ("satisfied_by", "satisfied_by"),
+            ("requirements", "requirements"),
+            ("derives_from", "derives_from"),
+            ("derived_by", "derived_by"),
+            ("allocated_to", "allocated_to"),
+            ("allocated_from", "allocated_from"),
+            // Risk links
+            ("risks", "risks"),
+            ("requirement", "requirement"),
+            ("affects", "affects"),
+            ("controls", "controls"),
+            // Test/Result links
+            ("component", "component"),
+            ("assembly", "assembly"),
+            ("tests", "tests"),
+            ("ncrs", "ncrs"),
+            ("from_result", "from_result"),
+            // Process/Manufacturing links
+            ("processes", "processes"),
+            ("produces", "produces"),
+            ("process", "process"),
+            ("work_instructions", "work_instructions"),
+            // Supplier/Quote links
+            ("supplier", "supplier"),
+            // NCR/CAPA links
+            ("capa", "capa"),
+            ("processes_modified", "processes_modified"),
+            ("controls_added", "controls_added"),
         ];
 
         // Helper to extract links from a value
@@ -360,13 +383,7 @@ impl EntityCache {
         for (field, link_type) in link_fields {
             // Check at top level
             for (target_id, ltype) in extract_links(value, field, link_type) {
-                if field == "component" {
-                    self.insert_link(source_id, &target_id, "references")?;
-                } else if field == "parent" {
-                    self.insert_link(source_id, &target_id, "contained_in")?;
-                } else {
-                    self.insert_link(source_id, &target_id, &ltype)?;
-                }
+                self.insert_link(source_id, &target_id, &ltype)?;
             }
             // Also check nested under "links" object
             if let Some(links_obj) = value.get("links") {
