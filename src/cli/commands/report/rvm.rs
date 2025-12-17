@@ -204,7 +204,14 @@ pub fn run(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
 
     // Build table with tabled
     let mut builder = Builder::default();
-    builder.push_record(["REQ ID", "REQ Title", "Test ID", "Test Title", "Result", "Verdict"]);
+    builder.push_record([
+        "REQ ID",
+        "REQ Title",
+        "Test ID",
+        "Test Title",
+        "Result",
+        "Verdict",
+    ]);
 
     for row in &rows {
         builder.push_record([
@@ -273,9 +280,9 @@ pub fn run(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
             false
         } else {
             all_test_ids.iter().all(|test_id| {
-                latest_results
-                    .get(test_id)
-                    .is_some_and(|r| r.verdict == Verdict::Pass || r.verdict == Verdict::NotApplicable)
+                latest_results.get(test_id).is_some_and(|r| {
+                    r.verdict == Verdict::Pass || r.verdict == Verdict::NotApplicable
+                })
             })
         };
 
@@ -288,7 +295,11 @@ pub fn run(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
         }
 
         // Update category stats
-        let category_key = req.category.as_deref().unwrap_or("uncategorized").to_string();
+        let category_key = req
+            .category
+            .as_deref()
+            .unwrap_or("uncategorized")
+            .to_string();
         let category_entry = category_stats.entry(category_key).or_default();
         category_entry.total += 1;
         if is_verified {
@@ -307,7 +318,10 @@ pub fn run(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
         for priority in priority_order {
             if let Some(stats) = priority_stats.get(priority) {
                 let coverage_pct = if stats.total > 0 {
-                    format!("{:.1}%", (stats.verified as f64 / stats.total as f64) * 100.0)
+                    format!(
+                        "{:.1}%",
+                        (stats.verified as f64 / stats.total as f64) * 100.0
+                    )
                 } else {
                     "-".to_string()
                 };
@@ -334,7 +348,10 @@ pub fn run(args: RvmArgs, _global: &GlobalOpts) -> Result<()> {
 
         for (cat, stats) in cats {
             let coverage_pct = if stats.total > 0 {
-                format!("{:.1}%", (stats.verified as f64 / stats.total as f64) * 100.0)
+                format!(
+                    "{:.1}%",
+                    (stats.verified as f64 / stats.total as f64) * 100.0
+                )
             } else {
                 "-".to_string()
             };

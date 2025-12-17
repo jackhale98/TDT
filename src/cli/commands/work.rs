@@ -814,7 +814,9 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Id | OutputFormat::ShortId => {
             if global.format == OutputFormat::ShortId {
                 let sid_index = ShortIdIndex::load(&project);
-                let short_id = sid_index.get_short_id(&work.id.to_string()).unwrap_or_default();
+                let short_id = sid_index
+                    .get_short_id(&work.id.to_string())
+                    .unwrap_or_default();
                 println!("{}", short_id);
             } else {
                 println!("{}", work.id);

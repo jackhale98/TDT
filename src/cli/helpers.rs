@@ -147,7 +147,8 @@ pub fn resolve_id_arg(arg: &Option<String>) -> Result<String, &'static str> {
         }
         _ => {
             // No arg - try stdin
-            read_single_id_from_stdin().ok_or("No ID provided. Use: tdt <cmd> show <ID> or pipe an ID")
+            read_single_id_from_stdin()
+                .ok_or("No ID provided. Use: tdt <cmd> show <ID> or pipe an ID")
         }
     }
 }
@@ -203,7 +204,10 @@ impl MarkdownTable {
     /// Create a new table with the given headers
     pub fn new<S: AsRef<str>>(headers: Vec<S>) -> Self {
         Self {
-            headers: headers.into_iter().map(|h| h.as_ref().to_string()).collect(),
+            headers: headers
+                .into_iter()
+                .map(|h| h.as_ref().to_string())
+                .collect(),
             rows: Vec::new(),
         }
     }

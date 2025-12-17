@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::cli::helpers::truncate_str;
-use tabled::{builder::Builder, settings::Style};
 use crate::cli::GlobalOpts;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
@@ -14,10 +13,11 @@ use crate::entities::component::Component;
 use crate::entities::feature::Feature;
 use crate::entities::mate::Mate;
 use crate::entities::stackup::{AnalysisResult, Stackup};
+use tabled::{builder::Builder, settings::Style};
 
 use super::{
-    load_all_assemblies, load_all_components, load_all_features, load_all_mates,
-    load_all_stackups, write_output,
+    load_all_assemblies, load_all_components, load_all_features, load_all_mates, load_all_stackups,
+    write_output,
 };
 
 #[derive(clap::Args, Debug)]
@@ -288,7 +288,15 @@ pub fn run(args: ToleranceArgs, _global: &GlobalOpts) -> Result<()> {
                 output.push_str("#### Features\n\n");
                 let mut builder = Builder::default();
                 builder.push_record([
-                    "ID", "Title", "Type", "Dimension", "Nominal", "+Tol", "-Tol", "MMC", "LMC",
+                    "ID",
+                    "Title",
+                    "Type",
+                    "Dimension",
+                    "Nominal",
+                    "+Tol",
+                    "-Tol",
+                    "MMC",
+                    "LMC",
                 ]);
 
                 for feat in feats {
@@ -312,13 +320,21 @@ pub fn run(args: ToleranceArgs, _global: &GlobalOpts) -> Result<()> {
                     } else {
                         for (i, dim) in feat.dimensions.iter().enumerate() {
                             builder.push_record([
-                                if i == 0 { feat_short.clone() } else { "".to_string() },
+                                if i == 0 {
+                                    feat_short.clone()
+                                } else {
+                                    "".to_string()
+                                },
                                 if i == 0 {
                                     truncate_str(&feat.title, 25)
                                 } else {
                                     "".to_string()
                                 },
-                                if i == 0 { feat_type.clone() } else { "".to_string() },
+                                if i == 0 {
+                                    feat_type.clone()
+                                } else {
+                                    "".to_string()
+                                },
                                 dim.name.clone(),
                                 format!("{:.3}", dim.nominal),
                                 format!("{:.3}", dim.plus_tol),
@@ -552,7 +568,14 @@ pub fn run(args: ToleranceArgs, _global: &GlobalOpts) -> Result<()> {
             // Contributors table
             let mut builder = Builder::default();
             builder.push_record([
-                "#", "Contributor", "Component", "PN", "Nominal", "+Tol", "-Tol", "Dir",
+                "#",
+                "Contributor",
+                "Component",
+                "PN",
+                "Nominal",
+                "+Tol",
+                "-Tol",
+                "Dir",
             ]);
 
             for (idx, contrib) in stackup.contributors.iter().enumerate() {

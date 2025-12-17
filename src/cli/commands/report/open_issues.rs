@@ -67,9 +67,8 @@ pub fn run(args: OpenIssuesArgs, _global: &GlobalOpts) -> Result<()> {
         .collect();
 
     // Calculate NCR aging and costs
-    let calc_days_open = |ncr: &Ncr| -> Option<i64> {
-        ncr.report_date.map(|d| (today - d).num_days())
-    };
+    let calc_days_open =
+        |ncr: &Ncr| -> Option<i64> { ncr.report_date.map(|d| (today - d).num_days()) };
 
     let mut total_rework_cost = 0.0;
     let mut total_scrap_cost = 0.0;
@@ -155,8 +154,7 @@ pub fn run(args: OpenIssuesArgs, _global: &GlobalOpts) -> Result<()> {
                 .cost_impact
                 .as_ref()
                 .map(|c| {
-                    let total =
-                        c.rework_cost.unwrap_or(0.0) + c.scrap_cost.unwrap_or(0.0);
+                    let total = c.rework_cost.unwrap_or(0.0) + c.scrap_cost.unwrap_or(0.0);
                     if total > 0.0 {
                         format!("${:.0}", total)
                     } else {
@@ -212,11 +210,7 @@ pub fn run(args: OpenIssuesArgs, _global: &GlobalOpts) -> Result<()> {
             action_table.push_record([
                 capa_short,
                 truncate_str(&action.description, 30).to_string(),
-                action
-                    .owner
-                    .as_deref()
-                    .unwrap_or("-")
-                    .to_string(),
+                action.owner.as_deref().unwrap_or("-").to_string(),
                 action
                     .due_date
                     .map(|d| d.to_string())

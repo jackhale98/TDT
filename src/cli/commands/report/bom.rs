@@ -226,7 +226,12 @@ pub fn run(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
 
     let mut visited_asm: HashSet<String> = HashSet::new();
     visited_asm.insert(assembly.id.to_string());
-    collect_bom_components(&assembly.bom, &assembly_map, &mut bom_components, &mut visited_asm);
+    collect_bom_components(
+        &assembly.bom,
+        &assembly_map,
+        &mut bom_components,
+        &mut visited_asm,
+    );
 
     // Analyze supply risks
     struct SupplyRisk {
@@ -252,7 +257,11 @@ pub fn run(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
                     id: cmp_short.clone(),
                     title: cmp.title.clone(),
                     risk_type: "Single Source".to_string(),
-                    details: cmp.suppliers.first().map(|s| s.name.clone()).unwrap_or_default(),
+                    details: cmp
+                        .suppliers
+                        .first()
+                        .map(|s| s.name.clone())
+                        .unwrap_or_default(),
                 });
             } else if supplier_count == 0 {
                 supply_risks.push(SupplyRisk {
@@ -281,7 +290,9 @@ pub fn run(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
 
             // Check for no quotes
             let has_quote = cmp.selected_quote.is_some()
-                || quotes.iter().any(|q| q.component.as_deref() == Some(cmp_id));
+                || quotes
+                    .iter()
+                    .any(|q| q.component.as_deref() == Some(cmp_id));
             if !has_quote && cmp.unit_cost.is_none() {
                 supply_risks.push(SupplyRisk {
                     id: cmp_short.clone(),
@@ -329,10 +340,22 @@ pub fn run(args: BomArgs, _global: &GlobalOpts) -> Result<()> {
         output.push_str(&risk_table.build().with(Style::markdown()).to_string());
 
         // Summary
-        let no_supplier = supply_risks.iter().filter(|r| r.risk_type == "No Supplier").count();
-        let single_source = supply_risks.iter().filter(|r| r.risk_type == "Single Source").count();
-        let long_lead = supply_risks.iter().filter(|r| r.risk_type == "Long Lead Time").count();
-        let no_pricing = supply_risks.iter().filter(|r| r.risk_type == "No Pricing").count();
+        let no_supplier = supply_risks
+            .iter()
+            .filter(|r| r.risk_type == "No Supplier")
+            .count();
+        let single_source = supply_risks
+            .iter()
+            .filter(|r| r.risk_type == "Single Source")
+            .count();
+        let long_lead = supply_risks
+            .iter()
+            .filter(|r| r.risk_type == "Long Lead Time")
+            .count();
+        let no_pricing = supply_risks
+            .iter()
+            .filter(|r| r.risk_type == "No Pricing")
+            .count();
 
         output.push_str(&format!(
             "\n*{} components in BOM: {} no supplier, {} single-source, {} long lead (>{}d), {} no pricing*\n",

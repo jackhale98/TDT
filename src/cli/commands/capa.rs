@@ -749,7 +749,9 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Id | OutputFormat::ShortId => {
             if global.format == OutputFormat::ShortId {
                 let short_ids = ShortIdIndex::load(&project);
-                let short_id = short_ids.get_short_id(&capa.id.to_string()).unwrap_or_default();
+                let short_id = short_ids
+                    .get_short_id(&capa.id.to_string())
+                    .unwrap_or_default();
                 println!("{}", short_id);
             } else {
                 println!("{}", capa.id);

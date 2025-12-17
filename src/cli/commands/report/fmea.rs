@@ -137,7 +137,8 @@ pub fn run(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
                 if reduction != 0 {
                     reduction_rows.push(ReductionRow {
                         id: risk_short.clone(),
-                        failure_mode: truncate_str(risk.failure_mode.as_deref().unwrap_or("-"), 25).to_string(),
+                        failure_mode: truncate_str(risk.failure_mode.as_deref().unwrap_or("-"), 25)
+                            .to_string(),
                         initial_rpn: init_rpn,
                         current_rpn,
                         reduction,
@@ -149,14 +150,21 @@ pub fn run(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
         // Collect mitigation details
         for mit in &risk.mitigations {
             let status = mit.status.unwrap_or(MitigationStatus::Proposed);
-            let is_complete = status == MitigationStatus::Completed || status == MitigationStatus::Verified;
+            let is_complete =
+                status == MitigationStatus::Completed || status == MitigationStatus::Verified;
 
             mitigation_rows.push(MitigationRow {
                 risk_id: risk_short.clone(),
                 action: truncate_str(&mit.action, 30).to_string(),
-                mit_type: mit.mitigation_type.map(|t| format!("{:?}", t).to_lowercase()).unwrap_or_else(|| "-".to_string()),
+                mit_type: mit
+                    .mitigation_type
+                    .map(|t| format!("{:?}", t).to_lowercase())
+                    .unwrap_or_else(|| "-".to_string()),
                 owner: mit.owner.as_deref().unwrap_or("-").to_string(),
-                due_date: mit.due_date.map(|d| d.to_string()).unwrap_or_else(|| "-".to_string()),
+                due_date: mit
+                    .due_date
+                    .map(|d| d.to_string())
+                    .unwrap_or_else(|| "-".to_string()),
                 status: status.to_string(),
             });
 
@@ -211,9 +219,15 @@ pub fn run(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
     summary.push_record(["Metric", "Value"]);
     summary.push_record(["Total Risks", &risks.len().to_string()]);
     if !risks.is_empty() {
-        summary.push_record(["Average RPN", &format!("{:.1}", total_rpn as f64 / risks.len() as f64)]);
+        summary.push_record([
+            "Average RPN",
+            &format!("{:.1}", total_rpn as f64 / risks.len() as f64),
+        ]);
     }
-    summary.push_record(["Critical", &by_level.get("critical").unwrap_or(&0).to_string()]);
+    summary.push_record([
+        "Critical",
+        &by_level.get("critical").unwrap_or(&0).to_string(),
+    ]);
     summary.push_record(["High", &by_level.get("high").unwrap_or(&0).to_string()]);
     summary.push_record(["Medium", &by_level.get("medium").unwrap_or(&0).to_string()]);
     summary.push_record(["Low", &by_level.get("low").unwrap_or(&0).to_string()]);
@@ -227,7 +241,13 @@ pub fn run(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
     if !reduction_rows.is_empty() {
         output.push_str("\n## Risk Reduction Summary\n\n");
         let mut reduction_table = Builder::default();
-        reduction_table.push_record(["ID", "Failure Mode", "Initial RPN", "Current RPN", "Reduction"]);
+        reduction_table.push_record([
+            "ID",
+            "Failure Mode",
+            "Initial RPN",
+            "Current RPN",
+            "Reduction",
+        ]);
 
         for row in &reduction_rows {
             reduction_table.push_record([
@@ -241,7 +261,8 @@ pub fn run(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
         output.push_str(&reduction_table.build().with(Style::markdown()).to_string());
 
         if risks_with_initial > 0 && total_initial_rpn > 0 {
-            let reduction_pct = ((total_initial_rpn as f64 - total_rpn as f64) / total_initial_rpn as f64) * 100.0;
+            let reduction_pct =
+                ((total_initial_rpn as f64 - total_rpn as f64) / total_initial_rpn as f64) * 100.0;
             output.push_str(&format!(
                 "\n*Total RPN Reduction: {} points ({:.1}% from initial)*\n",
                 total_initial_rpn as i32 - total_rpn as i32,
@@ -271,7 +292,18 @@ pub fn run(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
     // Main FMEA table
     output.push_str("\n## Risk Register\n\n");
     let mut builder = Builder::default();
-    builder.push_record(["ID", "Failure Mode", "Cause", "Effect", "S", "O", "D", "RPN", "Level", "Mitigations"]);
+    builder.push_record([
+        "ID",
+        "Failure Mode",
+        "Cause",
+        "Effect",
+        "S",
+        "O",
+        "D",
+        "RPN",
+        "Level",
+        "Mitigations",
+    ]);
 
     for row in &rows {
         builder.push_record([
@@ -293,7 +325,14 @@ pub fn run(args: FmeaArgs, _global: &GlobalOpts) -> Result<()> {
     if !mitigation_rows.is_empty() {
         output.push_str("\n## Mitigation Tracking\n\n");
         let mut mit_table = Builder::default();
-        mit_table.push_record(["Risk ID", "Mitigation", "Type", "Owner", "Due Date", "Status"]);
+        mit_table.push_record([
+            "Risk ID",
+            "Mitigation",
+            "Type",
+            "Owner",
+            "Due Date",
+            "Status",
+        ]);
 
         for row in &mitigation_rows {
             mit_table.push_record([

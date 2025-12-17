@@ -131,9 +131,7 @@ pub fn run(args: TestStatusArgs, _global: &GlobalOpts) -> Result<()> {
         }
 
         // Update category stats
-        let cat_entry = category_stats
-            .entry(test_category.to_string())
-            .or_default();
+        let cat_entry = category_stats.entry(test_category.to_string()).or_default();
         cat_entry.total += 1;
         if is_executed {
             cat_entry.executed += 1;
@@ -178,7 +176,10 @@ pub fn run(args: TestStatusArgs, _global: &GlobalOpts) -> Result<()> {
 
     let calc_pass_rate = |stats: &TypeStats| -> String {
         if stats.executed > 0 {
-            format!("{:.1}%", (stats.passed as f64 / stats.executed as f64) * 100.0)
+            format!(
+                "{:.1}%",
+                (stats.passed as f64 / stats.executed as f64) * 100.0
+            )
         } else {
             "-".to_string()
         }
@@ -261,7 +262,9 @@ pub fn run(args: TestStatusArgs, _global: &GlobalOpts) -> Result<()> {
                 test_short,
                 truncate_str(&test.title, 30).to_string(),
                 test.test_type.to_string(),
-                test.test_level.map(|l| l.to_string()).unwrap_or_else(|| "-".to_string()),
+                test.test_level
+                    .map(|l| l.to_string())
+                    .unwrap_or_else(|| "-".to_string()),
                 format_date_local(&result.executed_date),
             ]);
         }

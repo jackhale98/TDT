@@ -307,7 +307,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
         || args.single_source        // needs supplier data
         || args.no_quote             // needs quote data
         || args.high_cost.is_some()  // needs unit_cost
-        || args.assembly.is_some();  // needs assembly BOM traversal
+        || args.assembly.is_some(); // needs assembly BOM traversal
     let needs_full_entities = needs_full_output || needs_complex_filters;
 
     // Pre-load quotes if needed for no_quote filter
@@ -1025,8 +1025,7 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
         }
     }
 
-    let path =
-        found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", id))?;
+    let path = found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", id))?;
 
     // Read and parse component
     let content = fs::read_to_string(&path).into_diagnostic()?;
@@ -1043,7 +1042,9 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
         OutputFormat::Id | OutputFormat::ShortId => {
             if global.format == OutputFormat::ShortId {
                 let short_ids = ShortIdIndex::load(&project);
-                let short_id = short_ids.get_short_id(&cmp.id.to_string()).unwrap_or_default();
+                let short_id = short_ids
+                    .get_short_id(&cmp.id.to_string())
+                    .unwrap_or_default();
                 println!("{}", short_id);
             } else {
                 println!("{}", cmp.id);
@@ -1223,8 +1224,7 @@ fn run_edit(args: EditArgs) -> Result<()> {
         }
     }
 
-    let path =
-        found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", id))?;
+    let path = found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", id))?;
 
     println!(
         "Opening {} in {}...",
