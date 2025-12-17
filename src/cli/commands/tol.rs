@@ -640,9 +640,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("TOL@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for s in &stackups {
-                println!("{}", s.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&s.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", s.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -839,8 +846,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let json = serde_json::to_string_pretty(&stackup).into_diagnostic()?;
             println!("{}", json);
         }
-        OutputFormat::Id => {
-            println!("{}", stackup.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&stackup.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", stackup.id);
+            }
         }
         _ => {
             // Pretty format (default)

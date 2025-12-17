@@ -572,9 +572,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("PROC@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for proc in &processes {
-                println!("{}", proc.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&proc.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", proc.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -755,8 +762,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let json = serde_json::to_string_pretty(&proc).into_diagnostic()?;
             println!("{}", json);
         }
-        OutputFormat::Id => {
-            println!("{}", proc.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&proc.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", proc.id);
+            }
         }
         _ => {
             // Pretty format (default)
@@ -981,9 +994,14 @@ fn output_cached_processes(
                 style("PROC@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for entity in entities {
-                println!("{}", entity.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids.get_short_id(&entity.id).unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", entity.id);
+                }
             }
         }
         OutputFormat::Md => {

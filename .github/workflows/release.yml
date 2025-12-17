@@ -116,11 +116,14 @@ jobs:
       - name: Create checksums
         run: |
           cd artifacts
-          for dir in */; do
-            mv "$dir"* .
-            rmdir "$dir"
+          # Flatten artifact directories - each artifact is in its own subdirectory
+          find . -type f -name "*.tar.gz" -o -name "*.zip" | while read f; do
+            mv "$f" .
           done
-          sha256sum * > checksums.txt
+          # Remove empty directories
+          find . -type d -empty -delete
+          # Create checksums
+          sha256sum *.tar.gz *.zip 2>/dev/null > checksums.txt || true
           cat checksums.txt
 
       - name: Create Release

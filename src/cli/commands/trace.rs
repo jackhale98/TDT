@@ -743,9 +743,13 @@ fn run_orphans(args: OrphansArgs, global: &GlobalOpts) -> Result<()> {
             let json = serde_json::to_string_pretty(&data).into_diagnostic()?;
             println!("{}", json);
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for (entity, _) in &orphans {
-                println!("{}", entity.id);
+                if global.format == OutputFormat::ShortId {
+                    println!("{}", format_short_id_str(&entity.id));
+                } else {
+                    println!("{}", entity.id);
+                }
             }
         }
         _ => {

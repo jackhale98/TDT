@@ -6,7 +6,7 @@ use miette::{IntoDiagnostic, Result};
 use std::fs;
 
 use crate::cli::commands::utils::format_link_with_title;
-use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
+use crate::cli::helpers::{escape_csv, format_short_id, resolve_id_arg, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
@@ -741,9 +741,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("RISK@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for risk in &risks {
-                println!("{}", risk.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&risk.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", risk.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -993,8 +1000,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let yaml = serde_yml::to_string(&risk).into_diagnostic()?;
             print!("{}", yaml);
         }
-        OutputFormat::Id => {
-            println!("{}", risk.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&risk.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", risk.id);
+            }
         }
         _ => {
             // Human-readable format

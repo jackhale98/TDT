@@ -5,7 +5,7 @@ use console::style;
 use miette::{IntoDiagnostic, Result};
 use std::fs;
 
-use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
+use crate::cli::helpers::{escape_csv, format_short_id, resolve_id_arg, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
@@ -250,14 +250,14 @@ pub struct NewArgs {
 
 #[derive(clap::Args, Debug)]
 pub struct ShowArgs {
-    /// Component ID or short ID (CMP@N)
-    pub id: String,
+    /// Component ID or short ID (CMP@N), or pipe via stdin
+    pub id: Option<String>,
 }
 
 #[derive(clap::Args, Debug)]
 pub struct EditArgs {
-    /// Component ID or short ID (CMP@N)
-    pub id: String,
+    /// Component ID or short ID (CMP@N), or pipe via stdin
+    pub id: Option<String>,
 }
 
 #[derive(clap::Args, Debug)]
@@ -646,9 +646,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("CMP@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for cmp in &components {
-                println!("{}", cmp.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&cmp.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", cmp.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -757,9 +764,14 @@ fn output_cached_components(
                 style("CMP@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for cmp in cmps {
-                println!("{}", cmp.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids.get_short_id(&cmp.id).unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", cmp.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -943,11 +955,12 @@ fn run_new(args: NewArgs) -> Result<()> {
 fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
+    // Resolve ID from argument or stdin
+    let id = resolve_id_arg(&args.id).map_err(|e| miette::miette!("{}", e))?;
+
     // Resolve short ID if needed
     let short_ids = ShortIdIndex::load(&project);
-    let resolved_id = short_ids
-        .resolve(&args.id)
-        .unwrap_or_else(|| args.id.clone());
+    let resolved_id = short_ids.resolve(&id).unwrap_or_else(|| id.clone());
 
     // Find the component file
     let cmp_dir = project.root().join("bom/components");
@@ -969,7 +982,7 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     }
 
     let path =
-        found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", args.id))?;
+        found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", id))?;
 
     // Read and parse component
     let content = fs::read_to_string(&path).into_diagnostic()?;
@@ -983,8 +996,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let json = serde_json::to_string_pretty(&cmp).into_diagnostic()?;
             println!("{}", json);
         }
-        OutputFormat::Id => {
-            println!("{}", cmp.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&cmp.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", cmp.id);
+            }
         }
         _ => {
             // Pretty format (default)
@@ -1134,11 +1153,12 @@ fn run_edit(args: EditArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let config = Config::load();
 
+    // Resolve ID from argument or stdin
+    let id = resolve_id_arg(&args.id).map_err(|e| miette::miette!("{}", e))?;
+
     // Resolve short ID if needed
     let short_ids = ShortIdIndex::load(&project);
-    let resolved_id = short_ids
-        .resolve(&args.id)
-        .unwrap_or_else(|| args.id.clone());
+    let resolved_id = short_ids.resolve(&id).unwrap_or_else(|| id.clone());
 
     // Find the component file
     let cmp_dir = project.root().join("bom/components");
@@ -1160,7 +1180,7 @@ fn run_edit(args: EditArgs) -> Result<()> {
     }
 
     let path =
-        found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", args.id))?;
+        found_path.ok_or_else(|| miette::miette!("No component found matching '{}'", id))?;
 
     println!(
         "Opening {} in {}...",

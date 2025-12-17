@@ -189,7 +189,7 @@ pub struct AddComponentArgs {
     pub components: Vec<String>,
 
     /// Quantity for single component (ignored if using ID:QTY format)
-    #[arg(long, short = 'q', default_value = "1")]
+    #[arg(long, short = 'Q', default_value = "1")]
     pub qty: u32,
 
     /// Reference designators (comma-separated, e.g., "U1,U2,U3") - only for single component
@@ -511,9 +511,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!();
             println!("{} assembly(s) found.", style(assemblies.len()).cyan());
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for asm in &assemblies {
-                println!("{}", asm.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&asm.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", asm.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -729,8 +736,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let json = serde_json::to_string_pretty(&asm).into_diagnostic()?;
             println!("{}", json);
         }
-        OutputFormat::Id => {
-            println!("{}", asm.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&asm.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", asm.id);
+            }
         }
         _ => {
             // Pretty format (default)

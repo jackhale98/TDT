@@ -6,7 +6,7 @@ use miette::{IntoDiagnostic, Result};
 use std::fs;
 
 use crate::cli::commands::utils::format_link_with_title;
-use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
+use crate::cli::helpers::{escape_csv, format_short_id, resolve_id_arg, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::entity::Priority;
@@ -908,9 +908,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("TEST@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for test in &tests {
-                println!("{}", test.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&test.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", test.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -1058,9 +1065,14 @@ fn output_cached_tests(
                 style("TEST@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for test in tests {
-                println!("{}", test.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids.get_short_id(&test.id).unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", test.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -1339,8 +1351,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let yaml = serde_yml::to_string(&test).into_diagnostic()?;
             print!("{}", yaml);
         }
-        OutputFormat::Id => {
-            println!("{}", test.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&test.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", test.id);
+            }
         }
         _ => {
             // Load cache and short IDs for title lookups
@@ -1795,8 +1813,13 @@ fn run_run(args: RunArgs, global: &GlobalOpts) -> Result<()> {
             });
             println!("{}", serde_yml::to_string(&output).unwrap_or_default());
         }
-        OutputFormat::Id => {
-            println!("{}", result_id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let result_short = result_short_id.unwrap_or_else(|| format_short_id(&result_id));
+                println!("{}", result_short);
+            } else {
+                println!("{}", result_id);
+            }
         }
         _ => {
             println!(

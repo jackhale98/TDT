@@ -8,6 +8,7 @@ pub mod blame;
 pub mod bulk;
 pub mod cache;
 pub mod capa;
+pub mod completions;
 pub mod cmp;
 pub mod ctrl;
 pub mod diff;

@@ -5,11 +5,12 @@ use std::path::PathBuf;
 
 use crate::cli::commands::{
     asm::AsmCommands, baseline::BaselineCommands, blame::BlameArgs, bulk::BulkCommands,
-    cache::CacheCommands, capa::CapaCommands, cmp::CmpCommands, ctrl::CtrlCommands, diff::DiffArgs,
-    dmm::DmmArgs, dsm::DsmArgs, feat::FeatCommands, history::HistoryArgs, import::ImportArgs,
-    init::InitArgs, link::LinkCommands, mate::MateCommands, ncr::NcrCommands, proc::ProcCommands,
-    quote::QuoteCommands, report::ReportCommands, req::ReqCommands, risk::RiskCommands,
-    rslt::RsltCommands, status::StatusArgs, sup::SupCommands, test::TestCommands, tol::TolCommands,
+    cache::CacheCommands, capa::CapaCommands, cmp::CmpCommands, completions::CompletionsArgs,
+    ctrl::CtrlCommands, diff::DiffArgs, dmm::DmmArgs, dsm::DsmArgs, feat::FeatCommands,
+    history::HistoryArgs, import::ImportArgs, init::InitArgs, link::LinkCommands,
+    mate::MateCommands, ncr::NcrCommands, proc::ProcCommands, quote::QuoteCommands,
+    report::ReportCommands, req::ReqCommands, risk::RiskCommands, rslt::RsltCommands,
+    status::StatusArgs, sup::SupCommands, test::TestCommands, tol::TolCommands,
     trace::TraceCommands, validate::ValidateArgs, where_used::WhereUsedArgs, work::WorkCommands,
 };
 
@@ -72,6 +73,7 @@ UTILITIES:
   import      Import entities from CSV files
   bulk        Bulk operations on multiple entities
   cache       Entity cache management (rebuild, sync, status, query)
+  completions Generate shell completion scripts (bash, zsh, fish, powershell)
   help        Print this message or the help of the given subcommand(s)
 
 OPTIONS:
@@ -269,6 +271,9 @@ pub enum Commands {
     /// Entity cache management (rebuild, sync, status, query)
     #[command(subcommand)]
     Cache(CacheCommands),
+
+    /// Generate shell completion scripts
+    Completions(CompletionsArgs),
 }
 
 #[derive(ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -286,6 +291,9 @@ pub enum OutputFormat {
     Csv,
     /// Markdown tables
     Md,
-    /// Just IDs, one per line
+    /// Just IDs, one per line (full ULIDs for git collaboration)
     Id,
+    /// Short IDs only (e.g., REQ@1) for piping between tdt commands
+    #[value(name = "short-id")]
+    ShortId,
 }

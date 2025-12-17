@@ -5,7 +5,7 @@ use console::style;
 use miette::{IntoDiagnostic, Result};
 use std::fs;
 
-use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
+use crate::cli::helpers::{escape_csv, format_short_id, resolve_id_arg, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::entity::Priority;
@@ -280,8 +280,8 @@ pub struct NewArgs {
 
 #[derive(clap::Args, Debug)]
 pub struct ShowArgs {
-    /// Requirement ID or fuzzy search term
-    pub id: String,
+    /// Requirement ID or fuzzy search term (or pipe ID via stdin)
+    pub id: Option<String>,
 
     /// Show linked entities too
     #[arg(long)]
@@ -294,8 +294,8 @@ pub struct ShowArgs {
 
 #[derive(clap::Args, Debug)]
 pub struct EditArgs {
-    /// Requirement ID or fuzzy search term
-    pub id: String,
+    /// Requirement ID or fuzzy search term (or pipe ID via stdin)
+    pub id: Option<String>,
 }
 
 pub fn run(cmd: ReqCommands, global: &GlobalOpts) -> Result<()> {
@@ -794,9 +794,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("REQ@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for req in &reqs {
-                println!("{}", req.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&req.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", req.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -906,9 +913,14 @@ fn output_cached_requirements(
                 style("REQ@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for req in reqs {
-                println!("{}", req.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids.get_short_id(&req.id).unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", req.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -1118,8 +1130,11 @@ fn run_new(args: NewArgs) -> Result<()> {
 fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
+    // Resolve ID from argument or stdin
+    let id = resolve_id_arg(&args.id).map_err(|e| miette::miette!("{}", e))?;
+
     // Find the requirement by ID prefix match
-    let req = find_requirement(&project, &args.id)?;
+    let req = find_requirement(&project, &id)?;
 
     // Output based on format (pretty is default, yaml/json explicit)
     match global.format {
@@ -1199,8 +1214,11 @@ fn run_edit(args: EditArgs) -> Result<()> {
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let config = Config::load();
 
+    // Resolve ID from argument or stdin
+    let id = resolve_id_arg(&args.id).map_err(|e| miette::miette!("{}", e))?;
+
     // Find the requirement by ID prefix match
-    let req = find_requirement(&project, &args.id)?;
+    let req = find_requirement(&project, &id)?;
 
     // Get the file path
     let req_type = match req.req_type {

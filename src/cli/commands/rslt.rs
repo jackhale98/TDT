@@ -689,9 +689,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             println!();
             println!("{} result(s) found.", style(results.len()).cyan());
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for result in &results {
-                println!("{}", result.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&result.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", result.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -838,9 +845,14 @@ fn output_cached_results(
             println!();
             println!("{} result(s) found.", style(results.len()).cyan());
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for result in results {
-                println!("{}", result.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids.get_short_id(&result.id).unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", result.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -1079,8 +1091,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let yaml = serde_yml::to_string(&result).into_diagnostic()?;
             print!("{}", yaml);
         }
-        OutputFormat::Id => {
-            println!("{}", result.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&result.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", result.id);
+            }
         }
         _ => {
             // Load cache and short IDs for title lookups

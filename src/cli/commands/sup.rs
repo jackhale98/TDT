@@ -390,9 +390,14 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("SUP@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for sup in &suppliers {
-                println!("{}", sup.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids.get_short_id(&sup.id).unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", sup.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -560,8 +565,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let json = serde_json::to_string_pretty(&sup).into_diagnostic()?;
             println!("{}", json);
         }
-        OutputFormat::Id => {
-            println!("{}", sup.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&sup.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", sup.id);
+            }
         }
         _ => {
             // Pretty format (default)

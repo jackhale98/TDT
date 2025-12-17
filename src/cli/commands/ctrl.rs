@@ -503,9 +503,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("CTRL@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for ctrl in &controls {
-                println!("{}", ctrl.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&ctrl.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", ctrl.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -626,9 +633,14 @@ fn output_cached_controls(
                 style("CTRL@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for entity in entities {
-                println!("{}", entity.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids.get_short_id(&entity.id).unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", entity.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -822,8 +834,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let json = serde_json::to_string_pretty(&ctrl).into_diagnostic()?;
             println!("{}", json);
         }
-        OutputFormat::Id => {
-            println!("{}", ctrl.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&ctrl.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", ctrl.id);
+            }
         }
         _ => {
             // Load cache for title lookups

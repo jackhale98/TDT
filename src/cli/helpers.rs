@@ -94,6 +94,64 @@ pub fn stdin_has_data() -> bool {
     !io::stdin().is_terminal()
 }
 
+/// Read a single entity ID from stdin if available
+///
+/// Returns `Some(String)` with the first ID if stdin is piped (not a terminal),
+/// or `None` if stdin is a terminal (interactive mode).
+///
+/// This enables patterns like:
+/// ```bash
+/// echo "REQ@1" | tdt req show
+/// tdt req list --format id | head -1 | tdt req show
+/// ```
+///
+/// Only reads the first line/ID from stdin.
+pub fn read_single_id_from_stdin() -> Option<String> {
+    let stdin = io::stdin();
+
+    // Only read from stdin if it's piped (not a terminal)
+    if stdin.is_terminal() {
+        return None;
+    }
+
+    let mut line = String::new();
+    if stdin.lock().read_line(&mut line).ok()? > 0 {
+        let id = line.trim().to_string();
+        if !id.is_empty() {
+            return Some(id);
+        }
+    }
+
+    None
+}
+
+/// Resolve an ID argument, falling back to stdin if the argument is empty or "-"
+///
+/// Returns the ID to use, or an error message if no ID is available.
+///
+/// This enables:
+/// ```bash
+/// tdt req show REQ@1           # explicit ID
+/// echo "REQ@1" | tdt req show  # piped ID (no arg)
+/// tdt req show -               # explicit stdin read
+/// ```
+pub fn resolve_id_arg(arg: &Option<String>) -> Result<String, &'static str> {
+    match arg {
+        Some(id) if id == "-" => {
+            // Explicit stdin request
+            read_single_id_from_stdin().ok_or("No ID provided on stdin")
+        }
+        Some(id) if !id.is_empty() => {
+            // Explicit ID provided
+            Ok(id.clone())
+        }
+        _ => {
+            // No arg - try stdin
+            read_single_id_from_stdin().ok_or("No ID provided. Use: tdt <cmd> show <ID> or pipe an ID")
+        }
+    }
+}
+
 /// Format a UTC datetime as local time with date and time
 ///
 /// Displays in user's local timezone as "YYYY-MM-DD HH:MM"
@@ -115,6 +173,96 @@ pub fn format_date_local(dt: &DateTime<Utc>) -> String {
 /// Displays as "YYYY-MM-DD"
 pub fn format_naive_date(date: &NaiveDate) -> String {
     date.format("%Y-%m-%d").to_string()
+}
+
+/// A builder for creating markdown tables with auto-calculated column widths
+///
+/// # Example
+/// ```
+/// use tdt::cli::helpers::MarkdownTable;
+///
+/// let mut table = MarkdownTable::new(vec!["ID", "Name", "Value"]);
+/// table.add_row(vec!["1", "Alpha", "100"]);
+/// table.add_row(vec!["2", "Beta", "2000"]);
+/// println!("{}", table.render());
+/// ```
+///
+/// Output:
+/// ```text
+/// | ID | Name  | Value |
+/// |----|-------|-------|
+/// | 1  | Alpha | 100   |
+/// | 2  | Beta  | 2000  |
+/// ```
+pub struct MarkdownTable {
+    headers: Vec<String>,
+    rows: Vec<Vec<String>>,
+}
+
+impl MarkdownTable {
+    /// Create a new table with the given headers
+    pub fn new<S: AsRef<str>>(headers: Vec<S>) -> Self {
+        Self {
+            headers: headers.into_iter().map(|h| h.as_ref().to_string()).collect(),
+            rows: Vec::new(),
+        }
+    }
+
+    /// Add a row to the table
+    pub fn add_row<S: AsRef<str>>(&mut self, row: Vec<S>) {
+        self.rows
+            .push(row.into_iter().map(|c| c.as_ref().to_string()).collect());
+    }
+
+    /// Check if the table has any rows
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// Render the table as a markdown string with auto-calculated column widths
+    pub fn render(&self) -> String {
+        if self.headers.is_empty() {
+            return String::new();
+        }
+
+        // Calculate column widths (minimum is header width)
+        let mut widths: Vec<usize> = self.headers.iter().map(|h| h.len()).collect();
+        for row in &self.rows {
+            for (i, cell) in row.iter().enumerate() {
+                if i < widths.len() {
+                    widths[i] = widths[i].max(cell.len());
+                }
+            }
+        }
+
+        let mut output = String::new();
+
+        // Header row
+        output.push('|');
+        for (i, header) in self.headers.iter().enumerate() {
+            output.push_str(&format!(" {:<width$} |", header, width = widths[i]));
+        }
+        output.push('\n');
+
+        // Separator row
+        output.push('|');
+        for width in &widths {
+            output.push_str(&format!("{:-<width$}|", "", width = width + 2));
+        }
+        output.push('\n');
+
+        // Data rows
+        for row in &self.rows {
+            output.push('|');
+            for (i, cell) in row.iter().enumerate() {
+                let width = widths.get(i).copied().unwrap_or(0);
+                output.push_str(&format!(" {:<width$} |", cell, width = width));
+            }
+            output.push('\n');
+        }
+
+        output
+    }
 }
 
 /// Round a floating-point value to avoid floating-point artifacts
@@ -238,5 +386,23 @@ mod tests {
         assert_eq!(determine_decimal_places(0.01), 3);
         assert_eq!(determine_decimal_places(0.001), 4);
         assert_eq!(determine_decimal_places(0.0), 4); // Default
+    }
+
+    #[test]
+    fn test_markdown_table() {
+        let mut table = MarkdownTable::new(vec!["ID", "Name", "Value"]);
+        table.add_row(vec!["1", "Alpha", "100"]);
+        table.add_row(vec!["2", "Beta", "2000"]);
+
+        let output = table.render();
+        assert!(output.contains("| ID | Name  | Value |"));
+        assert!(output.contains("| 1  | Alpha | 100   |"));
+        assert!(output.contains("| 2  | Beta  | 2000  |"));
+    }
+
+    #[test]
+    fn test_markdown_table_empty() {
+        let table = MarkdownTable::new(vec!["A", "B"]);
+        assert!(table.is_empty());
     }
 }

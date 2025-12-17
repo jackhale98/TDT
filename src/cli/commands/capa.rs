@@ -545,9 +545,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 style("CAPA@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for capa in &capas {
-                println!("{}", capa.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids
+                        .get_short_id(&capa.id.to_string())
+                        .unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", capa.id);
+                }
             }
         }
         OutputFormat::Md => {
@@ -739,8 +746,14 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             let json = serde_json::to_string_pretty(&capa).into_diagnostic()?;
             println!("{}", json);
         }
-        OutputFormat::Id => {
-            println!("{}", capa.id);
+        OutputFormat::Id | OutputFormat::ShortId => {
+            if global.format == OutputFormat::ShortId {
+                let short_ids = ShortIdIndex::load(&project);
+                let short_id = short_ids.get_short_id(&capa.id.to_string()).unwrap_or_default();
+                println!("{}", short_id);
+            } else {
+                println!("{}", capa.id);
+            }
         }
         _ => {
             // Pretty format (default)
@@ -996,9 +1009,14 @@ fn output_cached_capas(
                 style("CAPA@N").cyan()
             );
         }
-        OutputFormat::Id => {
+        OutputFormat::Id | OutputFormat::ShortId => {
             for capa in capas {
-                println!("{}", capa.id);
+                if format == OutputFormat::ShortId {
+                    let short_id = short_ids.get_short_id(&capa.id).unwrap_or_default();
+                    println!("{}", short_id);
+                } else {
+                    println!("{}", capa.id);
+                }
             }
         }
         OutputFormat::Md => {

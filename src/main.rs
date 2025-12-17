@@ -3,6 +3,15 @@ use miette::Result;
 use tdt::cli::{Cli, Commands};
 
 fn main() -> Result<()> {
+    // Reset SIGPIPE to default behavior (terminate silently) for proper Unix piping.
+    // Without this, piping to `head`, `grep -q`, etc. causes a panic on broken pipe.
+    // This is standard practice for CLI tools that output to stdout.
+    #[cfg(unix)]
+    {
+        unsafe {
+            libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+        }
+    }
     // Install miette's fancy error handler for beautiful diagnostics
     miette::set_hook(Box::new(|_| {
         Box::new(
@@ -51,5 +60,6 @@ fn main() -> Result<()> {
         Commands::Bulk(cmd) => tdt::cli::commands::bulk::run(cmd),
         Commands::Status(args) => tdt::cli::commands::status::run(args, &global),
         Commands::Cache(cmd) => tdt::cli::commands::cache::run(cmd),
+        Commands::Completions(args) => tdt::cli::commands::completions::run(args),
     }
 }
