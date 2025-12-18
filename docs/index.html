@@ -1608,6 +1608,122 @@
 
   </section>
 
+  <!-- Engineering Visualizations -->
+
+  <section id="visualizations" class="demo-section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-tag">// Visualizations</div>
+        <h2 class="section-title">Engineering Analysis at a Glance</h2>
+        <p class="section-desc">Complex analyses rendered as clear, actionable terminal output.</p>
+      </div>
+
+      <div class="viz-grid">
+        <!-- Tolerance Analysis -->
+        <div class="viz-item">
+          <div class="viz-header">
+            <h3>Tolerance Stackup Analysis</h3>
+            <code class="viz-cmd">tdt tol analyze TOL@1</code>
+          </div>
+          <div class="viz-terminal">
+            <pre>⚙ Analyzing stackup <span style="color: var(--accent)">TOL@1</span> with 2 contributors...
+<span style="color: var(--success)">✓</span> Analysis complete
+
+   Target: Clearance = <span style="color: var(--info)">0.05</span> (LSL: 0.02, USL: 0.08)
+
+   <span style="color: var(--text-primary); font-weight: bold">Worst-Case</span> Analysis:
+     Range: 0.03 to 0.076
+     Margin: 0.004
+     Result: <span style="color: var(--warning)">marginal</span>
+
+   <span style="color: var(--text-primary); font-weight: bold">RSS (Statistical)</span> Analysis:
+     Mean: 0.053
+     ±3σ: 0.0163
+     Cpk: <span style="color: var(--info)">1.65</span>
+     Yield: <span style="color: var(--success)">99.99%</span>
+
+   <span style="color: var(--text-primary); font-weight: bold">Monte Carlo</span> (10000 iterations):
+     Mean: 0.053
+     Std Dev: 0.0055
+     95% CI: 0.042 to 0.064
+     Yield: <span style="color: var(--success)">100.00%</span></pre>
+          </div>
+        </div>
+
+        <!-- Histogram -->
+        <div class="viz-item">
+          <div class="viz-header">
+            <h3>Distribution Histogram</h3>
+            <code class="viz-cmd">tdt tol analyze TOL@1 --histogram</code>
+          </div>
+          <div class="viz-terminal">
+            <pre>   <span style="color: var(--text-primary); font-weight: bold">Distribution Histogram</span> (10000 samples, 15 bins):
+
+   0.025 │<span style="color: #f85149">░░░</span>                                           │    89 <span style="color: var(--info)">◄LSL</span>
+   0.030 │<span style="color: var(--success)">██████</span>                                        │   156
+   0.035 │<span style="color: var(--success)">████████████</span>                                  │   312
+   0.040 │<span style="color: var(--success)">██████████████████████</span>                        │   589
+   0.045 │<span style="color: var(--success)">██████████████████████████████████</span>            │   891
+   0.050 │<span style="color: var(--success)">██████████████████████████████████████████████</span>│  1247
+   0.055 │<span style="color: var(--success)">████████████████████████████████████████████</span>  │  1156
+   0.060 │<span style="color: var(--success)">██████████████████████████████████</span>            │   923
+   0.065 │<span style="color: var(--success)">██████████████████████</span>                        │   612
+   0.070 │<span style="color: var(--success)">███████████</span>                                   │   298
+   0.075 │<span style="color: var(--success)">████</span>                                          │   112 <span style="color: var(--info)">◄USL</span>
+         └──────────────────────────────────────────────┘
+   <span style="color: var(--text-muted)">Legend:</span> LSL=0.020  USL=0.080  (<span style="color: var(--success)">█</span> in-spec, <span style="color: #f85149">░</span> out-of-spec)</pre>
+          </div>
+        </div>
+
+        <!-- Requirements Verification Matrix -->
+        <div class="viz-item viz-wide">
+          <div class="viz-header">
+            <h3>Requirements Verification Matrix</h3>
+            <code class="viz-cmd">tdt trace matrix --rvm</code>
+          </div>
+          <div class="viz-terminal">
+            <pre><span style="color: var(--text-primary); font-weight: bold">Requirements Verification Matrix</span>
+════════════════════════════════════════════════════════════════════════════
+<span style="color: var(--text-primary); font-weight: bold">REQ          TITLE                            STATUS       VERIFIED BY</span>
+────────────────────────────────────────────────────────────────────────────
+<span style="color: var(--info)">REQ@1</span>        Operating Temperature Range      <span style="color: var(--success)">verified</span>     TEST@1, TEST@4
+<span style="color: var(--info)">REQ@2</span>        Stroke Length ≥100mm             <span style="color: var(--success)">verified</span>     TEST@2
+<span style="color: var(--info)">REQ@3</span>        Positioning Accuracy ±0.01mm     <span style="color: var(--success)">verified</span>     TEST@3
+<span style="color: var(--info)">REQ@4</span>        Load Capacity 50N                <span style="color: var(--warning)">unverified</span>   <span style="color: var(--text-muted)">-</span>
+<span style="color: var(--info)">REQ@5</span>        MTBF ≥10000 hours                <span style="color: var(--success)">verified</span>     TEST@5
+<span style="color: var(--info)">REQ@6</span>        IP54 Ingress Protection          <span style="color: var(--warning)">unverified</span>   <span style="color: var(--text-muted)">-</span>
+────────────────────────────────────────────────────────────────────────────
+Coverage: <span style="color: var(--info)">67%</span> (4/6)</pre>
+          </div>
+        </div>
+
+        <!-- Design Structure Matrix -->
+        <div class="viz-item viz-wide">
+          <div class="viz-header">
+            <h3>Design Structure Matrix</h3>
+            <code class="viz-cmd">tdt dsm --cluster</code>
+          </div>
+          <div class="viz-terminal">
+            <pre><span style="color: var(--info); font-weight: bold">Design Structure Matrix (Clustered)</span>
+
+             <span style="color: var(--text-muted)">CMP@1   CMP@2   CMP@3   CMP@4   CMP@5   CMP@6</span>
+             <span style="color: var(--text-muted)">------- ------- ------- ------- ------- -------</span>
+<span style="color: var(--text-primary)">CMP@1</span>        <span style="color: var(--text-muted)">■</span>       <span style="color: var(--success)">M</span>       <span style="color: var(--success)">M</span>       ·       ·       ·
+<span style="color: var(--text-primary)">CMP@2</span>        <span style="color: var(--success)">M</span>       <span style="color: var(--text-muted)">■</span>       <span style="color: var(--success)">M</span>,<span style="color: #d2a8ff">T</span>     <span style="color: #d2a8ff">T</span>       ·       ·
+<span style="color: var(--text-primary)">CMP@3</span>        <span style="color: var(--success)">M</span>       <span style="color: var(--success)">M</span>,<span style="color: #d2a8ff">T</span>     <span style="color: var(--text-muted)">■</span>       <span style="color: var(--success)">M</span>       ·       ·
+<span style="color: var(--text-primary)">CMP@4</span>        ·       <span style="color: #d2a8ff">T</span>       <span style="color: var(--success)">M</span>       <span style="color: var(--text-muted)">■</span>       <span style="color: #79c0ff">P</span>       <span style="color: #79c0ff">P</span>
+<span style="color: var(--text-primary)">CMP@5</span>        ·       ·       ·       <span style="color: #79c0ff">P</span>       <span style="color: var(--text-muted)">■</span>       <span style="color: var(--warning)">R</span>
+<span style="color: var(--text-primary)">CMP@6</span>        ·       ·       ·       <span style="color: #79c0ff">P</span>       <span style="color: var(--warning)">R</span>       <span style="color: var(--text-muted)">■</span>
+
+<span style="color: var(--text-primary); font-weight: bold">Legend:</span> <span style="color: var(--success)">M</span> = Mate  <span style="color: #d2a8ff">T</span> = Tolerance  <span style="color: #79c0ff">P</span> = Process  <span style="color: var(--warning)">R</span> = Requirement
+
+<span style="color: var(--text-primary); font-weight: bold">Summary:</span> 6 components, 5 mate, 3 tolerance, 3 process, 1 requirement</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Power User Features -->
 
   <section id="power-user" class="workflows-section">
@@ -1722,122 +1838,6 @@ REQ-01KCA9X3JQFT8BHK2VCN5M9B
 
 <span class="comment"># Generate all RPN values</span>
 <span class="symbol">$</span> <span class="cmd">tdt validate --fix</span></pre>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Engineering Visualizations -->
-
-  <section id="visualizations" class="demo-section">
-    <div class="container">
-      <div class="section-header">
-        <div class="section-tag">// Visualizations</div>
-        <h2 class="section-title">Engineering Analysis at a Glance</h2>
-        <p class="section-desc">Complex analyses rendered as clear, actionable visualizations.</p>
-      </div>
-
-      <div class="viz-grid">
-        <!-- Process Flow Chart -->
-        <div class="viz-item">
-          <div class="viz-header">
-            <h3>Process Flow with Controls</h3>
-            <code class="viz-cmd">tdt proc flow PROC@1</code>
-          </div>
-          <div class="viz-terminal">
-            <pre><span style="color: var(--accent)">PROC@1</span> CNC Machining - Housing
-<span style="color: var(--text-muted)">────────────────────────────────────────────────</span>
-
-<span style="color: var(--info)">┌─────────────────────┐</span>
-<span style="color: var(--info)">│</span>   <span style="color: var(--text-primary)">STEP 1: Setup</span>     <span style="color: var(--info)">│</span>
-<span style="color: var(--info)">│</span>  Load raw stock     <span style="color: var(--info)">│</span>
-<span style="color: var(--info)">└──────────┬──────────┘</span>
-           <span style="color: var(--text-muted)">│</span>
-    <span style="color: #f85149">◆</span> <span style="color: var(--text-muted)">CTRL@1</span> <span style="color: var(--text-secondary)">Material inspection</span>
-           <span style="color: var(--text-muted)">│</span>
-           <span style="color: var(--text-muted)">▼</span>
-<span style="color: var(--info)">┌─────────────────────┐</span>
-<span style="color: var(--info)">│</span>  <span style="color: var(--text-primary)">STEP 2: Roughing</span>  <span style="color: var(--info)">│</span>
-<span style="color: var(--info)">│</span>  Remove bulk        <span style="color: var(--info)">│</span>
-<span style="color: var(--info)">└──────────┬──────────┘</span>
-           <span style="color: var(--text-muted)">│</span>
-           <span style="color: var(--text-muted)">▼</span>
-<span style="color: var(--info)">┌─────────────────────┐</span>
-<span style="color: var(--info)">│</span> <span style="color: var(--text-primary)">STEP 3: Finishing</span>  <span style="color: var(--info)">│</span>
-<span style="color: var(--info)">│</span>  Final surfaces     <span style="color: var(--info)">│</span>
-<span style="color: var(--info)">└──────────┬──────────┘</span>
-           <span style="color: var(--text-muted)">│</span>
-    <span style="color: #f85149">◆</span> <span style="color: var(--text-muted)">CTRL@2</span> <span style="color: var(--text-secondary)">CMM dimensional</span>
-    <span style="color: #f85149">◆</span> <span style="color: var(--text-muted)">CTRL@3</span> <span style="color: var(--text-secondary)">Surface roughness Ra≤1.6</span>
-           <span style="color: var(--text-muted)">│</span>
-           <span style="color: var(--text-muted)">▼</span>
-<span style="color: var(--success)">┌─────────────────────┐</span>
-<span style="color: var(--success)">│</span>   <span style="color: var(--text-primary)">Complete</span>         <span style="color: var(--success)">│</span>
-<span style="color: var(--success)">└─────────────────────┘</span></pre>
-          </div>
-        </div>
-
-        <!-- Tolerance Histogram -->
-        <div class="viz-item">
-          <div class="viz-header">
-            <h3>Monte Carlo Distribution</h3>
-            <code class="viz-cmd">tdt tol analyze TOL@2 --histogram</code>
-          </div>
-          <div class="viz-terminal">
-            <pre><span style="color: var(--accent)">TOL@2</span> Shaft-Bore Clearance Stackup
-<span style="color: var(--text-muted)">────────────────────────────────────────────────</span>
-<span style="color: var(--text-secondary)">Monte Carlo: 10,000 iterations</span>
-
-             <span style="color: var(--text-muted)">LSL                         USL</span>
-              <span style="color: var(--warning)">│</span>                           <span style="color: var(--warning)">│</span>
-        <span style="color: var(--text-muted)">12</span>  <span style="color: var(--text-muted)">│</span>                           <span style="color: var(--text-muted)">│</span>
-            <span style="color: var(--text-muted)">│</span>           <span style="color: var(--success)">████</span>            <span style="color: var(--text-muted)">│</span>
-        <span style="color: var(--text-muted)">10</span>  <span style="color: var(--text-muted)">│</span>          <span style="color: var(--success)">██████</span>           <span style="color: var(--text-muted)">│</span>
-            <span style="color: var(--text-muted)">│</span>         <span style="color: var(--success)">████████</span>          <span style="color: var(--text-muted)">│</span>
-         <span style="color: var(--text-muted)">8</span>  <span style="color: var(--text-muted)">│</span>        <span style="color: var(--success)">██████████</span>         <span style="color: var(--text-muted)">│</span>
-            <span style="color: var(--text-muted)">│</span>       <span style="color: var(--success)">████████████</span>        <span style="color: var(--text-muted)">│</span>
-         <span style="color: var(--text-muted)">6</span>  <span style="color: var(--text-muted)">│</span>      <span style="color: var(--success)">██████████████</span>       <span style="color: var(--text-muted)">│</span>
-            <span style="color: var(--text-muted)">│</span>     <span style="color: var(--success)">████████████████</span>      <span style="color: var(--text-muted)">│</span>
-         <span style="color: var(--text-muted)">4</span>  <span style="color: var(--text-muted)">│</span>    <span style="color: var(--success)">██████████████████</span>     <span style="color: var(--text-muted)">│</span>
-            <span style="color: var(--text-muted)">│</span>   <span style="color: var(--success)">████████████████████</span>    <span style="color: var(--text-muted)">│</span>
-         <span style="color: var(--text-muted)">2</span>  <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">██████████████████████</span>   <span style="color: var(--text-muted)">│</span>
-            <span style="color: var(--text-muted)">│</span> <span style="color: var(--success)">████████████████████████</span>  <span style="color: var(--text-muted)">│</span>
-         <span style="color: var(--text-muted)">0</span>  <span style="color: var(--text-muted)">└────────────────────────────┘</span>
-            <span style="color: var(--text-muted)">0.02    0.04    0.06    0.08   mm</span>
-
-<span style="color: var(--text-muted)">Mean:</span>  <span style="color: var(--info)">0.053mm</span>    <span style="color: var(--text-muted)">Std Dev:</span> <span style="color: var(--info)">0.0087mm</span>
-<span style="color: var(--text-muted)">Cpk:</span>   <span style="color: var(--success)">1.45</span>       <span style="color: var(--text-muted)">Yield:</span>   <span style="color: var(--success)">99.87%</span></pre>
-          </div>
-        </div>
-
-        <!-- DSM -->
-        <div class="viz-item viz-wide">
-          <div class="viz-header">
-            <h3>Design Structure Matrix</h3>
-            <code class="viz-cmd">tdt dsm --cluster</code>
-          </div>
-          <div class="viz-terminal">
-            <pre><span style="color: var(--accent)">Component DSM</span> <span style="color: var(--text-secondary)">(clustered)</span>
-<span style="color: var(--text-muted)">───────────────────────────────────────────────────────────────────────</span>
-
-                 <span style="color: var(--text-muted)">│</span><span style="color: var(--info)">Housing</span><span style="color: var(--text-muted)">│</span><span style="color: var(--info)">Shaft</span><span style="color: var(--text-muted)">│</span><span style="color: var(--info)">Bushing</span><span style="color: var(--text-muted)">│</span><span style="color: var(--info)">Motor</span><span style="color: var(--text-muted)">│</span><span style="color: var(--info)">Encoder</span><span style="color: var(--text-muted)">│</span><span style="color: var(--info)">PCB</span><span style="color: var(--text-muted)">│</span><span style="color: var(--info)">Cable</span><span style="color: var(--text-muted)">│</span>
-<span style="color: var(--text-muted)">─────────────────┼───────┼─────┼───────┼─────┼───────┼───┼─────┤</span>
-<span style="color: var(--info)">  Housing</span>        <span style="color: var(--text-muted)">│</span>  <span style="color: var(--accent)">●</span>    <span style="color: var(--text-muted)">│</span>  <span style="color: var(--warning)">◐</span>  <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>    <span style="color: var(--text-muted)">│</span>  <span style="color: var(--warning)">◐</span>  <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>   <span style="color: var(--text-muted)">│</span>     <span style="color: var(--text-muted)">│</span>
-<span style="color: var(--info)">  Shaft</span>          <span style="color: var(--text-muted)">│</span>  <span style="color: var(--warning)">◐</span>    <span style="color: var(--text-muted)">│</span>  <span style="color: var(--accent)">●</span>  <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>    <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>  <span style="color: var(--text-muted)">│</span>  <span style="color: var(--warning)">◐</span>    <span style="color: var(--text-muted)">│</span>   <span style="color: var(--text-muted)">│</span>     <span style="color: var(--text-muted)">│</span>
-<span style="color: var(--info)">  Bushing</span>        <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>    <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>  <span style="color: var(--text-muted)">│</span>  <span style="color: var(--accent)">●</span>    <span style="color: var(--text-muted)">│</span>     <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>   <span style="color: var(--text-muted)">│</span>     <span style="color: var(--text-muted)">│</span>
-<span style="color: var(--text-muted)">─────────────────┼───────┼─────┼───────┼─────┼───────┼───┼─────┤</span>  <span style="color: var(--text-secondary)">← Mechanical cluster</span>
-<span style="color: var(--info)">  Motor</span>          <span style="color: var(--text-muted)">│</span>  <span style="color: var(--warning)">◐</span>    <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>  <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>  <span style="color: var(--accent)">●</span>  <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>    <span style="color: var(--text-muted)">│</span> <span style="color: var(--warning)">◐</span> <span style="color: var(--text-muted)">│</span>     <span style="color: var(--text-muted)">│</span>
-<span style="color: var(--info)">  Encoder</span>        <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>  <span style="color: var(--warning)">◐</span>  <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>  <span style="color: var(--text-muted)">│</span>  <span style="color: var(--accent)">●</span>    <span style="color: var(--text-muted)">│</span> <span style="color: var(--success)">●</span> <span style="color: var(--text-muted)">│</span> <span style="color: var(--success)">●</span>   <span style="color: var(--text-muted)">│</span>
-<span style="color: var(--text-muted)">─────────────────┼───────┼─────┼───────┼─────┼───────┼───┼─────┤</span>  <span style="color: var(--text-secondary)">← Electromechanical cluster</span>
-<span style="color: var(--info)">  PCB</span>            <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>     <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>  <span style="color: var(--warning)">◐</span>  <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>    <span style="color: var(--text-muted)">│</span> <span style="color: var(--accent)">●</span> <span style="color: var(--text-muted)">│</span> <span style="color: var(--success)">●</span>   <span style="color: var(--text-muted)">│</span>
-<span style="color: var(--info)">  Cable</span>          <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>     <span style="color: var(--text-muted)">│</span>       <span style="color: var(--text-muted)">│</span>     <span style="color: var(--text-muted)">│</span>  <span style="color: var(--success)">●</span>    <span style="color: var(--text-muted)">│</span> <span style="color: var(--success)">●</span> <span style="color: var(--text-muted)">│</span> <span style="color: var(--accent)">●</span>   <span style="color: var(--text-muted)">│</span>
-<span style="color: var(--text-muted)">─────────────────┴───────┴─────┴───────┴─────┴───────┴───┴─────┘</span>  <span style="color: var(--text-secondary)">← Electronics cluster</span>
-
-<span style="color: var(--text-muted)">Legend:</span> <span style="color: var(--accent)">●</span> <span style="color: var(--text-secondary)">self</span>  <span style="color: var(--success)">●</span> <span style="color: var(--text-secondary)">strong (geometric)</span>  <span style="color: var(--warning)">◐</span> <span style="color: var(--text-secondary)">moderate (interface)</span>
-
-<span style="color: var(--text-muted)">Metrics:</span>
-  Clusters:   <span style="color: var(--info)">3</span>    Coupling Index: <span style="color: var(--success)">0.31</span>    Cycles: <span style="color: var(--warning)">1</span> <span style="color: var(--text-secondary)">(Motor↔Encoder)</span></pre>
           </div>
         </div>
       </div>

@@ -113,18 +113,22 @@ jobs:
         with:
           path: artifacts
 
-      - name: Create checksums
+      - name: Prepare release files
         run: |
+          mkdir -p release
           cd artifacts
           # Flatten artifact directories - each artifact is in its own subdirectory
-          # Use -n to avoid overwriting and handle case where file is already at destination
           for f in $(find . -mindepth 2 -type f \( -name "*.tar.gz" -o -name "*.zip" \)); do
-            mv -n "$f" . 2>/dev/null || true
+            cp "$f" ../release/ 2>/dev/null || true
           done
-          # Remove empty directories
-          find . -type d -empty -delete 2>/dev/null || true
+          # Also copy any files at root level
+          cp *.tar.gz *.zip ../release/ 2>/dev/null || true
+          cd ../release
+          # List what we have
+          echo "Release files:"
+          ls -la
           # Create checksums
-          sha256sum *.tar.gz *.zip 2>/dev/null > checksums.txt || true
+          sha256sum * > checksums.txt 2>/dev/null || echo "No files to checksum"
           cat checksums.txt
 
       - name: Create Release
@@ -132,7 +136,6 @@ jobs:
         with:
           draft: false
           generate_release_notes: true
-          files: |
-            artifacts/*
+          files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
