@@ -414,8 +414,68 @@
       font-size: 13px;
     }
 
+    /* Mobile Menu Button */
+    .mobile-menu-btn {
+      display: none;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .mobile-menu-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .mobile-menu-btn svg {
+      width: 20px;
+      height: 20px;
+      display: block;
+    }
+
+    /* Mobile Menu Overlay */
+    .mobile-menu {
+      display: none;
+      position: fixed;
+      top: 64px;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(10, 14, 20, 0.98);
+      backdrop-filter: blur(12px);
+      z-index: 99;
+      padding: 24px;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .mobile-menu.active {
+      display: flex;
+    }
+
+    .mobile-menu a {
+      display: block;
+      padding: 16px 20px;
+      color: var(--text-primary);
+      text-decoration: none;
+      font-size: 18px;
+      font-weight: 500;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+
+    .mobile-menu a:hover {
+      background: var(--bg-elevated);
+      color: var(--accent);
+    }
+
     @media (max-width: 768px) {
       .nav-links { display: none; }
+      .mobile-menu-btn { display: block; }
     }
   </style>
 </head>
@@ -442,8 +502,26 @@
           GitHub
         </a>
       </div>
+      <button class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Toggle menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
     </div>
   </nav>
+
+  <!-- Mobile Menu -->
+  <div class="mobile-menu" id="mobileMenu">
+    <a href="index.html" onclick="closeMobileMenu()">Home</a>
+    <a href="index.html#features" onclick="closeMobileMenu()">Features</a>
+    <a href="tolerance.html" onclick="closeMobileMenu()">Tolerance</a>
+    <a href="reports.html" onclick="closeMobileMenu()">Reports</a>
+    <a href="integrations.html" onclick="closeMobileMenu()">Integrations</a>
+    <a href="tutorial.html" onclick="closeMobileMenu()">Tutorial</a>
+    <a href="https://github.com/jackhale98/TDT" onclick="closeMobileMenu()">GitHub</a>
+  </div>
 
   <main>
     <div class="container">
@@ -519,10 +597,11 @@
     <span class="key">steps:</span>
       - <span class="key">uses:</span> <span class="string">actions/checkout@v4</span>
 
+      - <span class="key">name:</span> <span class="string">Install Rust</span>
+        <span class="key">uses:</span> <span class="string">dtolnay/rust-action@stable</span>
+
       - <span class="key">name:</span> <span class="string">Install TDT</span>
-        <span class="key">run:</span> |
-          curl -sSL https://tdt.dev/install.sh | sh
-          echo "$HOME/.tdt/bin" >> $GITHUB_PATH
+        <span class="key">run:</span> <span class="string">cargo install tessera-design-toolkit</span>
 
       - <span class="key">name:</span> <span class="string">Validate all entities</span>
         <span class="key">run:</span> <span class="string">tdt validate --strict</span>
@@ -559,6 +638,12 @@
     <span class="key">runs-on:</span> <span class="string">ubuntu-latest</span>
     <span class="key">steps:</span>
       - <span class="key">uses:</span> <span class="string">actions/checkout@v4</span>
+
+      - <span class="key">name:</span> <span class="string">Install Rust</span>
+        <span class="key">uses:</span> <span class="string">dtolnay/rust-action@stable</span>
+
+      - <span class="key">name:</span> <span class="string">Install TDT</span>
+        <span class="key">run:</span> <span class="string">cargo install tessera-design-toolkit</span>
 
       - <span class="key">name:</span> <span class="string">Generate all reports</span>
         <span class="key">run:</span> |
@@ -782,5 +867,51 @@ Summary: +3 added, 1 modified, 0 deleted</span></pre>
       <p class="footer-text">TDT - Tessera Design Toolkit. Plain-text product development.</p>
     </div>
   </footer>
+
+  <script>
+    function toggleMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const btn = document.querySelector('.mobile-menu-btn');
+      menu.classList.toggle('active');
+
+      if (menu.classList.contains('active')) {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="18" y1="6" x2="6" y2="18"/>
+          <line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>`;
+      } else {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <line x1="3" y1="12" x2="21" y2="12"/>
+          <line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>`;
+      }
+    }
+
+    function closeMobileMenu() {
+      const menu = document.getElementById('mobileMenu');
+      const btn = document.querySelector('.mobile-menu-btn');
+      menu.classList.remove('active');
+      btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="3" y1="6" x2="21" y2="6"/>
+        <line x1="3" y1="12" x2="21" y2="12"/>
+        <line x1="3" y1="18" x2="21" y2="18"/>
+      </svg>`;
+    }
+
+    document.addEventListener('click', function(e) {
+      const menu = document.getElementById('mobileMenu');
+      const btn = document.querySelector('.mobile-menu-btn');
+      if (!menu.contains(e.target) && !btn.contains(e.target) && menu.classList.contains('active')) {
+        closeMobileMenu();
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeMobileMenu();
+      }
+    });
+  </script>
 </body>
 </html>

@@ -529,8 +529,15 @@ impl Stackup {
         let mut variance = 0.0;
 
         for contrib in &self.contributors {
-            let signed_nom = contrib.signed_nominal();
-            mean += signed_nom;
+            // For unilateral tolerances, shift mean to center of tolerance band
+            // This ensures the process is centered within the tolerance zone
+            let mean_offset = (contrib.plus_tol - contrib.minus_tol) / 2.0;
+            let process_mean = contrib.nominal + mean_offset;
+
+            mean += match contrib.direction {
+                Direction::Positive => process_mean,
+                Direction::Negative => -process_mean,
+            };
 
             // Assume 3-sigma process: tolerance = 6σ, so σ = tolerance/6
             let contrib_sigma = contrib.tolerance_band() / 6.0;
@@ -600,7 +607,9 @@ impl Stackup {
                 let value = match contrib.distribution {
                     Distribution::Normal => {
                         // Box-Muller transform for normal distribution
-                        let mean = contrib.nominal;
+                        // For unilateral tolerances, center the mean within the tolerance band
+                        let mean_offset = (contrib.plus_tol - contrib.minus_tol) / 2.0;
+                        let mean = contrib.nominal + mean_offset;
                         let sigma = contrib.tolerance_band() / 6.0;
                         let u1: f64 = rng.random();
                         let u2: f64 = rng.random();
@@ -616,7 +625,8 @@ impl Stackup {
                     Distribution::Triangular => {
                         let min = contrib.nominal - contrib.minus_tol;
                         let max = contrib.nominal + contrib.plus_tol;
-                        let mode = contrib.nominal;
+                        // For unilateral tolerances, center the mode within the tolerance band
+                        let mode = contrib.nominal + (contrib.plus_tol - contrib.minus_tol) / 2.0;
                         // Triangular distribution using inverse transform
                         let u: f64 = rng.random();
                         let fc = (mode - min) / (max - min);
