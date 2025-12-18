@@ -46,6 +46,15 @@ pub struct ValidateArgs {
     /// Fix calculated values (RPN, risk level) in-place
     #[arg(long)]
     pub fix: bool,
+
+    /// Deep fix: also re-run tolerance analysis (Monte Carlo, RSS, worst-case)
+    /// Requires --fix flag
+    #[arg(long)]
+    pub deep: bool,
+
+    /// Monte Carlo iterations for deep analysis (default: 10000)
+    #[arg(long, default_value = "10000")]
+    pub iterations: u32,
 }
 
 /// Validation statistics
@@ -57,6 +66,7 @@ struct ValidationStats {
     total_errors: usize,
     total_warnings: usize,
     files_fixed: usize,
+    analysis_rerun: usize,
 }
 
 /// Loader for full Feature entities needed for validation calculations
@@ -134,6 +144,13 @@ impl FeatureLoader {
 }
 
 pub fn run(args: ValidateArgs) -> Result<()> {
+    // Validate --deep requires --fix
+    if args.deep && !args.fix {
+        return Err(miette::miette!(
+            "--deep requires --fix flag. Use: tdt validate --fix --deep"
+        ));
+    }
+
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
     let registry = SchemaRegistry::default();
     let validator = Validator::new(&registry);
@@ -233,9 +250,15 @@ pub fn run(args: ValidateArgs) -> Result<()> {
                     EntityPrefix::Mate => {
                         check_mate_values(&content, path, args.fix, &mut stats, &feature_loader)?
                     }
-                    EntityPrefix::Tol => {
-                        check_stackup_values(&content, path, args.fix, &mut stats, &feature_loader)?
-                    }
+                    EntityPrefix::Tol => check_stackup_values(
+                        &content,
+                        path,
+                        args.fix,
+                        args.deep,
+                        args.iterations,
+                        &mut stats,
+                        &feature_loader,
+                    )?,
                     _ => vec![],
                 };
 
@@ -322,6 +345,13 @@ pub fn run(args: ValidateArgs) -> Result<()> {
 
     if stats.files_fixed > 0 {
         println!("  Files fixed:    {}", style(stats.files_fixed).cyan());
+    }
+
+    if stats.analysis_rerun > 0 {
+        println!(
+            "  Analysis rerun: {} (Monte Carlo/RSS/Worst-case)",
+            style(stats.analysis_rerun).cyan()
+        );
     }
 
     println!();
@@ -672,6 +702,8 @@ fn check_stackup_values(
     content: &str,
     path: &PathBuf,
     fix: bool,
+    deep: bool,
+    iterations: u32,
     stats: &mut ValidationStats,
     features: &FeatureLoader,
 ) -> Result<Vec<String>> {
@@ -684,6 +716,7 @@ fn check_stackup_values(
     };
 
     let mut any_synced = false;
+    let mut analysis_needed = false;
 
     // Check each contributor that has a feature reference
     for contributor in stackup.contributors.iter_mut() {
@@ -699,6 +732,7 @@ fn check_stackup_values(
                 if fix {
                     contributor.sync_from_feature(feature);
                     any_synced = true;
+                    analysis_needed = true; // Dimensions changed, need re-analysis
                 } else if let Some(dim) = feature.primary_dimension() {
                     issues.push(format!(
                         "Contributor '{}' out of sync with {}: stored ({:.4} +{:.4}/-{:.4}) vs feature ({:.4} +{:.4}/-{:.4})",
@@ -752,7 +786,23 @@ fn check_stackup_values(
         }
     }
 
-    // Write back if we synced any contributors
+    // Deep mode: re-run tolerance analysis if contributors exist
+    if deep && !stackup.contributors.is_empty() {
+        // Always re-run analysis in deep mode, or when dimensions changed
+        stackup.analysis_results.monte_carlo = Some(stackup.calculate_monte_carlo(iterations));
+        stackup.analysis_results.worst_case = Some(stackup.calculate_worst_case());
+        stackup.analysis_results.rss = Some(stackup.calculate_rss());
+        stats.analysis_rerun += 1;
+        any_synced = true; // Force write since analysis results changed
+    } else if fix && analysis_needed && !stackup.contributors.is_empty() {
+        // Even without --deep, if dimensions changed we should flag it
+        issues.push(
+            "Contributor dimensions synced - consider running 'tdt validate --fix --deep' or 'tdt tol analyze' to update analysis results"
+                .to_string(),
+        );
+    }
+
+    // Write back if we synced any contributors or re-ran analysis
     if fix && any_synced {
         let updated_content = serde_yml::to_string(&stackup)
             .map_err(|e| miette::miette!("Failed to serialize YAML: {}", e))?;

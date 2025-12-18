@@ -210,8 +210,12 @@ pub struct EditArgs {
 
 #[derive(clap::Args, Debug)]
 pub struct AnalyzeArgs {
-    /// Stackup ID or short ID (TOL@N)
-    pub id: String,
+    /// Stackup ID or short ID (TOL@N) - omit when using --all
+    pub id: Option<String>,
+
+    /// Analyze all stackups in the project
+    #[arg(long, short = 'A')]
+    pub all: bool,
 
     /// Number of Monte Carlo iterations (default: 10000)
     #[arg(long, default_value = "10000")]
@@ -232,6 +236,10 @@ pub struct AnalyzeArgs {
     /// Number of histogram bins (default: 40)
     #[arg(long, default_value = "40")]
     pub bins: usize,
+
+    /// Only show what would be analyzed (don't run analysis)
+    #[arg(long)]
+    pub dry_run: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -1070,13 +1078,20 @@ fn run_edit(args: EditArgs) -> Result<()> {
 }
 
 fn run_analyze(args: AnalyzeArgs) -> Result<()> {
+    // Dispatch to --all or single mode
+    if args.all {
+        return run_analyze_all(&args);
+    }
+
+    let id = args.id.as_ref().ok_or_else(|| {
+        miette::miette!("Stackup ID required. Use --all to analyze all stackups.")
+    })?;
+
     let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
 
     // Resolve short ID if needed
     let short_ids = ShortIdIndex::load(&project);
-    let resolved_id = short_ids
-        .resolve(&args.id)
-        .unwrap_or_else(|| args.id.clone());
+    let resolved_id = short_ids.resolve(id).unwrap_or_else(|| id.clone());
 
     // Find and load the stackup
     let tol_dir = project.root().join("tolerances/stackups");
@@ -1097,8 +1112,7 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
         }
     }
 
-    let path =
-        found_path.ok_or_else(|| miette::miette!("No stackup found matching '{}'", args.id))?;
+    let path = found_path.ok_or_else(|| miette::miette!("No stackup found matching '{}'", id))?;
 
     // Load stackup
     let content = fs::read_to_string(&path).into_diagnostic()?;
@@ -1128,8 +1142,8 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
         if let Some(samples) = mc_samples {
             println!("sample,value,in_spec");
             for (i, value) in samples.iter().enumerate() {
-                let in_spec = *value >= stackup.target.lower_limit
-                    && *value <= stackup.target.upper_limit;
+                let in_spec =
+                    *value >= stackup.target.lower_limit && *value <= stackup.target.upper_limit;
                 println!("{},{:.6},{}", i + 1, value, if in_spec { 1 } else { 0 });
             }
         }
@@ -1143,14 +1157,14 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
     println!(
         "{} Analyzing stackup {} with {} contributors...",
         style("⚙").cyan(),
-        style(&args.id).cyan(),
+        style(id).cyan(),
         stackup.contributors.len()
     );
 
     println!(
         "{} Analysis complete for stackup {}",
         style("✓").green(),
-        style(&args.id).cyan()
+        style(id).cyan()
     );
 
     // Use target tolerance band as reference for precision
@@ -1332,6 +1346,255 @@ fn print_histogram(samples: &[f64], bins: usize, lsl: f64, usl: f64) {
         lsl,
         usl
     );
+}
+
+/// Analyze all stackups in the project
+fn run_analyze_all(args: &AnalyzeArgs) -> Result<()> {
+    let project = Project::discover().map_err(|e| miette::miette!("{}", e))?;
+    let tol_dir = project.root().join("tolerances/stackups");
+
+    if !tol_dir.exists() {
+        println!("No stackups directory found.");
+        return Ok(());
+    }
+
+    // Load all stackup files
+    let mut stackup_paths: Vec<std::path::PathBuf> = Vec::new();
+    for entry in fs::read_dir(&tol_dir).into_diagnostic()? {
+        let entry = entry.into_diagnostic()?;
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "yaml") {
+            stackup_paths.push(path);
+        }
+    }
+
+    if stackup_paths.is_empty() {
+        println!("No stackups found.");
+        return Ok(());
+    }
+
+    // Sort by filename for consistent ordering
+    stackup_paths.sort();
+
+    let short_ids = ShortIdIndex::load(&project);
+
+    let mut analyzed = 0;
+    let mut skipped = 0;
+    let mut errors = 0;
+    let mut results_summary: Vec<(String, String, Option<String>, Option<f64>, Option<f64>)> =
+        Vec::new();
+
+    println!(
+        "{} Analyzing {} stackup(s) with {} Monte Carlo iterations...\n",
+        style("⚙").cyan(),
+        stackup_paths.len(),
+        args.iterations
+    );
+
+    for path in &stackup_paths {
+        // Load stackup
+        let content = match fs::read_to_string(path) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!(
+                    "{} Failed to read {}: {}",
+                    style("✗").red(),
+                    path.display(),
+                    e
+                );
+                errors += 1;
+                continue;
+            }
+        };
+
+        let mut stackup: Stackup = match serde_yml::from_str(&content) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!(
+                    "{} Failed to parse {}: {}",
+                    style("✗").red(),
+                    path.display(),
+                    e
+                );
+                errors += 1;
+                continue;
+            }
+        };
+
+        let short_id = short_ids
+            .get_short_id(&stackup.id.to_string())
+            .unwrap_or_else(|| format_short_id(&stackup.id));
+
+        // Skip stackups with no contributors
+        if stackup.contributors.is_empty() {
+            if args.verbose {
+                println!(
+                    "{} {} - no contributors, skipping",
+                    style("⚠").yellow(),
+                    style(&short_id).cyan()
+                );
+            }
+            skipped += 1;
+            continue;
+        }
+
+        if args.dry_run {
+            println!(
+                "{} {} - {} contributors (would analyze)",
+                style("→").blue(),
+                style(&short_id).cyan(),
+                stackup.contributors.len()
+            );
+            analyzed += 1;
+            continue;
+        }
+
+        // Run analysis
+        stackup.analysis_results.monte_carlo = Some(stackup.calculate_monte_carlo(args.iterations));
+        stackup.analysis_results.worst_case = Some(stackup.calculate_worst_case());
+        stackup.analysis_results.rss = Some(stackup.calculate_rss());
+
+        // Write back
+        let yaml_content = match serde_yml::to_string(&stackup) {
+            Ok(y) => y,
+            Err(e) => {
+                eprintln!(
+                    "{} Failed to serialize {}: {}",
+                    style("✗").red(),
+                    short_id,
+                    e
+                );
+                errors += 1;
+                continue;
+            }
+        };
+
+        if let Err(e) = fs::write(path, &yaml_content) {
+            eprintln!(
+                "{} Failed to write {}: {}",
+                style("✗").red(),
+                path.display(),
+                e
+            );
+            errors += 1;
+            continue;
+        }
+
+        // Extract summary info
+        let wc_result = stackup
+            .analysis_results
+            .worst_case
+            .as_ref()
+            .map(|wc| format!("{}", wc.result));
+        let cpk = stackup.analysis_results.rss.as_ref().map(|r| r.cpk);
+        let mc_yield = stackup
+            .analysis_results
+            .monte_carlo
+            .as_ref()
+            .map(|m| m.yield_percent);
+
+        results_summary.push((
+            short_id.clone(),
+            stackup.title.clone(),
+            wc_result.clone(),
+            cpk,
+            mc_yield,
+        ));
+
+        // Brief output for each stackup
+        let result_styled = match wc_result.as_deref() {
+            Some("pass") => style("pass").green(),
+            Some("marginal") => style("marginal").yellow(),
+            Some("fail") => style("fail").red(),
+            _ => style("-").dim(),
+        };
+
+        let cpk_styled = match cpk {
+            Some(c) if c >= 1.33 => style(format!("{:.2}", c)).green(),
+            Some(c) if c >= 1.0 => style(format!("{:.2}", c)).yellow(),
+            Some(c) => style(format!("{:.2}", c)).red(),
+            None => style("-".to_string()).dim(),
+        };
+
+        println!(
+            "{} {} - W/C: {:<8} Cpk: {:<6} Yield: {:.1}%",
+            style("✓").green(),
+            style(&short_id).cyan(),
+            result_styled,
+            cpk_styled,
+            mc_yield.unwrap_or(0.0)
+        );
+
+        analyzed += 1;
+    }
+
+    // Summary
+    println!();
+    if args.dry_run {
+        println!(
+            "{} {} stackup(s) would be analyzed, {} skipped (no contributors), {} error(s)",
+            style("Dry run:").bold(),
+            style(analyzed).cyan(),
+            skipped,
+            errors
+        );
+    } else {
+        println!(
+            "{} Analyzed {} stackup(s), {} skipped, {} error(s)",
+            style("Done:").bold(),
+            style(analyzed).green(),
+            skipped,
+            errors
+        );
+
+        // Show problem stackups if any
+        let failing: Vec<_> = results_summary
+            .iter()
+            .filter(|(_, _, wc, _, _)| wc.as_deref() == Some("fail"))
+            .collect();
+        let marginal: Vec<_> = results_summary
+            .iter()
+            .filter(|(_, _, wc, _, _)| wc.as_deref() == Some("marginal"))
+            .collect();
+
+        if !failing.is_empty() {
+            println!();
+            println!(
+                "{} {} stackup(s) failing worst-case analysis:",
+                style("⚠").red(),
+                failing.len()
+            );
+            for (short_id, title, _, cpk, _) in failing {
+                let cpk_str = cpk.map(|c| format!("{:.2}", c)).unwrap_or("-".to_string());
+                println!(
+                    "   {} {} (Cpk: {})",
+                    style(short_id).cyan(),
+                    truncate_str(title, 30),
+                    cpk_str
+                );
+            }
+        }
+
+        if !marginal.is_empty() {
+            println!();
+            println!(
+                "{} {} stackup(s) marginal:",
+                style("!").yellow(),
+                marginal.len()
+            );
+            for (short_id, title, _, cpk, _) in marginal {
+                let cpk_str = cpk.map(|c| format!("{:.2}", c)).unwrap_or("-".to_string());
+                println!(
+                    "   {} {} (Cpk: {})",
+                    style(short_id).cyan(),
+                    truncate_str(title, 30),
+                    cpk_str
+                );
+            }
+        }
+    }
+
+    Ok(())
 }
 
 fn run_add(args: AddArgs) -> Result<()> {
@@ -1549,12 +1812,14 @@ fn run_add(args: AddArgs) -> Result<()> {
     if args.analyze {
         println!();
         run_analyze(AnalyzeArgs {
-            id: args.stackup,
+            id: Some(args.stackup),
+            all: false,
             iterations: 10000,
             verbose: false,
             histogram: false,
             csv: false,
             bins: 40,
+            dry_run: false,
         })?;
     }
 

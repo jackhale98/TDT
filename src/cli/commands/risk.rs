@@ -460,23 +460,25 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             StatusFilter::All => true,
         };
 
-        // Level filter
+        // Level filter (use computed risk level for accurate filtering)
+        let computed_level = r.get_risk_level();
         let level_match = match args.level {
             RiskLevelFilter::All => true,
             RiskLevelFilter::Urgent => matches!(
-                r.risk_level,
+                computed_level,
                 Some(RiskLevel::High) | Some(RiskLevel::Critical)
             ),
-            RiskLevelFilter::Low => r.risk_level == Some(RiskLevel::Low),
-            RiskLevelFilter::Medium => r.risk_level == Some(RiskLevel::Medium),
-            RiskLevelFilter::High => r.risk_level == Some(RiskLevel::High),
-            RiskLevelFilter::Critical => r.risk_level == Some(RiskLevel::Critical),
+            RiskLevelFilter::Low => computed_level == Some(RiskLevel::Low),
+            RiskLevelFilter::Medium => computed_level == Some(RiskLevel::Medium),
+            RiskLevelFilter::High => computed_level == Some(RiskLevel::High),
+            RiskLevelFilter::Critical => computed_level == Some(RiskLevel::Critical),
         };
 
-        // RPN filters (above_rpn is an alias for min_rpn)
+        // RPN filters (use computed RPN for accurate filtering)
+        let computed_rpn = r.get_rpn().unwrap_or(0);
         let effective_min_rpn = args.above_rpn.or(args.min_rpn);
-        let min_rpn_match = effective_min_rpn.is_none_or(|min| r.rpn.unwrap_or(0) >= min);
-        let max_rpn_match = args.max_rpn.is_none_or(|max| r.rpn.unwrap_or(0) <= max);
+        let min_rpn_match = effective_min_rpn.is_none_or(|min| computed_rpn >= min);
+        let max_rpn_match = args.max_rpn.is_none_or(|max| computed_rpn <= max);
 
         // Category filter (case-insensitive)
         let category_match = args.category.as_ref().is_none_or(|cat| {
@@ -524,8 +526,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             true
         };
 
-        // Critical shortcut filter
-        let critical_match = !args.critical || r.risk_level == Some(RiskLevel::Critical);
+        // Critical shortcut filter (use computed risk level)
+        let critical_match = !args.critical || computed_level == Some(RiskLevel::Critical);
 
         // Recent filter (created in last N days)
         let recent_match = args.recent.is_none_or(|days| {
@@ -562,8 +564,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
     }
 
     // Sort by specified column (or RPN if --by-rpn is used)
+    // Use computed values for accurate sorting
     if args.by_rpn {
-        risks.sort_by(|a, b| b.rpn.unwrap_or(0).cmp(&a.rpn.unwrap_or(0)));
+        risks.sort_by(|a, b| b.get_rpn().unwrap_or(0).cmp(&a.get_rpn().unwrap_or(0)));
     } else {
         match args.sort {
             ListColumn::Id => risks.sort_by(|a, b| a.id.to_string().cmp(&b.id.to_string())),
@@ -575,14 +578,16 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 risks.sort_by(|a, b| a.status.to_string().cmp(&b.status.to_string()))
             }
             ListColumn::RiskLevel => {
-                let level_order = |l: &Option<RiskLevel>| match l {
+                let level_order = |l: Option<RiskLevel>| match l {
                     Some(RiskLevel::Critical) => 0,
                     Some(RiskLevel::High) => 1,
                     Some(RiskLevel::Medium) => 2,
                     Some(RiskLevel::Low) => 3,
                     None => 4,
                 };
-                risks.sort_by(|a, b| level_order(&a.risk_level).cmp(&level_order(&b.risk_level)));
+                risks.sort_by(|a, b| {
+                    level_order(a.get_risk_level()).cmp(&level_order(b.get_risk_level()))
+                });
             }
             ListColumn::Severity => {
                 risks.sort_by(|a, b| b.severity.unwrap_or(0).cmp(&a.severity.unwrap_or(0)))
@@ -593,7 +598,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             ListColumn::Detection => {
                 risks.sort_by(|a, b| b.detection.unwrap_or(0).cmp(&a.detection.unwrap_or(0)))
             }
-            ListColumn::Rpn => risks.sort_by(|a, b| b.rpn.unwrap_or(0).cmp(&a.rpn.unwrap_or(0))),
+            ListColumn::Rpn => {
+                risks.sort_by(|a, b| b.get_rpn().unwrap_or(0).cmp(&a.get_rpn().unwrap_or(0)))
+            }
             ListColumn::Category => risks.sort_by(|a, b| {
                 a.category
                     .as_deref()
@@ -647,6 +654,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 let short_id = short_ids
                     .get_short_id(&risk.id.to_string())
                     .unwrap_or_default();
+                // Use computed values for accurate export
                 println!(
                     "{},{},{},{},{},{},{},{},{},{}",
                     short_id,
@@ -654,11 +662,12 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                     risk.risk_type,
                     escape_csv(&risk.title),
                     risk.status,
-                    risk.risk_level.map_or("".to_string(), |l| l.to_string()),
+                    risk.get_risk_level()
+                        .map_or("".to_string(), |l| l.to_string()),
                     risk.severity.map_or("".to_string(), |s| s.to_string()),
                     risk.occurrence.map_or("".to_string(), |o| o.to_string()),
                     risk.detection.map_or("".to_string(), |d| d.to_string()),
-                    risk.rpn.map_or("".to_string(), |r| r.to_string())
+                    risk.get_rpn().map_or("".to_string(), |r| r.to_string())
                 );
             }
         }
@@ -699,7 +708,8 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                         ListColumn::Status => format!("{:<10}", risk.status),
                         ListColumn::RiskLevel => format!(
                             "{:<8}",
-                            risk.risk_level.map_or("-".to_string(), |l| l.to_string())
+                            risk.get_risk_level()
+                                .map_or("-".to_string(), |l| l.to_string())
                         ),
                         ListColumn::Severity => format!(
                             "{:<4}",
@@ -714,8 +724,10 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                             risk.detection.map_or("-".to_string(), |d| d.to_string())
                         ),
                         ListColumn::Rpn => {
-                            let rpn_str = risk.rpn.map_or("-".to_string(), |r| r.to_string());
-                            let colored = match risk.rpn {
+                            // Use computed RPN for accurate display
+                            let computed_rpn = risk.get_rpn();
+                            let rpn_str = computed_rpn.map_or("-".to_string(), |r| r.to_string());
+                            let colored = match computed_rpn {
                                 Some(r) if r > 400 => style(&rpn_str).red().to_string(),
                                 Some(r) if r > 150 => style(&rpn_str).yellow().to_string(),
                                 _ => rpn_str.clone(),
@@ -760,6 +772,7 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                 let short_id = short_ids
                     .get_short_id(&risk.id.to_string())
                     .unwrap_or_default();
+                // Use computed values for accurate export
                 println!(
                     "| {} | {} | {} | {} | {} | {} | {} |",
                     short_id,
@@ -767,8 +780,9 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
                     risk.risk_type,
                     risk.title,
                     risk.status,
-                    risk.risk_level.map_or("-".to_string(), |l| l.to_string()),
-                    risk.rpn.map_or("-".to_string(), |r| r.to_string())
+                    risk.get_risk_level()
+                        .map_or("-".to_string(), |l| l.to_string()),
+                    risk.get_rpn().map_or("-".to_string(), |r| r.to_string())
                 );
             }
         }
@@ -1024,7 +1038,8 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}: {}", style("Type").bold(), risk.risk_type);
             println!("{}: {}", style("Title").bold(), style(&risk.title).yellow());
             println!("{}: {}", style("Status").bold(), risk.status);
-            if let Some(level) = &risk.risk_level {
+            // Use computed risk level for accurate display
+            if let Some(level) = risk.get_risk_level() {
                 let level_styled = match level {
                     RiskLevel::Critical => style(level.to_string()).red().bold(),
                     RiskLevel::High => style(level.to_string()).red(),
@@ -1079,7 +1094,8 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                 if let Some(d) = risk.detection {
                     println!("  {}: {}/10", style("Detection").dim(), d);
                 }
-                if let Some(rpn) = risk.rpn {
+                // Use computed RPN for accurate display
+                if let Some(rpn) = risk.get_rpn() {
                     let rpn_styled = match rpn {
                         r if r > 400 => style(r.to_string()).red().bold(),
                         r if r > 150 => style(r.to_string()).yellow(),

@@ -856,8 +856,11 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                 println!("             Component: {}", style(&display).dim());
             }
 
-            // Fit Analysis
-            if let Some(ref fit) = mate.fit_analysis {
+            // Fit Analysis - compute fresh from features for accurate display
+            let computed_fit = compute_mate_fit(&project, &mate);
+            let display_fit = computed_fit.as_ref().or(mate.fit_analysis.as_ref());
+
+            if let Some(fit) = display_fit {
                 // Use the clearance magnitude to determine precision for display
                 let ref_precision = fit
                     .worst_case_min_clearance
@@ -877,6 +880,26 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                 println!("  {}: {}", style("Fit Type").dim(), fit_color);
                 println!("  {}: {} mm", style("Min Clearance").dim(), min_rounded);
                 println!("  {}: {} mm", style("Max Clearance").dim(), max_rounded);
+
+                // Warn if stored fit differs from computed fit
+                if let (Some(stored), Some(computed)) = (&mate.fit_analysis, &computed_fit) {
+                    if stored.fit_result != computed.fit_result
+                        || (stored.worst_case_min_clearance - computed.worst_case_min_clearance)
+                            .abs()
+                            > 0.0001
+                        || (stored.worst_case_max_clearance - computed.worst_case_max_clearance)
+                            .abs()
+                            > 0.0001
+                    {
+                        println!(
+                            "  {}",
+                            style(
+                                "⚠ Stored fit differs from computed - run 'mate recalc' to update"
+                            )
+                            .yellow()
+                        );
+                    }
+                }
             }
 
             // Tags
@@ -1264,6 +1287,39 @@ fn calculate_fit_from_features(feat_a: &Feature, feat_b: &Feature) -> Option<Fit
         (dim_a.nominal, dim_a.plus_tol, dim_a.minus_tol),
         (dim_b.nominal, dim_b.plus_tol, dim_b.minus_tol),
     ))
+}
+
+/// Load a feature by ID from the project
+fn load_feature(project: &Project, feature_id: &str) -> Option<Feature> {
+    let feat_dir = project.root().join("tolerances/features");
+    if !feat_dir.exists() {
+        return None;
+    }
+
+    for entry in fs::read_dir(&feat_dir).ok()? {
+        let entry = entry.ok()?;
+        let path = entry.path();
+        if path.extension().is_some_and(|e| e == "yaml") {
+            let filename = path.file_stem().and_then(|s| s.to_str()).unwrap_or("");
+            if filename.contains(feature_id) {
+                let content = fs::read_to_string(&path).ok()?;
+                if let Ok(feat) = serde_yml::from_str::<Feature>(&content) {
+                    if feat.id.to_string() == feature_id {
+                        return Some(feat);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Compute fresh fit_analysis from a mate's linked features.
+/// Returns None if features can't be loaded or have no primary dimensions.
+fn compute_mate_fit(project: &Project, mate: &Mate) -> Option<FitAnalysis> {
+    let feat_a = load_feature(project, &mate.feature_a.id.to_string())?;
+    let feat_b = load_feature(project, &mate.feature_b.id.to_string())?;
+    calculate_fit_from_features(&feat_a, &feat_b)
 }
 
 /// Result of checking if fit_result matches mate_type

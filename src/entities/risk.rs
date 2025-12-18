@@ -313,6 +313,42 @@ impl Risk {
                 _ => RiskLevel::Critical,
             })
     }
+
+    /// Get RPN for display - prefers computed value over stored cache.
+    /// This ensures displayed RPN always reflects current S×O×D values.
+    pub fn get_rpn(&self) -> Option<u16> {
+        self.calculate_rpn().or(self.rpn)
+    }
+
+    /// Get risk level for display - prefers computed value over stored cache.
+    /// This ensures displayed risk level always reflects current S×O×D values.
+    pub fn get_risk_level(&self) -> Option<RiskLevel> {
+        if let Some(rpn) = self.calculate_rpn() {
+            return Some(match rpn {
+                0..=50 => RiskLevel::Low,
+                51..=150 => RiskLevel::Medium,
+                151..=400 => RiskLevel::High,
+                _ => RiskLevel::Critical,
+            });
+        }
+        self.risk_level
+    }
+
+    /// Check if stored RPN matches computed RPN (for validation/staleness detection)
+    pub fn is_rpn_stale(&self) -> bool {
+        match (self.rpn, self.calculate_rpn()) {
+            (Some(stored), Some(computed)) => stored != computed,
+            _ => false,
+        }
+    }
+
+    /// Check if stored risk_level matches computed risk_level
+    pub fn is_risk_level_stale(&self) -> bool {
+        match (self.risk_level, self.get_risk_level()) {
+            (Some(stored), Some(computed)) => stored != computed,
+            _ => false,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -493,5 +529,201 @@ mod tests {
         assert_eq!(parsed.links.verified_by.len(), 1);
         assert_eq!(parsed.links.related_to[0], req_id);
         assert_eq!(parsed.links.verified_by[0], test_id);
+    }
+
+    // =========================================================================
+    // Compute-on-display tests
+    // =========================================================================
+
+    #[test]
+    fn test_get_rpn_prefers_computed_over_stored() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        // With S/O/D set, computed should be 160 (8*5*4)
+        risk.severity = Some(8);
+        risk.occurrence = Some(5);
+        risk.detection = Some(4);
+        // Store a stale value
+        risk.rpn = Some(100);
+
+        // get_rpn should return computed value, not stored
+        assert_eq!(risk.get_rpn(), Some(160));
+    }
+
+    #[test]
+    fn test_get_rpn_falls_back_to_stored_when_incomplete() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        // Only severity set, can't compute
+        risk.severity = Some(8);
+        // Store a value
+        risk.rpn = Some(100);
+
+        // get_rpn should fall back to stored
+        assert_eq!(risk.get_rpn(), Some(100));
+    }
+
+    #[test]
+    fn test_get_risk_level_prefers_computed() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        // RPN 160 = High (151-400)
+        risk.severity = Some(8);
+        risk.occurrence = Some(5);
+        risk.detection = Some(4);
+        // Store stale risk_level
+        risk.risk_level = Some(RiskLevel::Low);
+
+        // get_risk_level should return computed value (High), not stored (Low)
+        assert_eq!(risk.get_risk_level(), Some(RiskLevel::High));
+    }
+
+    #[test]
+    fn test_get_risk_level_falls_back_to_stored() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        // Only severity set, can't compute RPN
+        risk.severity = Some(8);
+        risk.risk_level = Some(RiskLevel::Medium);
+
+        // Should fall back to stored value
+        assert_eq!(risk.get_risk_level(), Some(RiskLevel::Medium));
+    }
+
+    #[test]
+    fn test_is_rpn_stale_detects_mismatch() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        // Computed RPN = 160
+        risk.severity = Some(8);
+        risk.occurrence = Some(5);
+        risk.detection = Some(4);
+        // Stored RPN != computed
+        risk.rpn = Some(100);
+
+        assert!(risk.is_rpn_stale());
+    }
+
+    #[test]
+    fn test_is_rpn_stale_returns_false_when_matches() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        risk.severity = Some(8);
+        risk.occurrence = Some(5);
+        risk.detection = Some(4);
+        risk.rpn = Some(160); // Matches computed
+
+        assert!(!risk.is_rpn_stale());
+    }
+
+    #[test]
+    fn test_is_rpn_stale_returns_false_when_no_stored() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        risk.severity = Some(8);
+        risk.occurrence = Some(5);
+        risk.detection = Some(4);
+        // No stored rpn
+
+        assert!(!risk.is_rpn_stale());
+    }
+
+    #[test]
+    fn test_is_risk_level_stale_detects_mismatch() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        // Computed = High (RPN 160)
+        risk.severity = Some(8);
+        risk.occurrence = Some(5);
+        risk.detection = Some(4);
+        // Stored doesn't match
+        risk.risk_level = Some(RiskLevel::Low);
+
+        assert!(risk.is_risk_level_stale());
+    }
+
+    #[test]
+    fn test_is_risk_level_stale_returns_false_when_matches() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        risk.severity = Some(8);
+        risk.occurrence = Some(5);
+        risk.detection = Some(4);
+        risk.risk_level = Some(RiskLevel::High); // Matches computed (RPN 160)
+
+        assert!(!risk.is_risk_level_stale());
+    }
+
+    #[test]
+    fn test_compute_on_display_boundary_cases() {
+        let mut risk = Risk::new(
+            RiskType::Design,
+            "Test".to_string(),
+            "Description".to_string(),
+            "test".to_string(),
+        );
+
+        // Test boundary between Low and Medium (RPN 50 vs 51)
+        risk.severity = Some(5);
+        risk.occurrence = Some(5);
+        risk.detection = Some(2);
+        // RPN = 50 = Low
+        assert_eq!(risk.get_risk_level(), Some(RiskLevel::Low));
+
+        risk.detection = Some(3);
+        // RPN = 75 = Medium
+        assert_eq!(risk.get_risk_level(), Some(RiskLevel::Medium));
+
+        // Test Critical threshold (RPN > 400)
+        risk.severity = Some(10);
+        risk.occurrence = Some(10);
+        risk.detection = Some(5);
+        // RPN = 500 = Critical
+        assert_eq!(risk.get_risk_level(), Some(RiskLevel::Critical));
     }
 }
