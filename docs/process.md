@@ -104,9 +104,11 @@ Processes define manufacturing operations - the engineering specification of *wh
 | Field | Type | Description |
 |-------|------|-------------|
 | `links.produces` | array[EntityId] | Components produced |
+| `links.requirements` | array[EntityId] | Requirements this process implements |
 | `links.controls` | array[EntityId] | Control plan items |
 | `links.work_instructions` | array[EntityId] | Work instructions |
 | `links.risks` | array[EntityId] | Related risks |
+| `links.supplier` | EntityId | Supplier ID if process is outsourced |
 | `links.related_to` | array[EntityId] | Related entities |
 
 ## Example

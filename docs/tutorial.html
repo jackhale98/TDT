@@ -1089,25 +1089,25 @@
 
             <div class="code-block">
               <div class="code-header"><span class="code-lang">bash</span></div>
-              <pre><code><span class="comment"># Housing bore (where LED mounts)</span>
+              <pre><code><span class="comment"># Housing bore (where LED mounts) - internal feature</span>
 <span class="cmd">tdt feat new</span> --title <span class="string">"LED Mounting Bore"</span> --component CMP@1 \
-  --feature-type hole --no-edit
+  --feature-type internal --no-edit
 
-<span class="comment"># Housing thread (for end cap)</span>
+<span class="comment"># Housing thread (for end cap) - internal feature</span>
 <span class="cmd">tdt feat new</span> --title <span class="string">"End Cap Thread"</span> --component CMP@1 \
-  --feature-type thread --no-edit
+  --feature-type internal --no-edit
 
-<span class="comment"># LED module OD</span>
+<span class="comment"># LED module OD - external feature</span>
 <span class="cmd">tdt feat new</span> --title <span class="string">"LED Module OD"</span> --component CMP@2 \
-  --feature-type shaft --no-edit
+  --feature-type external --no-edit
 
-<span class="comment"># End cap thread</span>
+<span class="comment"># End cap thread - external feature</span>
 <span class="cmd">tdt feat new</span> --title <span class="string">"Cap Thread"</span> --component CMP@6 \
-  --feature-type thread --no-edit
+  --feature-type external --no-edit
 
-<span class="comment"># O-ring groove</span>
+<span class="comment"># O-ring groove - internal feature</span>
 <span class="cmd">tdt feat new</span> --title <span class="string">"O-Ring Groove"</span> --component CMP@6 \
-  --feature-type slot --no-edit</code></pre>
+  --feature-type internal --no-edit</code></pre>
             </div>
 
             <h3>Add Tolerances to Features</h3>

@@ -99,7 +99,10 @@ Work Instructions provide step-by-step procedures for operators. While processes
 | Field | Type | Description |
 |-------|------|-------------|
 | `links.process` | EntityId | Parent process |
+| `links.component` | EntityId | Component this work instruction is for |
+| `links.assembly` | EntityId | Assembly this work instruction is for |
 | `links.controls` | array[EntityId] | Related control plan items |
+| `links.risks` | array[EntityId] | Risks addressed by following this instruction |
 
 ## Example
 

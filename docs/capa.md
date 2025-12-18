@@ -143,6 +143,8 @@ CAPAs address root causes of quality issues and prevent recurrence. Corrective a
 | Field | Type | Description |
 |-------|------|-------------|
 | `links.ncrs` | array[EntityId] | Source NCRs |
+| `links.component` | EntityId | Component this CAPA addresses |
+| `links.supplier` | EntityId | Supplier ID if CAPA is supplier-related |
 | `links.risks` | array[EntityId] | Related risks |
 | `links.processes_modified` | array[EntityId] | Processes updated |
 | `links.controls_added` | array[EntityId] | New controls added |

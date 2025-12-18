@@ -19,7 +19,8 @@ Features represent dimensional characteristics on components that have tolerance
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | Unique identifier (FEAT-[26-char ULID]) |
-| `component` | string | Parent component ID (CMP-...) - **REQUIRED** |
+| `component` | string | Parent component ID (CMP-...) |
+| `feature_type` | enum | `internal` or `external` - determines MMC/LMC calculation |
 | `title` | string | Short descriptive title (1-200 chars) |
 | `status` | enum | `draft`, `review`, `approved`, `released`, `obsolete` |
 | `created` | datetime | Creation timestamp (ISO 8601) |
@@ -29,7 +30,6 @@ Features represent dimensional characteristics on components that have tolerance
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `feature_type` | enum | `internal`, `external` |
 | `description` | string | Detailed description |
 | `dimensions` | array[Dimension] | Dimensional characteristics |
 | `gdt` | array[GdtControl] | GD&T controls |
@@ -84,6 +84,8 @@ This is critical for mate calculations - when validating mates, TDT uses the `in
 |-------|------|-------------|
 | `links.used_in_mates` | array[EntityId] | Mates using this feature |
 | `links.used_in_stackups` | array[EntityId] | Stackups using this feature |
+| `links.allocated_from` | array[EntityId] | Requirements allocated to this feature |
+| `links.risks` | array[EntityId] | Risks affecting this feature |
 
 ## Tolerance Format
 
@@ -267,8 +269,14 @@ Specific geometry (counterbore, thread, etc.) can be documented in the feature t
 | **flatness** | Flatness | Surface form |
 | **perpendicularity** | Perpendicularity | Angular orientation |
 | **parallelism** | Parallelism | Angular orientation |
+| **angularity** | Angularity | Angular orientation |
 | **concentricity** | Concentricity | Axis alignment |
+| **symmetry** | Symmetry | Median plane alignment |
 | **runout** | Runout | Rotation about axis |
+| **total_runout** | Total runout | Full rotation about axis |
+| **circularity** | Circularity | Round cross-section |
+| **cylindricity** | Cylindricity | Cylinder form |
+| **straightness** | Straightness | Line form |
 | **profile_surface** | Profile of surface | 3D surface form |
 | **profile_line** | Profile of line | 2D cross-section |
 

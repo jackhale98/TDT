@@ -72,6 +72,8 @@ Tests are verification and validation protocols that ensure your product meets i
 | `links.validates` | array[EntityId] | User needs this test validates |
 | `links.mitigates` | array[EntityId] | Risks whose mitigation this test verifies |
 | `links.depends_on` | array[EntityId] | Tests that must pass before this one |
+| `links.component` | EntityId | Component this test applies to |
+| `links.assembly` | EntityId | Assembly this test applies to |
 
 ## Test Types
 

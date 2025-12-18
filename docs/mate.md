@@ -21,8 +21,9 @@ Mates represent 1:1 contact relationships between two features, such as a pin fi
 | Field | Type | Description |
 |-------|------|-------------|
 | `id` | string | Unique identifier (MATE-[26-char ULID]) |
-| `feature_a` | MateFeatureRef | First feature reference with cached info - **REQUIRED** |
-| `feature_b` | MateFeatureRef | Second feature reference with cached info - **REQUIRED** |
+| `feature_a` | MateFeatureRef | First feature reference with cached info |
+| `feature_b` | MateFeatureRef | Second feature reference with cached info |
+| `mate_type` | enum | `clearance_fit`, `interference_fit`, `transition_fit`, `planar_contact`, `thread_engagement` |
 | `title` | string | Short descriptive title (1-200 chars) |
 | `status` | enum | `draft`, `review`, `approved`, `released`, `obsolete` |
 | `created` | datetime | Creation timestamp (ISO 8601) |
@@ -44,7 +45,6 @@ Mates represent 1:1 contact relationships between two features, such as a pin fi
 | Field | Type | Description |
 |-------|------|-------------|
 | `description` | string | Detailed description |
-| `mate_type` | enum | `clearance_fit`, `interference_fit`, `transition_fit`, `planar_contact`, `thread_engagement` |
 | `fit_analysis` | FitAnalysis | Auto-calculated fit results |
 | `notes` | string | Additional notes |
 | `tags` | array[string] | Tags for filtering |

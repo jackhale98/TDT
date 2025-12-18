@@ -97,7 +97,9 @@ Controls define control plan items - how to monitor and control manufacturing pr
 | Field | Type | Description |
 |-------|------|-------------|
 | `links.process` | EntityId | Parent process |
+| `links.component` | EntityId | Component being controlled |
 | `links.feature` | EntityId | Feature being controlled |
+| `links.risks` | array[EntityId] | Risks this control mitigates |
 | `links.verifies` | array[EntityId] | Requirements verified |
 
 ## Example

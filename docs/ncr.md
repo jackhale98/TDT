@@ -140,9 +140,11 @@ NCRs document quality issues - when products or processes don't meet specificati
 | Field | Type | Description |
 |-------|------|-------------|
 | `links.component` | EntityId | Affected component |
+| `links.supplier` | EntityId | Supplier ID for supplier-related NCRs |
 | `links.process` | EntityId | Process where found |
 | `links.control` | EntityId | Control that detected |
 | `links.capa` | EntityId | Linked CAPA if opened |
+| `links.from_result` | EntityId | Test result ID that created this NCR |
 
 ## Example
 
