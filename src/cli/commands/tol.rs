@@ -220,6 +220,18 @@ pub struct AnalyzeArgs {
     /// Show detailed results after analysis
     #[arg(long, short = 'v')]
     pub verbose: bool,
+
+    /// Show ASCII histogram of Monte Carlo distribution
+    #[arg(long, short = 'H')]
+    pub histogram: bool,
+
+    /// Output raw Monte Carlo samples as CSV (for external analysis)
+    #[arg(long)]
+    pub csv: bool,
+
+    /// Number of histogram bins (default: 40)
+    #[arg(long, default_value = "40")]
+    pub bins: usize,
 }
 
 #[derive(clap::Args, Debug)]
@@ -1098,21 +1110,42 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
         ));
     }
 
-    // Run analysis
+    // Run analysis - use with_samples if we need histogram or CSV
+    let mc_samples = if args.histogram || args.csv {
+        let (mc_result, samples) = stackup.calculate_monte_carlo_with_samples(args.iterations);
+        stackup.analysis_results.monte_carlo = Some(mc_result);
+        Some(samples)
+    } else {
+        stackup.analysis_results.monte_carlo = Some(stackup.calculate_monte_carlo(args.iterations));
+        None
+    };
+
+    stackup.analysis_results.worst_case = Some(stackup.calculate_worst_case());
+    stackup.analysis_results.rss = Some(stackup.calculate_rss());
+
+    // CSV output mode - just output samples and exit
+    if args.csv {
+        if let Some(samples) = mc_samples {
+            println!("sample,value,in_spec");
+            for (i, value) in samples.iter().enumerate() {
+                let in_spec = *value >= stackup.target.lower_limit
+                    && *value <= stackup.target.upper_limit;
+                println!("{},{:.6},{}", i + 1, value, if in_spec { 1 } else { 0 });
+            }
+        }
+        return Ok(());
+    }
+
+    // Write back
+    let yaml_content = serde_yml::to_string(&stackup).into_diagnostic()?;
+    fs::write(&path, &yaml_content).into_diagnostic()?;
+
     println!(
         "{} Analyzing stackup {} with {} contributors...",
         style("⚙").cyan(),
         style(&args.id).cyan(),
         stackup.contributors.len()
     );
-
-    stackup.analysis_results.worst_case = Some(stackup.calculate_worst_case());
-    stackup.analysis_results.rss = Some(stackup.calculate_rss());
-    stackup.analysis_results.monte_carlo = Some(stackup.calculate_monte_carlo(args.iterations));
-
-    // Write back
-    let yaml_content = serde_yml::to_string(&stackup).into_diagnostic()?;
-    fs::write(&path, &yaml_content).into_diagnostic()?;
 
     println!(
         "{} Analysis complete for stackup {}",
@@ -1189,7 +1222,116 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
         println!("     Yield: {:.2}%", mc.yield_percent);
     }
 
+    // Show histogram if requested
+    if args.histogram {
+        if let Some(samples) = mc_samples {
+            println!();
+            print_histogram(
+                &samples,
+                args.bins,
+                stackup.target.lower_limit,
+                stackup.target.upper_limit,
+            );
+        }
+    }
+
     Ok(())
+}
+
+/// Print an ASCII histogram of the Monte Carlo samples
+fn print_histogram(samples: &[f64], bins: usize, lsl: f64, usl: f64) {
+    if samples.is_empty() {
+        return;
+    }
+
+    let min = samples.iter().cloned().fold(f64::INFINITY, f64::min);
+    let max = samples.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+    // Extend range slightly to include spec limits in view
+    let range_min = min.min(lsl - (usl - lsl) * 0.1);
+    let range_max = max.max(usl + (usl - lsl) * 0.1);
+    let range = range_max - range_min;
+
+    if range <= 0.0 {
+        return;
+    }
+
+    let bin_width = range / bins as f64;
+
+    // Count samples in each bin
+    let mut counts: Vec<usize> = vec![0; bins];
+    for &sample in samples {
+        let bin = ((sample - range_min) / bin_width) as usize;
+        let bin = bin.min(bins - 1);
+        counts[bin] += 1;
+    }
+
+    let max_count = *counts.iter().max().unwrap_or(&1);
+    let bar_max_width = 50;
+
+    println!(
+        "   {} ({} samples, {} bins):",
+        style("Distribution Histogram").bold(),
+        samples.len(),
+        bins
+    );
+    println!();
+
+    // Find which bins contain LSL and USL
+    let lsl_bin = ((lsl - range_min) / bin_width) as usize;
+    let usl_bin = ((usl - range_min) / bin_width) as usize;
+
+    // Print histogram rows
+    for (i, &count) in counts.iter().enumerate() {
+        let bar_width = (count as f64 / max_count as f64 * bar_max_width as f64) as usize;
+        let bin_center = range_min + (i as f64 + 0.5) * bin_width;
+
+        // Determine if this bin is within spec
+        let in_spec = bin_center >= lsl && bin_center <= usl;
+
+        // Build the bar
+        let bar: String = if in_spec {
+            "█".repeat(bar_width)
+        } else {
+            "░".repeat(bar_width)
+        };
+
+        // Mark LSL/USL bins
+        let marker = if i == lsl_bin && i == usl_bin {
+            " ◄LSL/USL"
+        } else if i == lsl_bin {
+            " ◄LSL"
+        } else if i == usl_bin {
+            " ◄USL"
+        } else {
+            ""
+        };
+
+        // Color the bar
+        let colored_bar = if in_spec {
+            style(bar).green()
+        } else {
+            style(bar).red()
+        };
+
+        println!(
+            "   {:>8.3} │{:<width$}│ {:>5}{}",
+            bin_center,
+            colored_bar,
+            count,
+            style(marker).cyan(),
+            width = bar_max_width
+        );
+    }
+
+    // Print x-axis summary
+    println!("   {:>8} └{}┘", "", "─".repeat(bar_max_width));
+    println!(
+        "   {} LSL={:.3}  USL={:.3}  (█ in-spec, ░ out-of-spec)",
+        style("Legend:").dim(),
+        lsl,
+        usl
+    );
 }
 
 fn run_add(args: AddArgs) -> Result<()> {
@@ -1410,6 +1552,9 @@ fn run_add(args: AddArgs) -> Result<()> {
             id: args.stackup,
             iterations: 10000,
             verbose: false,
+            histogram: false,
+            csv: false,
+            bins: 40,
         })?;
     }
 

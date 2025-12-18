@@ -1,0 +1,791 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Integrations - TDT Tessera Design Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0e14;
+      --bg-secondary: #0d1117;
+      --bg-elevated: #151b23;
+      --bg-card: #1a2029;
+      --accent: #00d4aa;
+      --accent-glow: rgba(0, 212, 170, 0.15);
+      --accent-dim: #00a085;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #4a5568;
+      --border: #21262d;
+      --border-accent: #00d4aa33;
+      --grid-line: rgba(0, 212, 170, 0.04);
+      --code-bg: #0d1117;
+      --success: #3fb950;
+      --warning: #d29922;
+      --info: #58a6ff;
+      --error: #f85149;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .grid-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, var(--accent-glow), transparent);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    code, pre, .mono {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(10, 14, 20, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-icon { width: 40px; height: 40px; flex-shrink: 0; }
+    .logo-icon svg { width: 100%; height: 100%; }
+
+    .logo-text {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: -0.03em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover, .nav-links a.active { color: var(--accent); }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .nav-btn svg { width: 18px; height: 18px; }
+
+    /* Main Content */
+    main {
+      padding-top: 100px;
+      padding-bottom: 80px;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .page-tag {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 16px;
+    }
+
+    .page-title {
+      font-size: clamp(32px, 5vw, 48px);
+      margin-bottom: 16px;
+    }
+
+    .page-desc {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* Section */
+    section {
+      margin-bottom: 80px;
+    }
+
+    .section-title {
+      font-size: 28px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .section-desc {
+      color: var(--text-secondary);
+      font-size: 16px;
+      margin-bottom: 32px;
+      max-width: 800px;
+    }
+
+    /* Code Block */
+    .code-block {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 24px 0;
+    }
+
+    .code-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .code-filename {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    .code-lang {
+      font-size: 11px;
+      padding: 4px 8px;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .code-block pre {
+      padding: 20px;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin: 0;
+    }
+
+    .code-block .comment { color: #6a737d; }
+    .code-block .key { color: #79c0ff; }
+    .code-block .string { color: #a5d6ff; }
+    .code-block .value { color: #7ee787; }
+    .code-block .keyword { color: #ff7b72; }
+
+    /* Terminal */
+    .terminal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 24px 0;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: #ff5f57; }
+    .terminal-dot.yellow { background: #febc2e; }
+    .terminal-dot.green { background: #28c840; }
+
+    .terminal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+
+    .terminal pre {
+      padding: 20px;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin: 0;
+    }
+
+    .terminal .comment { color: var(--text-muted); }
+    .terminal .cmd { color: var(--accent); }
+    .terminal .output { color: var(--text-secondary); }
+    .terminal .success { color: var(--success); }
+    .terminal .warning { color: var(--warning); }
+    .terminal .error { color: var(--error); }
+
+    /* Integration Cards */
+    .integration-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+      margin: 32px 0;
+    }
+
+    .integration-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      transition: all 0.3s;
+    }
+
+    .integration-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+    }
+
+    .integration-card-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--accent-glow);
+      border: 1px solid var(--border-accent);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      font-size: 24px;
+    }
+
+    .integration-card h3 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .integration-card p {
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+
+    /* Benefits List */
+    .benefits-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin: 32px 0;
+    }
+
+    .benefit-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 16px;
+      background: var(--bg-secondary);
+      border-radius: 8px;
+    }
+
+    .benefit-item .icon {
+      color: var(--success);
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .benefit-item span {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 20px;
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--accent); }
+
+    .footer-text {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+
+  <nav>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="14" height="14" rx="2" fill="#00d4aa"/>
+            <rect x="22" y="4" width="14" height="14" rx="2" fill="#00d4aa" opacity="0.6"/>
+            <rect x="4" y="22" width="14" height="14" rx="2" fill="#00d4aa" opacity="0.6"/>
+            <rect x="22" y="22" width="14" height="14" rx="2" fill="#00d4aa" opacity="0.3"/>
+          </svg>
+        </div>
+        <span class="logo-text">TDT</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#install">Install</a>
+        <a href="tolerance.html">Tolerance</a>
+        <a href="reports.html">Reports</a>
+        <a href="integrations.html" class="active">Integrations</a>
+        <a href="tutorial.html">Tutorial</a>
+        <a href="https://github.com/jackhale98/TDT" class="nav-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+      <header class="page-header">
+        <div class="page-tag">// CI/CD & Automation</div>
+        <h1 class="page-title">Integrations</h1>
+        <p class="page-desc">
+          Integrate TDT into your development workflow. GitHub Actions, pre-commit hooks,
+          automated validation, and seamless tool integration.
+        </p>
+      </header>
+
+      <!-- Why Integrate -->
+      <section>
+        <h2 class="section-title">Why Automate?</h2>
+        <p class="section-desc">
+          Plain-text files + Git + CI/CD = automatic quality gates for your engineering data.
+          Catch issues before they become problems.
+        </p>
+
+        <div class="benefits-list">
+          <div class="benefit-item">
+            <span class="icon">✓</span>
+            <span>Validate schemas on every commit</span>
+          </div>
+          <div class="benefit-item">
+            <span class="icon">✓</span>
+            <span>Ensure traceability coverage</span>
+          </div>
+          <div class="benefit-item">
+            <span class="icon">✓</span>
+            <span>Detect broken links automatically</span>
+          </div>
+          <div class="benefit-item">
+            <span class="icon">✓</span>
+            <span>Generate reports on release</span>
+          </div>
+          <div class="benefit-item">
+            <span class="icon">✓</span>
+            <span>Block merges with failing tests</span>
+          </div>
+          <div class="benefit-item">
+            <span class="icon">✓</span>
+            <span>Audit trail with git history</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- GitHub Actions -->
+      <section>
+        <h2 class="section-title">GitHub Actions</h2>
+        <p class="section-desc">
+          Add validation to your CI/CD pipeline. This workflow validates all TDT files,
+          checks traceability, and generates reports on every push.
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-filename">.github/workflows/tdt-validate.yml</span>
+            <span class="code-lang">YAML</span>
+          </div>
+          <pre><span class="key">name:</span> <span class="string">TDT Validation</span>
+
+<span class="key">on:</span>
+  <span class="key">push:</span>
+    <span class="key">branches:</span> [<span class="string">main</span>, <span class="string">develop</span>]
+  <span class="key">pull_request:</span>
+    <span class="key">branches:</span> [<span class="string">main</span>]
+
+<span class="key">jobs:</span>
+  <span class="key">validate:</span>
+    <span class="key">runs-on:</span> <span class="string">ubuntu-latest</span>
+    <span class="key">steps:</span>
+      - <span class="key">uses:</span> <span class="string">actions/checkout@v4</span>
+
+      - <span class="key">name:</span> <span class="string">Install TDT</span>
+        <span class="key">run:</span> |
+          curl -sSL https://tdt.dev/install.sh | sh
+          echo "$HOME/.tdt/bin" >> $GITHUB_PATH
+
+      - <span class="key">name:</span> <span class="string">Validate all entities</span>
+        <span class="key">run:</span> <span class="string">tdt validate --strict</span>
+
+      - <span class="key">name:</span> <span class="string">Check traceability coverage</span>
+        <span class="key">run:</span> |
+          coverage=$(tdt trace matrix --rvm -f json | jq '.coverage')
+          if (( $(echo "$coverage < 80" | bc -l) )); then
+            echo "::error::Traceability coverage below 80%: $coverage%"
+            exit 1
+          fi
+
+      - <span class="key">name:</span> <span class="string">Check for high-risk items</span>
+        <span class="key">run:</span> |
+          high_risk=$(tdt risk list --min-rpn 100 --count)
+          if [ "$high_risk" -gt 0 ]; then
+            echo "::warning::$high_risk unmitigated high-risk items"
+          fi</pre>
+        </div>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-filename">.github/workflows/tdt-reports.yml</span>
+            <span class="code-lang">YAML</span>
+          </div>
+          <pre><span class="key">name:</span> <span class="string">Generate Reports</span>
+
+<span class="key">on:</span>
+  <span class="key">release:</span>
+    <span class="key">types:</span> [<span class="string">published</span>]
+
+<span class="key">jobs:</span>
+  <span class="key">reports:</span>
+    <span class="key">runs-on:</span> <span class="string">ubuntu-latest</span>
+    <span class="key">steps:</span>
+      - <span class="key">uses:</span> <span class="string">actions/checkout@v4</span>
+
+      - <span class="key">name:</span> <span class="string">Generate all reports</span>
+        <span class="key">run:</span> |
+          mkdir -p reports
+          tdt report bom -f md > reports/bom.md
+          tdt report fmea -f md > reports/fmea.md
+          tdt report rvm -f md > reports/rvm.md
+          tdt dsm -o dot > reports/architecture.dot
+
+      - <span class="key">name:</span> <span class="string">Upload artifacts</span>
+        <span class="key">uses:</span> <span class="string">actions/upload-artifact@v4</span>
+        <span class="key">with:</span>
+          <span class="key">name:</span> <span class="string">tdt-reports</span>
+          <span class="key">path:</span> <span class="string">reports/</span></pre>
+        </div>
+      </section>
+
+      <!-- Pre-commit Hooks -->
+      <section>
+        <h2 class="section-title">Pre-commit Hooks</h2>
+        <p class="section-desc">
+          Catch issues before they're committed. These hooks validate TDT files
+          locally, ensuring only valid data enters your repository.
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-filename">.pre-commit-config.yaml</span>
+            <span class="code-lang">YAML</span>
+          </div>
+          <pre><span class="key">repos:</span>
+  - <span class="key">repo:</span> <span class="string">local</span>
+    <span class="key">hooks:</span>
+      - <span class="key">id:</span> <span class="string">tdt-validate</span>
+        <span class="key">name:</span> <span class="string">Validate TDT files</span>
+        <span class="key">entry:</span> <span class="string">tdt validate</span>
+        <span class="key">language:</span> <span class="string">system</span>
+        <span class="key">files:</span> <span class="string">'\.tdt\.yaml$'</span>
+        <span class="key">pass_filenames:</span> <span class="value">false</span>
+
+      - <span class="key">id:</span> <span class="string">tdt-check-links</span>
+        <span class="key">name:</span> <span class="string">Check entity links</span>
+        <span class="key">entry:</span> <span class="string">tdt validate --check-links</span>
+        <span class="key">language:</span> <span class="string">system</span>
+        <span class="key">files:</span> <span class="string">'\.tdt\.yaml$'</span>
+        <span class="key">pass_filenames:</span> <span class="value">false</span></pre>
+        </div>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">Installing pre-commit hooks</span>
+          </div>
+          <pre><span class="comment"># Install pre-commit</span>
+<span class="cmd">$</span> pip install pre-commit
+
+<span class="comment"># Install the hooks</span>
+<span class="cmd">$</span> pre-commit install
+
+<span class="comment"># Now validation runs automatically on commit</span>
+<span class="cmd">$</span> git commit -m "Update motor requirements"
+<span class="output">Validate TDT files....................................................<span class="success">Passed</span>
+Check entity links....................................................<span class="success">Passed</span>
+[main 3a5bc12] Update motor requirements</span></pre>
+        </div>
+      </section>
+
+      <!-- Git Hooks (Manual) -->
+      <section>
+        <h2 class="section-title">Manual Git Hooks</h2>
+        <p class="section-desc">
+          For teams not using pre-commit, you can set up hooks directly in your repository.
+        </p>
+
+        <div class="code-block">
+          <div class="code-header">
+            <span class="code-filename">.git/hooks/pre-commit</span>
+            <span class="code-lang">Bash</span>
+          </div>
+          <pre><span class="comment">#!/bin/bash</span>
+<span class="comment"># TDT validation pre-commit hook</span>
+
+<span class="keyword">echo</span> <span class="string">"Validating TDT files..."</span>
+
+<span class="keyword">if</span> ! tdt validate; <span class="keyword">then</span>
+    <span class="keyword">echo</span> <span class="string">"TDT validation failed. Fix errors before committing."</span>
+    <span class="keyword">exit</span> 1
+<span class="keyword">fi</span>
+
+<span class="comment"># Check for orphaned requirements</span>
+orphans=$(tdt trace orphans --count)
+<span class="keyword">if</span> [ <span class="string">"$orphans"</span> -gt 0 ]; <span class="keyword">then</span>
+    <span class="keyword">echo</span> <span class="string">"Warning: $orphans orphaned requirements found"</span>
+    tdt trace orphans
+<span class="keyword">fi</span>
+
+<span class="keyword">exit</span> 0</pre>
+        </div>
+      </section>
+
+      <!-- External Tools -->
+      <section>
+        <h2 class="section-title">External Tool Integration</h2>
+        <p class="section-desc">
+          TDT's JSON and CSV exports integrate with any tool in your workflow.
+        </p>
+
+        <div class="integration-grid">
+          <div class="integration-card">
+            <div class="integration-card-icon">📊</div>
+            <h3>Excel / Sheets</h3>
+            <p>Export CSV for spreadsheet analysis, cost modeling, or stakeholder review.</p>
+          </div>
+          <div class="integration-card">
+            <div class="integration-card-icon">🐍</div>
+            <h3>Python / Pandas</h3>
+            <p>Load JSON directly into DataFrames for custom analysis and visualization.</p>
+          </div>
+          <div class="integration-card">
+            <div class="integration-card-icon">📈</div>
+            <h3>Graphviz</h3>
+            <p>Generate architecture diagrams from DSM DOT output.</p>
+          </div>
+          <div class="integration-card">
+            <div class="integration-card-icon">🤖</div>
+            <h3>AI Assistants</h3>
+            <p>Plain text works perfectly with Claude, ChatGPT, and Copilot.</p>
+          </div>
+        </div>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">Integration Examples</span>
+          </div>
+          <pre><span class="comment"># Import into Python</span>
+<span class="cmd">$</span> python3 << 'EOF'
+import json
+import subprocess
+
+result = subprocess.run(['tdt', 'risk', 'list', '-f', 'json'], capture_output=True)
+risks = json.loads(result.stdout)
+
+high_risk = [r for r in risks if r.get('rpn', 0) > 100]
+print(f"High-risk items: {len(high_risk)}")
+EOF
+<span class="output">High-risk items: 2</span>
+
+<span class="comment"># Generate architecture diagram</span>
+<span class="cmd">$</span> tdt dsm -o dot | dot -Tsvg -o architecture.svg
+
+<span class="comment"># Query with jq</span>
+<span class="cmd">$</span> tdt cmp list -f json | jq '[.[] | select(.category=="mechanical")] | length'
+<span class="output">12</span>
+
+<span class="comment"># Send to AI assistant</span>
+<span class="cmd">$</span> cat requirements/inputs/*.yaml | claude "Review these requirements for completeness"</pre>
+        </div>
+      </section>
+
+      <!-- Baseline & Compare -->
+      <section>
+        <h2 class="section-title">Design Baselines</h2>
+        <p class="section-desc">
+          Create tagged baselines at design milestones and compare changes between versions.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">Baseline Management</span>
+          </div>
+          <pre><span class="comment"># Create a baseline at design freeze</span>
+<span class="cmd">$</span> tdt baseline create v1.0-design-freeze
+<span class="success">✓ Created baseline: tdt-v1.0-design-freeze</span>
+
+<span class="comment"># Continue development...</span>
+<span class="cmd">$</span> tdt req new --title "Add thermal monitoring"
+<span class="cmd">$</span> tdt risk new --title "Overheating risk"
+
+<span class="comment"># Create another baseline</span>
+<span class="cmd">$</span> tdt baseline create v2.0-release
+<span class="success">✓ Created baseline: tdt-v2.0-release</span>
+
+<span class="comment"># Compare changes between baselines</span>
+<span class="cmd">$</span> tdt baseline compare tdt-v1.0-design-freeze tdt-v2.0-release
+<span class="output">
+Changes between v1.0-design-freeze and v2.0-release:
+──────────────────────────────────────────────────────
+Added:
+  + REQ-01KC5D... "Add thermal monitoring"
+  + RISK-01KC5E... "Overheating risk"
+  + TEST-01KC5F... "Thermal test protocol"
+
+Modified:
+  ~ CMP-01HC2J... "Motor Assembly" (revision 2 → 3)
+
+Deleted:
+  (none)
+
+Summary: +3 added, 1 modified, 0 deleted</span></pre>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="tutorial.html">Tutorial</a>
+        <a href="why-plain-text.html">Philosophy</a>
+        <a href="https://github.com/tessera/tdt">GitHub</a>
+      </div>
+      <p class="footer-text">TDT - Tessera Design Toolkit. Plain-text product development.</p>
+    </div>
+  </footer>
+</body>
+</html>

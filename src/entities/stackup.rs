@@ -581,6 +581,15 @@ impl Stackup {
 
     /// Run Monte Carlo simulation
     pub fn calculate_monte_carlo(&self, iterations: u32) -> MonteCarloResult {
+        let (result, _samples) = self.calculate_monte_carlo_with_samples(iterations);
+        result
+    }
+
+    /// Run Monte Carlo simulation and return both results and raw samples
+    pub fn calculate_monte_carlo_with_samples(
+        &self,
+        iterations: u32,
+    ) -> (MonteCarloResult, Vec<f64>) {
         let mut rng = rand::rng();
         let mut results: Vec<f64> = Vec::with_capacity(iterations as usize);
 
@@ -628,6 +637,9 @@ impl Stackup {
             results.push(result);
         }
 
+        // Keep unsorted copy for CSV export
+        let raw_samples = results.clone();
+
         // Calculate statistics
         results.sort_by(|a, b| a.partial_cmp(b).unwrap());
 
@@ -652,16 +664,19 @@ impl Stackup {
         let percentile_2_5 = results.get(p2_5_idx).copied().unwrap_or(min);
         let percentile_97_5 = results.get(p97_5_idx).copied().unwrap_or(max);
 
-        MonteCarloResult {
-            iterations,
-            mean,
-            std_dev,
-            min,
-            max,
-            yield_percent,
-            percentile_2_5,
-            percentile_97_5,
-        }
+        (
+            MonteCarloResult {
+                iterations,
+                mean,
+                std_dev,
+                min,
+                max,
+                yield_percent,
+                percentile_2_5,
+                percentile_97_5,
+            },
+            raw_samples,
+        )
     }
 
     /// Get number of contributors

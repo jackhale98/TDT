@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports - TDT Tessera Design Toolkit</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-primary: #0a0e14;
+      --bg-secondary: #0d1117;
+      --bg-elevated: #151b23;
+      --bg-card: #1a2029;
+      --accent: #00d4aa;
+      --accent-glow: rgba(0, 212, 170, 0.15);
+      --accent-dim: #00a085;
+      --text-primary: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #4a5568;
+      --border: #21262d;
+      --border-accent: #00d4aa33;
+      --grid-line: rgba(0, 212, 170, 0.04);
+      --code-bg: #0d1117;
+      --success: #3fb950;
+      --warning: #d29922;
+      --info: #58a6ff;
+      --error: #f85149;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.7;
+      overflow-x: hidden;
+    }
+
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--grid-line) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .grid-bg::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, var(--accent-glow), transparent);
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    code, pre, .mono {
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0 24px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Navigation */
+    nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      background: rgba(10, 14, 20, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+
+    nav .nav-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 64px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--text-primary);
+    }
+
+    .logo-icon { width: 40px; height: 40px; flex-shrink: 0; }
+    .logo-icon svg { width: 100%; height: 100%; }
+
+    .logo-text {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      font-size: 20px;
+      letter-spacing: -0.03em;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .nav-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.2s;
+    }
+
+    .nav-links a:hover, .nav-links a.active { color: var(--accent); }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-glow);
+      color: var(--accent);
+    }
+
+    .nav-btn svg { width: 18px; height: 18px; }
+
+    /* Main Content */
+    main {
+      padding-top: 100px;
+      padding-bottom: 80px;
+    }
+
+    .page-header {
+      text-align: center;
+      margin-bottom: 64px;
+    }
+
+    .page-tag {
+      display: inline-block;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 16px;
+    }
+
+    .page-title {
+      font-size: clamp(32px, 5vw, 48px);
+      margin-bottom: 16px;
+    }
+
+    .page-desc {
+      font-size: 18px;
+      color: var(--text-secondary);
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    /* Section */
+    section {
+      margin-bottom: 80px;
+    }
+
+    .section-title {
+      font-size: 28px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-title::before {
+      content: '';
+      width: 4px;
+      height: 28px;
+      background: var(--accent);
+      border-radius: 2px;
+    }
+
+    .section-desc {
+      color: var(--text-secondary);
+      font-size: 16px;
+      margin-bottom: 32px;
+      max-width: 800px;
+    }
+
+    /* Terminal */
+    .terminal {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      margin: 24px 0;
+    }
+
+    .terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 16px;
+      background: var(--bg-elevated);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .terminal-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+    }
+
+    .terminal-dot.red { background: #ff5f57; }
+    .terminal-dot.yellow { background: #febc2e; }
+    .terminal-dot.green { background: #28c840; }
+
+    .terminal-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-left: 8px;
+    }
+
+    .terminal pre {
+      padding: 20px;
+      font-size: 13px;
+      line-height: 1.6;
+      overflow-x: auto;
+      margin: 0;
+    }
+
+    .terminal .comment { color: var(--text-muted); }
+    .terminal .cmd { color: var(--accent); }
+    .terminal .output { color: var(--text-secondary); }
+    .terminal .success { color: var(--success); }
+    .terminal .warning { color: var(--warning); }
+    .terminal .error { color: var(--error); }
+    .terminal .key { color: var(--warning); }
+    .terminal .value { color: var(--info); }
+    .terminal .header { color: var(--text-muted); border-bottom: 1px solid var(--border); }
+
+    /* Report Cards */
+    .report-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 24px;
+      margin: 32px 0;
+    }
+
+    .report-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      transition: all 0.3s;
+    }
+
+    .report-card:hover {
+      border-color: var(--accent);
+      transform: translateY(-4px);
+    }
+
+    .report-card-header {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+
+    .report-icon {
+      width: 48px;
+      height: 48px;
+      background: var(--accent-glow);
+      border: 1px solid var(--border-accent);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 20px;
+      flex-shrink: 0;
+    }
+
+    .report-card h3 {
+      font-size: 18px;
+      margin-bottom: 4px;
+    }
+
+    .report-card .cmd-hint {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .report-card p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+
+    .report-features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .report-feature {
+      font-size: 12px;
+      padding: 4px 10px;
+      background: var(--bg-secondary);
+      border-radius: 4px;
+      color: var(--text-muted);
+    }
+
+    /* DSM Matrix Demo */
+    .dsm-demo {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      margin: 32px 0;
+      overflow-x: auto;
+    }
+
+    .dsm-matrix {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      border-collapse: collapse;
+      min-width: 100%;
+    }
+
+    .dsm-matrix th,
+    .dsm-matrix td {
+      padding: 8px 12px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+
+    .dsm-matrix th {
+      background: var(--bg-elevated);
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .dsm-matrix .row-header {
+      text-align: left;
+      background: var(--bg-elevated);
+      font-weight: 600;
+    }
+
+    .dsm-matrix .diagonal {
+      background: var(--bg-secondary);
+    }
+
+    .dsm-matrix .has-relation {
+      background: var(--accent-glow);
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    .dsm-legend {
+      margin-top: 16px;
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      font-size: 13px;
+    }
+
+    .dsm-legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--text-secondary);
+    }
+
+    .dsm-legend-item .symbol {
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border-radius: 4px;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+    }
+
+    /* Output Formats */
+    .format-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin: 24px 0;
+    }
+
+    .format-item {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      text-align: center;
+    }
+
+    .format-item code {
+      color: var(--accent);
+      font-size: 14px;
+    }
+
+    .format-item p {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    /* Footer */
+    footer {
+      padding: 40px 0;
+      border-top: 1px solid var(--border);
+      text-align: center;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 32px;
+      margin-bottom: 20px;
+    }
+
+    .footer-links a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 14px;
+      transition: color 0.2s;
+    }
+
+    .footer-links a:hover { color: var(--accent); }
+
+    .footer-text {
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 768px) {
+      .nav-links { display: none; }
+      .format-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+
+  <nav>
+    <div class="nav-container">
+      <a href="index.html" class="logo">
+        <div class="logo-icon">
+          <svg viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="4" y="4" width="14" height="14" rx="2" fill="#00d4aa"/>
+            <rect x="22" y="4" width="14" height="14" rx="2" fill="#00d4aa" opacity="0.6"/>
+            <rect x="4" y="22" width="14" height="14" rx="2" fill="#00d4aa" opacity="0.6"/>
+            <rect x="22" y="22" width="14" height="14" rx="2" fill="#00d4aa" opacity="0.3"/>
+          </svg>
+        </div>
+        <span class="logo-text">TDT</span>
+      </a>
+      <div class="nav-links">
+        <a href="index.html#features">Features</a>
+        <a href="index.html#install">Install</a>
+        <a href="tolerance.html">Tolerance</a>
+        <a href="reports.html" class="active">Reports</a>
+        <a href="integrations.html">Integrations</a>
+        <a href="tutorial.html">Tutorial</a>
+        <a href="https://github.com/jackhale98/TDT" class="nav-btn">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+          GitHub
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <main>
+    <div class="container">
+      <header class="page-header">
+        <div class="page-tag">// Reports & Visualization</div>
+        <h1 class="page-title">Engineering Reports</h1>
+        <p class="page-desc">
+          Generate comprehensive reports from your project data. FMEA risk analysis,
+          BOMs with rollup costs, traceability matrices, DSM dependency analysis, and more.
+        </p>
+      </header>
+
+      <!-- Report Types Overview -->
+      <section>
+        <h2 class="section-title">Available Reports</h2>
+        <p class="section-desc">
+          TDT generates professional reports directly from your plain-text data.
+          All reports support multiple output formats.
+        </p>
+
+        <div class="report-grid">
+          <div class="report-card">
+            <div class="report-card-header">
+              <div class="report-icon">!</div>
+              <div>
+                <h3>FMEA Report</h3>
+                <span class="cmd-hint">tdt report fmea</span>
+              </div>
+            </div>
+            <p>Failure Mode and Effects Analysis with RPN scoring, severity rankings, and mitigation tracking.</p>
+            <div class="report-features">
+              <span class="report-feature">RPN Calculation</span>
+              <span class="report-feature">Risk Priority</span>
+              <span class="report-feature">Mitigations</span>
+            </div>
+          </div>
+
+          <div class="report-card">
+            <div class="report-card-header">
+              <div class="report-icon">$</div>
+              <div>
+                <h3>BOM Report</h3>
+                <span class="cmd-hint">tdt report bom</span>
+              </div>
+            </div>
+            <p>Bill of Materials with hierarchical assembly structure and cost rollup from supplier quotes.</p>
+            <div class="report-features">
+              <span class="report-feature">Cost Rollup</span>
+              <span class="report-feature">Hierarchy</span>
+              <span class="report-feature">Suppliers</span>
+            </div>
+          </div>
+
+          <div class="report-card">
+            <div class="report-card-header">
+              <div class="report-icon">R</div>
+              <div>
+                <h3>Requirements Verification</h3>
+                <span class="cmd-hint">tdt report rvm</span>
+              </div>
+            </div>
+            <p>Requirements Verification Matrix showing test coverage and verification status.</p>
+            <div class="report-features">
+              <span class="report-feature">Coverage %</span>
+              <span class="report-feature">Pass/Fail</span>
+              <span class="report-feature">Gaps</span>
+            </div>
+          </div>
+
+          <div class="report-card">
+            <div class="report-card-header">
+              <div class="report-icon">T</div>
+              <div>
+                <h3>Test Status</h3>
+                <span class="cmd-hint">tdt report test-status</span>
+              </div>
+            </div>
+            <p>Test execution summary with pass/fail rates and recent failures list.</p>
+            <div class="report-features">
+              <span class="report-feature">Pass Rate</span>
+              <span class="report-feature">Recent Failures</span>
+              <span class="report-feature">By Category</span>
+            </div>
+          </div>
+
+          <div class="report-card">
+            <div class="report-card-header">
+              <div class="report-icon">O</div>
+              <div>
+                <h3>Open Issues</h3>
+                <span class="cmd-hint">tdt report open-issues</span>
+              </div>
+            </div>
+            <p>Dashboard of open NCRs, CAPAs, and failed tests requiring attention.</p>
+            <div class="report-features">
+              <span class="report-feature">NCRs</span>
+              <span class="report-feature">CAPAs</span>
+              <span class="report-feature">Failed Tests</span>
+            </div>
+          </div>
+
+          <div class="report-card">
+            <div class="report-card-header">
+              <div class="report-icon">D</div>
+              <div>
+                <h3>Tolerance Report</h3>
+                <span class="cmd-hint">tdt report tolerance</span>
+              </div>
+            </div>
+            <p>Summary of all tolerance stackups with Cpk, yield, and pass/fail results.</p>
+            <div class="report-features">
+              <span class="report-feature">Cpk Values</span>
+              <span class="report-feature">Yield %</span>
+              <span class="report-feature">Critical Dims</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DSM Section -->
+      <section>
+        <h2 class="section-title">Design Structure Matrix (DSM)</h2>
+        <p class="section-desc">
+          Visualize component dependencies and interactions. The DSM reveals architecture,
+          identifies coupling issues, and helps optimize modularity.
+        </p>
+
+        <div class="dsm-demo">
+          <h4 style="margin-bottom: 16px;">Component Dependency Matrix</h4>
+          <table class="dsm-matrix">
+            <thead>
+              <tr>
+                <th></th>
+                <th>CMP@1</th>
+                <th>CMP@2</th>
+                <th>CMP@3</th>
+                <th>CMP@4</th>
+                <th>CMP@5</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="row-header">CMP@1 Housing</td>
+                <td class="diagonal">-</td>
+                <td class="has-relation">M,T</td>
+                <td class="has-relation">M</td>
+                <td></td>
+                <td class="has-relation">P</td>
+              </tr>
+              <tr>
+                <td class="row-header">CMP@2 Shaft</td>
+                <td class="has-relation">M,T</td>
+                <td class="diagonal">-</td>
+                <td class="has-relation">M</td>
+                <td class="has-relation">M</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td class="row-header">CMP@3 Bearing</td>
+                <td class="has-relation">M</td>
+                <td class="has-relation">M</td>
+                <td class="diagonal">-</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td class="row-header">CMP@4 Seal</td>
+                <td></td>
+                <td class="has-relation">M</td>
+                <td></td>
+                <td class="diagonal">-</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td class="row-header">CMP@5 Cover</td>
+                <td class="has-relation">P</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td class="diagonal">-</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="dsm-legend">
+            <div class="dsm-legend-item"><span class="symbol">M</span> Mate (physical interface)</div>
+            <div class="dsm-legend-item"><span class="symbol">T</span> Tolerance chain</div>
+            <div class="dsm-legend-item"><span class="symbol">P</span> Shared process</div>
+            <div class="dsm-legend-item"><span class="symbol">R</span> Common requirement</div>
+          </div>
+        </div>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">DSM Commands</span>
+          </div>
+          <pre><span class="comment"># Generate DSM for entire project</span>
+<span class="cmd">$</span> tdt dsm
+
+<span class="comment"># DSM for specific assembly only</span>
+<span class="cmd">$</span> tdt dsm ASM@1
+
+<span class="comment"># Show only mate relationships</span>
+<span class="cmd">$</span> tdt dsm --rel-type mate
+
+<span class="comment"># Export to Graphviz DOT format</span>
+<span class="cmd">$</span> tdt dsm --output dot > architecture.dot
+<span class="cmd">$</span> dot -Tpng architecture.dot -o architecture.png
+
+<span class="comment"># Show coupling metrics</span>
+<span class="cmd">$</span> tdt dsm --metrics
+<span class="output">Coupling Metrics:
+  CMP@1 Housing:  Fan-in: 2  Fan-out: 3  Coupling: 0.62
+  CMP@2 Shaft:    Fan-in: 3  Fan-out: 3  Coupling: 0.75
+  ...</span>
+
+<span class="comment"># Detect dependency cycles</span>
+<span class="cmd">$</span> tdt dsm --cycles
+<span class="warning">⚠ Found 1 cycle: CMP@1 → CMP@2 → CMP@3 → CMP@1</span></pre>
+        </div>
+      </section>
+
+      <!-- FMEA Example -->
+      <section>
+        <h2 class="section-title">FMEA Report Example</h2>
+        <p class="section-desc">
+          The FMEA report aggregates all risks with RPN (Risk Priority Number) scoring
+          and tracks mitigation status.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">tdt report fmea</span>
+          </div>
+          <pre><span class="output"><span class="header">ID       Failure Mode                    S   O   D   RPN   Mitigations</span>
+──────────────────────────────────────────────────────────────────────────
+RISK@1   Motor overheating               <span class="error">8</span>   4   3   <span class="error">96</span>    2 (1 verified)
+RISK@2   Bearing seizure                 <span class="error">9</span>   3   4   <span class="warning">108</span>   3 (2 verified)
+RISK@3   Seal degradation                6   5   3   <span class="warning">90</span>    1 (0 verified)
+RISK@4   Controller firmware bug         7   2   2   28    1 (1 verified)
+RISK@5   Power supply failure            <span class="error">8</span>   2   3   48    2 (2 verified)
+──────────────────────────────────────────────────────────────────────────
+Summary: 5 risks | Avg RPN: 74 | High Risk (>100): 1 | Unmitigated: 0
+
+<span class="key">Risk Priority:</span>
+  <span class="error">■</span> Critical (RPN > 100): RISK@2
+  <span class="warning">■</span> High (RPN 50-100): RISK@1, RISK@3
+  <span class="success">■</span> Medium (RPN < 50): RISK@4, RISK@5</span></pre>
+        </div>
+      </section>
+
+      <!-- RVM Example -->
+      <section>
+        <h2 class="section-title">Requirements Verification Matrix</h2>
+        <p class="section-desc">
+          Track verification status of every requirement. Essential for regulatory
+          submissions and design reviews.
+        </p>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">tdt report rvm</span>
+          </div>
+          <pre><span class="output"><span class="header">Requirement              Type     Tests   Pass  Fail  Status</span>
+──────────────────────────────────────────────────────────────────
+REQ@1  Motor Torque       Input    3       3     0     <span class="success">VERIFIED</span>
+REQ@2  Operating Temp     Input    2       2     0     <span class="success">VERIFIED</span>
+REQ@3  Weight Limit       Input    1       1     0     <span class="success">VERIFIED</span>
+REQ@4  EMC Compliance     Output   2       1     1     <span class="warning">PARTIAL</span>
+REQ@5  Safety Interlock   Output   0       -     -     <span class="error">NOT TESTED</span>
+REQ@6  User Interface     Output   4       4     0     <span class="success">VERIFIED</span>
+──────────────────────────────────────────────────────────────────
+
+<span class="key">Coverage Summary:</span>
+  Total Requirements: 6
+  Verified: 4 (<span class="success">67%</span>)
+  Partial: 1 (<span class="warning">17%</span>)
+  Not Tested: 1 (<span class="error">17%</span>)</span></pre>
+        </div>
+      </section>
+
+      <!-- Output Formats -->
+      <section>
+        <h2 class="section-title">Output Formats</h2>
+        <p class="section-desc">
+          All reports support multiple output formats for integration with other tools
+          and documentation systems.
+        </p>
+
+        <div class="format-grid">
+          <div class="format-item">
+            <code>-f table</code>
+            <p>Terminal tables (default)</p>
+          </div>
+          <div class="format-item">
+            <code>-f md</code>
+            <p>Markdown for docs</p>
+          </div>
+          <div class="format-item">
+            <code>-f csv</code>
+            <p>CSV for Excel/analysis</p>
+          </div>
+          <div class="format-item">
+            <code>-f json</code>
+            <p>JSON for automation</p>
+          </div>
+        </div>
+
+        <div class="terminal">
+          <div class="terminal-header">
+            <div class="terminal-dot red"></div>
+            <div class="terminal-dot yellow"></div>
+            <div class="terminal-dot green"></div>
+            <span class="terminal-title">Export Examples</span>
+          </div>
+          <pre><span class="comment"># Export BOM to CSV for Excel</span>
+<span class="cmd">$</span> tdt report bom -f csv > bom_export.csv
+
+<span class="comment"># Generate markdown for documentation</span>
+<span class="cmd">$</span> tdt report fmea -f md > docs/fmea_report.md
+
+<span class="comment"># JSON for CI/CD pipeline</span>
+<span class="cmd">$</span> tdt report test-status -f json | jq '.pass_rate'
+<span class="output">0.94</span>
+
+<span class="comment"># Graphviz for architecture diagrams</span>
+<span class="cmd">$</span> tdt dsm -o dot | dot -Tsvg > architecture.svg</pre>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="tutorial.html">Tutorial</a>
+        <a href="why-plain-text.html">Philosophy</a>
+        <a href="https://github.com/tessera/tdt">GitHub</a>
+      </div>
+      <p class="footer-text">TDT - Tessera Design Toolkit. Plain-text product development.</p>
+    </div>
+  </footer>
+</body>
+</html>

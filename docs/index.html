@@ -1230,10 +1230,11 @@
         <a href="#features">Features</a>
         <a href="#workflows">Workflows</a>
         <a href="#entities">Entities</a>
-        <a href="#power-user">Power User</a>
         <a href="#install">Install</a>
+        <a href="tolerance.html">Tolerance</a>
+        <a href="reports.html">Reports</a>
+        <a href="integrations.html">Integrations</a>
         <a href="tutorial.html">Tutorial</a>
-        <a href="why-plain-text.html">Why Plain Text?</a>
         <a href="https://github.com/jackhale98/TDT" class="nav-btn">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
           GitHub
@@ -1255,10 +1256,11 @@
     <a href="#features" onclick="closeMobileMenu()">Features</a>
     <a href="#workflows" onclick="closeMobileMenu()">Workflows</a>
     <a href="#entities" onclick="closeMobileMenu()">Entities</a>
-    <a href="#power-user" onclick="closeMobileMenu()">Power User</a>
     <a href="#install" onclick="closeMobileMenu()">Install</a>
+    <a href="tolerance.html" onclick="closeMobileMenu()">Tolerance</a>
+    <a href="reports.html" onclick="closeMobileMenu()">Reports</a>
+    <a href="integrations.html" onclick="closeMobileMenu()">Integrations</a>
     <a href="tutorial.html" onclick="closeMobileMenu()">Tutorial</a>
-    <a href="why-plain-text.html" onclick="closeMobileMenu()">Why Plain Text?</a>
     <a href="https://github.com/jackhale98/TDT" onclick="closeMobileMenu()">GitHub</a>
   </div>
 
@@ -2003,7 +2005,7 @@ Project Health: <span class="status-approved">Healthy</span></div>
 
           <div class="terminal-line">
             <span class="terminal-prompt">❯</span>
-            <span class="terminal-cmd">tdt trace coverage</span>
+            <span class="terminal-cmd">tdt trace matrix --rvm</span>
           </div>
           <div class="terminal-output"><span class="header">Verification Coverage Report</span>
 ════════════════════════════════════════════════════════════
@@ -2041,6 +2043,90 @@ Created baseline: <span class="highlight">tdt-v1.0</span></div>
             <span class="terminal-prompt">❯</span>
             <span class="terminal-cmd" style="animation: blink 1s step-end infinite;">_</span>
           </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Performance Stats -->
+
+  <section id="performance" class="features">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-tag">// Performance</div>
+        <h2 class="section-title">Built for Speed</h2>
+        <p class="section-desc">Native Rust performance with SQLite caching means TDT handles large projects effortlessly.</p>
+      </div>
+
+      <div class="features-grid">
+        <div class="feature-card" style="text-align: center;">
+          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">50,000</div>
+          <h3>Entities Tested</h3>
+          <p>Enterprise-scale benchmarks with 50K requirements in a single project.</p>
+        </div>
+
+        <div class="feature-card" style="text-align: center;">
+          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">1.0s</div>
+          <h3>List 50K Entities</h3>
+          <p>Query, filter, and display 50,000 requirements in about one second.</p>
+        </div>
+
+        <div class="feature-card" style="text-align: center;">
+          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">17K/s</div>
+          <h3>Validation Rate</h3>
+          <p>Schema validation at ~17,000 entities per second at enterprise scale.</p>
+        </div>
+      </div>
+
+      <div style="margin-top: 48px; text-align: center;">
+        <div class="code-block" style="max-width: 800px; margin: 0 auto; text-align: left;">
+          <div class="code-header">
+            <span class="code-title">Enterprise Benchmark (50,000 entities)</span>
+          </div>
+          <pre><span style="color: var(--text-muted)"># List all 50,000 requirements</span>
+<span style="color: var(--accent)">$</span> tdt req list
+<span style="color: var(--text-muted)">1.0s</span>
+
+<span style="color: var(--text-muted)"># Filter by priority</span>
+<span style="color: var(--accent)">$</span> tdt req list --priority critical
+<span style="color: var(--text-muted)">1.0s</span>
+
+<span style="color: var(--text-muted)"># Project status</span>
+<span style="color: var(--accent)">$</span> tdt status
+<span style="color: var(--text-muted)">1.4s</span>
+
+<span style="color: var(--accent)">$</span> tdt validate
+<span style="color: var(--text-muted)">2.9s (17,241 entities/s)</span>
+
+<span style="color: var(--text-muted)"># Export to JSON</span>
+<span style="color: var(--accent)">$</span> tdt req list --format json
+<span style="color: var(--text-muted)">2.1s</span></pre>
+        </div>
+      </div>
+
+      <div class="features-grid" style="margin-top: 48px;">
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          </div>
+          <h3>Native Rust</h3>
+          <p>Zero-cost abstractions, no garbage collection, no runtime overhead. Direct syscalls for maximum efficiency.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+          </div>
+          <h3>SQLite Cache</h3>
+          <p>Automatic caching of parsed YAML into SQLite for lightning-fast queries. Invalidates on file changes.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>Type Safety</h3>
+          <p>Compile-time guarantees prevent runtime errors. Strong typing throughout the codebase.</p>
         </div>
       </div>
     </div>
