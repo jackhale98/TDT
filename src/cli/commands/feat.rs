@@ -12,10 +12,10 @@ use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::entity::Entity;
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::CachedFeature;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::feature::{Feature, FeatureType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
@@ -34,6 +34,12 @@ pub enum FeatCommands {
 
     /// Edit a feature in your editor
     Edit(EditArgs),
+
+    /// Delete a feature
+    Delete(DeleteArgs),
+
+    /// Archive a feature (soft delete)
+    Archive(ArchiveArgs),
 }
 
 /// Feature type filter for list command
@@ -204,6 +210,37 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Feature ID or short ID (FEAT@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Feature ID or short ID (FEAT@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where features are stored
+const FEATURE_DIRS: &[&str] = &["tolerances/features"];
+
 /// Run a feature subcommand
 pub fn run(cmd: FeatCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -211,6 +248,8 @@ pub fn run(cmd: FeatCommands, global: &GlobalOpts) -> Result<()> {
         FeatCommands::New(args) => run_new(args, global),
         FeatCommands::Show(args) => run_show(args, global),
         FeatCommands::Edit(args) => run_edit(args),
+        FeatCommands::Delete(args) => run_delete(args),
+        FeatCommands::Archive(args) => run_archive(args),
     }
 }
 
@@ -939,11 +978,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -953,7 +988,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -1190,4 +1228,12 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, FEATURE_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, FEATURE_DIRS, args.force, true, args.quiet)
 }

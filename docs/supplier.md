@@ -247,6 +247,19 @@ tdt sup edit SUP-01HC2
 tdt sup edit SUP@1
 ```
 
+### Delete or archive a supplier
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt sup delete SUP@1
+
+# Force delete even if referenced
+tdt sup delete SUP@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt sup archive SUP@1
+```
+
 ## Currency Support
 
 | Code | Currency |

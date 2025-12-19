@@ -1675,6 +1675,60 @@
           </div>
         </div>
 
+        <!-- Process Flow -->
+        <div class="viz-item">
+          <div class="viz-header">
+            <h3>Process Flow Diagram</h3>
+            <code class="viz-cmd">tdt proc flow --controls</code>
+          </div>
+          <div class="viz-terminal">
+            <pre><span style="color: var(--accent); font-weight: bold">Process Flow</span>
+<span style="color: var(--text-muted)">────────────────────────────────────────────────</span>
+
+[<span style="color: var(--info); font-weight: bold">OP-010</span>] <span style="color: var(--text-primary); font-weight: bold">Material Prep</span> <span style="color: var(--text-muted)">(PROC@1)</span>
+  <span style="color: var(--text-muted)">│</span> <span style="color: var(--text-muted)">Type: machining | Cycle: 5 min | Setup: 15 min</span>
+  <span style="color: var(--text-muted)">│</span> Equipment: CNC Mill
+  <span style="color: var(--text-muted)">│</span> Controls: <span style="color: var(--warning)">CTRL@1</span> "Tool Calibration"
+  <span style="color: var(--info)">▼</span>
+[<span style="color: var(--info); font-weight: bold">OP-020</span>] <span style="color: var(--text-primary); font-weight: bold">Rough Machining</span> <span style="color: var(--text-muted)">(PROC@2)</span>
+  <span style="color: var(--text-muted)">│</span> <span style="color: var(--text-muted)">Type: machining | Cycle: 30 min</span>
+  <span style="color: var(--text-muted)">│</span> Equipment: 5-Axis CNC
+  <span style="color: var(--text-muted)">│</span> Controls: <span style="color: var(--warning)">CTRL@2</span> "Dimensional Check"
+  <span style="color: var(--info)">▼</span>
+[<span style="color: var(--info); font-weight: bold">OP-030</span>] <span style="color: var(--text-primary); font-weight: bold">Finish Machining</span> <span style="color: var(--text-muted)">(PROC@3)</span>
+  <span style="color: var(--text-muted)">│</span> <span style="color: var(--text-muted)">Type: machining | Cycle: 20 min</span>
+  <span style="color: var(--text-muted)">│</span> Equipment: 5-Axis CNC
+  <span style="color: var(--info)">▼</span>
+[<span style="color: var(--info); font-weight: bold">OP-040</span>] <span style="color: var(--text-primary); font-weight: bold">Final Inspection</span> <span style="color: var(--text-muted)">(PROC@4)</span>
+  <span style="color: var(--text-muted)">│</span> <span style="color: var(--text-muted)">Type: inspection | Cycle: 10 min</span>
+  <span style="color: var(--text-muted)">│</span> Equipment: CMM
+
+<span style="color: var(--info)">4</span> processes in flow</pre>
+          </div>
+        </div>
+
+        <!-- BOM Cost Rollup -->
+        <div class="viz-item">
+          <div class="viz-header">
+            <h3>BOM Cost Rollup</h3>
+            <code class="viz-cmd">tdt asm bom ASM@1 --cost</code>
+          </div>
+          <div class="viz-terminal">
+            <pre><span style="color: var(--text-primary); font-weight: bold">Assembly BOM: Linear Actuator</span> <span style="color: var(--text-muted)">(ASM@1)</span>
+
+<span style="color: var(--text-muted)">ID        COMPONENT              QTY    UNIT $    TOTAL</span>
+<span style="color: var(--text-muted)">────────────────────────────────────────────────────────</span>
+<span style="color: var(--info)">CMP@1</span>     Housing                  1    <span style="color: var(--text-secondary)">$45.00</span>    <span style="color: var(--text-primary)">$45.00</span>
+<span style="color: var(--info)">CMP@2</span>     Lead Screw               1    <span style="color: var(--text-secondary)">$32.50</span>    <span style="color: var(--text-primary)">$32.50</span>
+<span style="color: var(--info)">CMP@3</span>     Nut Assembly             1    <span style="color: var(--text-secondary)">$18.75</span>    <span style="color: var(--text-primary)">$18.75</span>
+<span style="color: var(--info)">CMP@4</span>     Bearing (deep groove)    2     <span style="color: var(--text-secondary)">$8.25</span>    <span style="color: var(--text-primary)">$16.50</span>
+<span style="color: var(--info)">CMP@5</span>     End Cap                  2     <span style="color: var(--text-secondary)">$6.00</span>    <span style="color: var(--text-primary)">$12.00</span>
+<span style="color: var(--info)">CMP@6</span>     Fasteners (M4x12)        8     <span style="color: var(--text-secondary)">$0.15</span>     <span style="color: var(--text-primary)">$1.20</span>
+<span style="color: var(--text-muted)">────────────────────────────────────────────────────────</span>
+          <span style="color: var(--text-primary); font-weight: bold">TOTAL (15 items)</span>           <span style="color: var(--success); font-weight: bold">$125.95</span></pre>
+          </div>
+        </div>
+
         <!-- Requirements Verification Matrix -->
         <div class="viz-item viz-wide">
           <div class="viz-header">

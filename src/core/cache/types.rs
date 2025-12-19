@@ -375,3 +375,13 @@ pub struct EntityFilter {
     pub entity_type: Option<String>,
     pub category: Option<String>,
 }
+
+/// Search result from the cache (unified across entity types)
+#[derive(Debug, Clone)]
+pub struct SearchResult {
+    pub id: String,
+    pub entity_type: String,
+    pub title: String,
+    pub status: String,
+    pub author: String,
+}

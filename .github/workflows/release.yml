@@ -32,6 +32,13 @@ jobs:
             archive: tdt-linux-musl-x64.tar.gz
             musl: true
 
+          # Linux i686 (musl/iSH on iOS)
+          - target: i686-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: tdt
+            archive: tdt-linux-musl-i686.tar.gz
+            cross: true
+
           # Linux ARM64
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest

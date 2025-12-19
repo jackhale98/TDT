@@ -234,6 +234,19 @@ tdt mate edit MATE-01HC2
 tdt mate edit MATE@1
 ```
 
+### Delete or archive a mate
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt mate delete MATE@1
+
+# Force delete even if referenced
+tdt mate delete MATE@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt mate archive MATE@1
+```
+
 ## Fit Types
 
 ### Clearance Fit

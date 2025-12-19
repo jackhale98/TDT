@@ -6,13 +6,13 @@ use std::path::PathBuf;
 use crate::cli::commands::{
     asm::AsmCommands, baseline::BaselineCommands, blame::BlameArgs, bulk::BulkCommands,
     cache::CacheCommands, capa::CapaCommands, cmp::CmpCommands, completions::CompletionsArgs,
-    ctrl::CtrlCommands, diff::DiffArgs, dmm::DmmArgs, dsm::DsmArgs, feat::FeatCommands,
-    history::HistoryArgs, import::ImportArgs, init::InitArgs, link::LinkCommands,
-    mate::MateCommands, ncr::NcrCommands, proc::ProcCommands, quote::QuoteCommands,
-    report::ReportCommands, req::ReqCommands, risk::RiskCommands, rslt::RsltCommands,
-    schema::SchemaCommands, status::StatusArgs, sup::SupCommands, test::TestCommands,
-    tol::TolCommands, trace::TraceCommands, validate::ValidateArgs, where_used::WhereUsedArgs,
-    work::WorkCommands,
+    config::ConfigCommands, ctrl::CtrlCommands, diff::DiffArgs, dmm::DmmArgs, dsm::DsmArgs,
+    feat::FeatCommands, history::HistoryArgs, import::ImportArgs, init::InitArgs,
+    link::LinkCommands, mate::MateCommands, ncr::NcrCommands, proc::ProcCommands,
+    quote::QuoteCommands, report::ReportCommands, req::ReqCommands, risk::RiskCommands,
+    rslt::RsltCommands, schema::SchemaCommands, search::SearchArgs, status::StatusArgs,
+    sup::SupCommands, test::TestCommands, tol::TolCommands, trace::TraceCommands,
+    validate::ValidateArgs, where_used::WhereUsedArgs, work::WorkCommands,
 };
 
 /// Custom help template with grouped commands
@@ -74,6 +74,8 @@ UTILITIES:
   import      Import entities from CSV files
   bulk        Bulk operations on multiple entities
   cache       Entity cache management (rebuild, sync, status, query)
+  config      View and modify TDT configuration (show, set, unset)
+  search      Search across all entity types
   schema      View entity schemas (list, show) - for AI agent ergonomics
   completions Generate shell completion scripts (bash, zsh, fish, powershell)
   help        Print this message or the help of the given subcommand(s)
@@ -273,6 +275,13 @@ pub enum Commands {
     /// Entity cache management (rebuild, sync, status, query)
     #[command(subcommand)]
     Cache(CacheCommands),
+
+    /// View and modify TDT configuration (show, set, unset)
+    #[command(subcommand)]
+    Config(ConfigCommands),
+
+    /// Search across all entity types
+    Search(SearchArgs),
 
     /// View entity schemas (list, show) - for AI agent ergonomics
     #[command(subcommand)]

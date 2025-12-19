@@ -170,6 +170,24 @@ tdt req show REQ-01HC2 --with-links
 tdt req edit REQ-01HC2
 ```
 
+### Delete or archive a requirement
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt req delete REQ@1
+
+# Force delete even if other entities reference it
+tdt req delete REQ@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt req archive REQ@1
+
+# Archive with force (skip link check)
+tdt req archive REQ@1 --force
+```
+
+> **Note:** Delete and archive commands check for incoming links by default. If another entity references the requirement you're trying to delete, the command will fail unless you use `--force`. Archived entities preserve their directory structure within `.tdt/archive/`.
+
 ## Validation
 
 Requirements are validated against a JSON Schema. Run validation with:

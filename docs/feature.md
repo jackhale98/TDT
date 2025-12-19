@@ -244,6 +244,19 @@ tdt feat edit FEAT-01HC2
 tdt feat edit FEAT@1
 ```
 
+### Delete or archive a feature
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt feat delete FEAT@1
+
+# Force delete even if referenced
+tdt feat delete FEAT@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt feat archive FEAT@1
+```
+
 ## Feature Types
 
 Features are classified by their material behavior for tolerance analysis:

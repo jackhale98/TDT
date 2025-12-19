@@ -287,6 +287,19 @@ tdt work edit WORK-01KC5
 tdt work edit WORK@1
 ```
 
+### Delete or archive a work instruction
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt work delete WORK@1
+
+# Force delete even if referenced
+tdt work delete WORK@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt work archive WORK@1
+```
+
 ## Best Practices
 
 ### Writing Effective Work Instructions

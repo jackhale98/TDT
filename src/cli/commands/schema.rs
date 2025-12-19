@@ -116,7 +116,10 @@ fn show_schema(args: ShowArgs) -> Result<()> {
     // Properties
     if let Some(props) = schema["properties"].as_object() {
         println!("Fields:");
-        println!("{:<20} {:<12} {:<8} {}", "NAME", "TYPE", "REQ", "DESCRIPTION");
+        println!(
+            "{:<20} {:<12} {:<8} {}",
+            "NAME", "TYPE", "REQ", "DESCRIPTION"
+        );
         println!("{}", "-".repeat(80));
 
         // Sort properties for consistent display
@@ -136,7 +139,10 @@ fn show_schema(args: ShowArgs) -> Result<()> {
             } else {
                 prop_desc.to_string()
             };
-            println!("{:<20} {:<12} {:<8} {}", name, prop_type, is_required, desc_short);
+            println!(
+                "{:<20} {:<12} {:<8} {}",
+                name, prop_type, is_required, desc_short
+            );
         }
 
         // Show enum values for relevant fields

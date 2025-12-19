@@ -9,9 +9,9 @@ use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::supplier::Supplier;
 use crate::schema::template::{TemplateContext, TemplateGenerator};
@@ -30,6 +30,12 @@ pub enum SupCommands {
 
     /// Edit a supplier in your editor
     Edit(EditArgs),
+
+    /// Delete a supplier
+    Delete(DeleteArgs),
+
+    /// Archive a supplier (soft delete)
+    Archive(ArchiveArgs),
 }
 
 /// Status filter
@@ -190,6 +196,37 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Supplier ID or short ID (SUP@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Supplier ID or short ID (SUP@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where suppliers are stored
+const SUPPLIER_DIRS: &[&str] = &["bom/suppliers"];
+
 /// Run a supplier subcommand
 pub fn run(cmd: SupCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -197,6 +234,8 @@ pub fn run(cmd: SupCommands, global: &GlobalOpts) -> Result<()> {
         SupCommands::New(args) => run_new(args, global),
         SupCommands::Show(args) => run_show(args, global),
         SupCommands::Edit(args) => run_edit(args),
+        SupCommands::Delete(args) => run_delete(args),
+        SupCommands::Archive(args) => run_archive(args),
     }
 }
 
@@ -535,11 +574,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -549,7 +584,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -786,4 +824,12 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, SUPPLIER_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, SUPPLIER_DIRS, args.force, true, args.quiet)
 }

@@ -10,9 +10,9 @@ use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::{CachedNcr, EntityCache};
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::ncr::{
     Disposition, DispositionDecision, Ncr, NcrCategory, NcrSeverity, NcrStatus, NcrType,
@@ -129,6 +129,12 @@ pub enum NcrCommands {
 
     /// Edit an NCR in your editor
     Edit(EditArgs),
+
+    /// Delete an NCR
+    Delete(DeleteArgs),
+
+    /// Archive an NCR (soft delete)
+    Archive(ArchiveArgs),
 
     /// Close an NCR with disposition
     Close(CloseArgs),
@@ -293,6 +299,37 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// NCR ID or short ID (NCR@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// NCR ID or short ID (NCR@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where NCRs are stored
+const NCR_DIRS: &[&str] = &["manufacturing/ncrs"];
+
 /// Disposition decision for CLI
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum CliDisposition {
@@ -335,6 +372,8 @@ pub fn run(cmd: NcrCommands, global: &GlobalOpts) -> Result<()> {
         NcrCommands::New(args) => run_new(args, global),
         NcrCommands::Show(args) => run_show(args, global),
         NcrCommands::Edit(args) => run_edit(args),
+        NcrCommands::Delete(args) => run_delete(args),
+        NcrCommands::Archive(args) => run_archive(args),
         NcrCommands::Close(args) => run_close(args, global),
     }
 }
@@ -808,11 +847,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -822,7 +857,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -1093,6 +1131,14 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, NCR_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, NCR_DIRS, args.force, true, args.quiet)
 }
 
 /// Output cached NCRs in the requested format

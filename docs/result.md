@@ -411,6 +411,19 @@ tdt rslt edit RSLT-01HC2
 tdt rslt edit RSLT@1
 ```
 
+### Delete or archive a result
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt rslt delete RSLT@1
+
+# Force delete even if referenced
+tdt rslt delete RSLT@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt rslt archive RSLT@1
+```
+
 ### Show result summary
 
 ```bash

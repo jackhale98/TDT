@@ -329,6 +329,19 @@ tdt test edit TEST-01HC2
 tdt test edit TEST@1
 ```
 
+### Delete or archive a test
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt test delete TEST@1
+
+# Force delete even if referenced by results
+tdt test delete TEST@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt test archive TEST@1
+```
+
 ### Execute a test and record result
 
 ```bash

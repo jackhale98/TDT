@@ -262,6 +262,19 @@ tdt proc edit PROC-01KC5
 tdt proc edit PROC@1
 ```
 
+### Delete or archive a process
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt proc delete PROC@1
+
+# Force delete even if referenced
+tdt proc delete PROC@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt proc archive PROC@1
+```
+
 ### Visualize process flow
 
 ```bash

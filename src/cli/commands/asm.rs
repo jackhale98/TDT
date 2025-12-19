@@ -10,9 +10,9 @@ use std::fs;
 use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::assembly::Assembly;
 use crate::entities::component::Component;
@@ -32,6 +32,12 @@ pub enum AsmCommands {
 
     /// Edit an assembly in your editor
     Edit(EditArgs),
+
+    /// Delete an assembly
+    Delete(DeleteArgs),
+
+    /// Archive an assembly (soft delete)
+    Archive(ArchiveArgs),
 
     /// Show expanded BOM for an assembly
     Bom(BomArgs),
@@ -180,6 +186,37 @@ pub struct EditArgs {
 }
 
 #[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Assembly ID or short ID (ASM@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Assembly ID or short ID (ASM@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where assemblies are stored
+const ASSEMBLY_DIRS: &[&str] = &["bom/assemblies"];
+
+#[derive(clap::Args, Debug)]
 pub struct BomArgs {
     /// Assembly ID or short ID (ASM@N)
     pub id: String,
@@ -265,6 +302,8 @@ pub fn run(cmd: AsmCommands, global: &GlobalOpts) -> Result<()> {
         AsmCommands::New(args) => run_new(args, global),
         AsmCommands::Show(args) => run_show(args, global),
         AsmCommands::Edit(args) => run_edit(args),
+        AsmCommands::Delete(args) => run_delete(args),
+        AsmCommands::Archive(args) => run_archive(args),
         AsmCommands::Bom(args) => run_bom(args, global),
         AsmCommands::AddComponent(args) => run_add_component(args),
         AsmCommands::RemoveComponent(args) => run_remove_component(args),
@@ -706,11 +745,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -720,7 +755,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -978,6 +1016,14 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, ASSEMBLY_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, ASSEMBLY_DIRS, args.force, true, args.quiet)
 }
 
 fn run_bom(args: BomArgs, global: &GlobalOpts) -> Result<()> {

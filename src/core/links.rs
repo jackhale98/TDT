@@ -11,12 +11,21 @@ use crate::core::identity::EntityPrefix;
 /// or None if no automatic inference is possible for this entity combination.
 ///
 /// # Examples
-/// ```ignore
+/// ```
+/// use tdt::core::links::infer_link_type;
+/// use tdt::core::identity::EntityPrefix;
+///
 /// // REQ linking to TEST -> verified_by
-/// infer_link_type(EntityPrefix::Req, EntityPrefix::Test) == Some("verified_by")
+/// assert_eq!(
+///     infer_link_type(EntityPrefix::Req, EntityPrefix::Test),
+///     Some("verified_by".to_string())
+/// );
 ///
 /// // RISK linking to CMP -> component
-/// infer_link_type(EntityPrefix::Risk, EntityPrefix::Cmp) == Some("component")
+/// assert_eq!(
+///     infer_link_type(EntityPrefix::Risk, EntityPrefix::Cmp),
+///     Some("component".to_string())
+/// );
 /// ```
 pub fn infer_link_type(source_prefix: EntityPrefix, target_prefix: EntityPrefix) -> Option<String> {
     match (source_prefix, target_prefix) {
@@ -246,15 +255,16 @@ pub fn add_inferred_link(
     target_prefix: EntityPrefix,
 ) -> Result<String, String> {
     // Infer the link type
-    let link_type = infer_link_type(source_prefix, target_prefix)
-        .ok_or_else(|| format!(
+    let link_type = infer_link_type(source_prefix, target_prefix).ok_or_else(|| {
+        format!(
             "Cannot infer link type for {} → {}",
             source_prefix, target_prefix
-        ))?;
+        )
+    })?;
 
     // Read the file
-    let content = std::fs::read_to_string(source_path)
-        .map_err(|e| format!("Failed to read file: {}", e))?;
+    let content =
+        std::fs::read_to_string(source_path).map_err(|e| format!("Failed to read file: {}", e))?;
 
     // Add the link
     let updated_content = add_link_to_yaml(&content, &link_type, target_id)?;
@@ -272,8 +282,8 @@ pub fn add_inferred_link(
 /// and returns the updated YAML string.
 fn add_link_to_yaml(content: &str, link_type: &str, target_id: &str) -> Result<String, String> {
     // Parse YAML
-    let mut value: serde_yml::Value = serde_yml::from_str(content)
-        .map_err(|e| format!("Failed to parse YAML: {}", e))?;
+    let mut value: serde_yml::Value =
+        serde_yml::from_str(content).map_err(|e| format!("Failed to parse YAML: {}", e))?;
 
     // Navigate to links section, creating it if it doesn't exist
     if value.get("links").is_none() {

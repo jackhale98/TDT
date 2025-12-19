@@ -10,9 +10,9 @@ use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::work_instruction::WorkInstruction;
 use crate::schema::template::{TemplateContext, TemplateGenerator};
@@ -31,6 +31,12 @@ pub enum WorkCommands {
 
     /// Edit a work instruction in your editor
     Edit(EditArgs),
+
+    /// Delete a work instruction
+    Delete(DeleteArgs),
+
+    /// Archive a work instruction (soft delete)
+    Archive(ArchiveArgs),
 }
 
 /// Column to display in list output
@@ -159,6 +165,37 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Work instruction ID or short ID (WORK@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Work instruction ID or short ID (WORK@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where work instructions are stored
+const WORK_INSTRUCTION_DIRS: &[&str] = &["manufacturing/work_instructions"];
+
 /// Run a work instruction subcommand
 pub fn run(cmd: WorkCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
@@ -166,6 +203,8 @@ pub fn run(cmd: WorkCommands, global: &GlobalOpts) -> Result<()> {
         WorkCommands::New(args) => run_new(args, global),
         WorkCommands::Show(args) => run_show(args, global),
         WorkCommands::Edit(args) => run_edit(args),
+        WorkCommands::Delete(args) => run_delete(args),
+        WorkCommands::Archive(args) => run_archive(args),
     }
 }
 
@@ -778,11 +817,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -792,7 +827,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -1030,4 +1068,24 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(
+        &args.id,
+        WORK_INSTRUCTION_DIRS,
+        args.force,
+        false,
+        args.quiet,
+    )
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(
+        &args.id,
+        WORK_INSTRUCTION_DIRS,
+        args.force,
+        true,
+        args.quiet,
+    )
 }

@@ -330,6 +330,19 @@ tdt tol edit TOL-01HC2
 tdt tol edit TOL@1
 ```
 
+### Delete or archive a stackup
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt tol delete TOL@1
+
+# Force delete even if referenced
+tdt tol delete TOL@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt tol archive TOL@1
+```
+
 ## Analysis Methods
 
 ### Worst-Case Analysis

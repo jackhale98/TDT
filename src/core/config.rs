@@ -63,12 +63,6 @@ impl Config {
         config
     }
 
-    /// Get the path to the global config file
-    fn global_config_path() -> Option<PathBuf> {
-        directories::ProjectDirs::from("", "", "tdt")
-            .map(|dirs| dirs.config_dir().join("config.yaml"))
-    }
-
     /// Merge another config into this one (other takes precedence)
     fn merge(&mut self, other: Config) {
         if other.author.is_some() {
@@ -83,6 +77,12 @@ impl Config {
         if other.default_format.is_some() {
             self.default_format = other.default_format;
         }
+    }
+
+    /// Get the path to the global config file (public for config command)
+    pub fn global_config_path() -> Option<PathBuf> {
+        directories::ProjectDirs::from("", "", "tdt")
+            .map(|dirs| dirs.config_dir().join("config.yaml"))
     }
 
     /// Get the author name, falling back to git config or username

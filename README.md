@@ -9,6 +9,7 @@ A CLI tool for managing engineering artifacts as plain-text YAML files. TDT prov
 - **Traceability** - Link entities together and generate traceability matrices
 - **ULID-based IDs** - Unique, sortable identifiers for all entities
 - **Short ID aliases** - Use `REQ@1`, `RISK@2`, etc. instead of typing long IDs
+- **Delete & Archive** - Safe deletion with link checking, or archive entities for later reference
 - **Beautiful error messages** - Line numbers, context, and actionable suggestions
 - **FMEA Risk Management** - Built-in support for Failure Mode and Effects Analysis
 - **BOM Management** - Components and assemblies with supplier tracking
@@ -150,7 +151,9 @@ After `tdt init`, your project will have:
 
 ```
 .tdt/
-└── config.yaml              # Project configuration
+├── config.yaml              # Project configuration
+├── cache.db                 # SQLite cache (auto-generated)
+└── archive/                 # Archived entities (from `tdt <entity> archive`)
 
 requirements/
 ├── inputs/                  # Design inputs (customer requirements)
@@ -237,6 +240,38 @@ tdt validate --fix          # Auto-fix calculated values (RPN, risk level)
 tdt validate --strict       # Treat warnings as errors
 ```
 
+### Configuration
+
+```bash
+tdt config show                       # Show effective (merged) configuration
+tdt config show author                # Show specific key's value
+tdt config show --project-only        # Show only project-level config
+tdt config show --global-only         # Show only user-level config
+tdt config set author "Jane Doe"      # Set in project config
+tdt config set author "Jane Doe" -g   # Set in global (user) config
+tdt config unset author               # Remove from project config
+tdt config unset author -g            # Remove from global config
+tdt config path                       # Show config file paths
+tdt config keys                       # List all available config keys
+```
+
+Configuration is layered (highest priority first):
+1. Environment variables (`TDT_AUTHOR`, `TDT_EDITOR`)
+2. Project config (`.tdt/config.yaml`)
+3. Global user config (`~/.config/tdt/config.yaml`)
+
+### Global Search
+
+```bash
+tdt search "temperature"              # Search all entities
+tdt search "motor" --type req,risk    # Search specific entity types
+tdt search "draft" --status draft     # Filter by status
+tdt search "keyword" --author "Jane"  # Filter by author
+tdt search "v2" --tag "release"       # Filter by tag
+tdt search "term" --count             # Show count only
+tdt search "term" -f json             # Output as JSON
+```
+
 ### Requirements
 
 ```bash
@@ -251,6 +286,9 @@ tdt req list --search "temperature"   # Search in title/text
 tdt req list --orphans                # Show unlinked requirements
 tdt req show REQ-01HC2                # Show details (partial ID match)
 tdt req edit REQ-01HC2                # Open in editor
+tdt req delete REQ@1                  # Permanently delete (checks for links)
+tdt req delete REQ@1 --force          # Delete even if referenced
+tdt req archive REQ@1                 # Move to .tdt/archive/ instead of deleting
 ```
 
 ### Risks (FMEA)
@@ -268,6 +306,8 @@ tdt risk list --min-rpn 100            # Filter by minimum RPN
 tdt risk list --unmitigated            # Show risks without mitigations
 tdt risk show RISK-01HC2               # Show details
 tdt risk edit RISK-01HC2               # Open in editor
+tdt risk delete RISK@1                 # Permanently delete
+tdt risk archive RISK@1                # Move to archive
 tdt risk matrix                        # Severity × Occurrence risk matrix
 tdt risk matrix --show-ids             # Show risk IDs in cells
 ```
@@ -287,6 +327,8 @@ tdt test list --method inspection             # Filter by IADT method
 tdt test list --orphans                       # Show tests without linked requirements
 tdt test show TEST-01HC2                      # Show details
 tdt test edit TEST-01HC2                      # Open in editor
+tdt test delete TEST@1                        # Permanently delete
+tdt test archive TEST@1                       # Move to archive
 tdt test run TEST@1 --verdict pass            # Execute test and record result
 tdt test run TEST@1 --verdict fail --notes "See NCR@1"  # Record failure with notes
 ```
@@ -305,6 +347,8 @@ tdt rslt list --with-failures                 # Show only results with failures
 tdt rslt list --recent 7                      # Show results from last 7 days
 tdt rslt show RSLT-01HC2                      # Show details
 tdt rslt edit RSLT-01HC2                      # Open in editor
+tdt rslt delete RSLT@1                        # Permanently delete
+tdt rslt archive RSLT@1                       # Move to archive
 tdt rslt summary                              # Test execution statistics dashboard
 tdt rslt summary --detailed                   # Breakdown by test type
 ```
@@ -321,6 +365,8 @@ tdt cmp list --category electrical            # Filter by category
 tdt cmp list --assembly ASM@1                 # Components in assembly's BOM
 tdt cmp show CMP@1                            # Show details
 tdt cmp edit CMP@1                            # Open in editor
+tdt cmp delete CMP@1                          # Permanently delete
+tdt cmp archive CMP@1                         # Move to archive
 tdt cmp matrix                                # Design structure matrix (component interactions)
 tdt cmp matrix --show-ids                     # Show component IDs in cells
 ```
@@ -337,6 +383,8 @@ tdt asm bom ASM@1                             # Show flattened BOM
 tdt asm cost ASM@1                            # Calculate recursive BOM cost
 tdt asm mass ASM@1                            # Calculate recursive BOM mass
 tdt asm edit ASM@1                            # Open in editor
+tdt asm delete ASM@1                          # Permanently delete
+tdt asm archive ASM@1                         # Move to archive
 ```
 
 ### Suppliers (Approved Vendors)
@@ -350,6 +398,8 @@ tdt sup list -c machining                     # Filter by capability
 tdt sup list --search "acme"                  # Search in name
 tdt sup show SUP@1                            # Show details
 tdt sup edit SUP@1                            # Open in editor
+tdt sup delete SUP@1                          # Permanently delete
+tdt sup archive SUP@1                         # Move to archive
 ```
 
 ### Quotes (Supplier Quotations)
@@ -366,6 +416,8 @@ tdt quote list --supplier SUP@1               # Filter by supplier
 tdt quote show QUOT@1                         # Show details
 tdt quote compare CMP@1                       # Compare quotes for item
 tdt quote edit QUOT@1                         # Open in editor
+tdt quote delete QUOT@1                       # Permanently delete
+tdt quote archive QUOT@1                      # Move to archive
 ```
 
 ### Features (Tolerances)
@@ -378,6 +430,8 @@ tdt feat list --component CMP@1               # Filter by component
 tdt feat list --type hole                     # Filter by type
 tdt feat show FEAT@1                          # Show details
 tdt feat edit FEAT@1                          # Open in editor
+tdt feat delete FEAT@1                        # Permanently delete
+tdt feat archive FEAT@1                       # Move to archive
 ```
 
 ### Mates (Tolerances)
@@ -389,6 +443,8 @@ tdt mate list --type clearance_fit            # Filter by mate type
 tdt mate show MATE@1                          # Show details with fit calculation
 tdt mate recalc MATE@1                        # Recalculate fit from features
 tdt mate edit MATE@1                          # Open in editor
+tdt mate delete MATE@1                        # Permanently delete
+tdt mate archive MATE@1                       # Move to archive
 ```
 
 ### Stackups (Tolerance Analysis)
@@ -402,6 +458,8 @@ tdt tol show TOL@1                            # Show details with analysis
 tdt tol analyze TOL@1                         # Run worst-case, RSS, Monte Carlo
 tdt tol analyze TOL@1 --iterations 50000      # Custom Monte Carlo iterations
 tdt tol edit TOL@1                            # Open in editor
+tdt tol delete TOL@1                          # Permanently delete
+tdt tol archive TOL@1                         # Move to archive
 ```
 
 ### Manufacturing Processes
@@ -414,6 +472,8 @@ tdt proc list --type machining                # Filter by process type
 tdt proc list --status approved               # Filter by status
 tdt proc show PROC@1                          # Show details
 tdt proc edit PROC@1                          # Open in editor
+tdt proc delete PROC@1                        # Permanently delete
+tdt proc archive PROC@1                       # Move to archive
 tdt proc flow                                 # Visualize process flow with controls
 tdt proc flow --controls                      # Show linked control points
 tdt proc flow --work-instructions             # Show linked work instructions
@@ -432,6 +492,8 @@ tdt ctrl list --process PROC@1                # Filter by process
 tdt ctrl list --critical                      # Show only CTQ controls
 tdt ctrl show CTRL@1                          # Show details
 tdt ctrl edit CTRL@1                          # Open in editor
+tdt ctrl delete CTRL@1                        # Permanently delete
+tdt ctrl archive CTRL@1                       # Move to archive
 ```
 
 Control types: `spc`, `inspection`, `poka_yoke`, `visual`, `functional_test`, `attribute`
@@ -445,6 +507,8 @@ tdt work list --process PROC@1                # Filter by process
 tdt work list --search "setup"                # Search in title
 tdt work show WORK@1                          # Show details
 tdt work edit WORK@1                          # Open in editor
+tdt work delete WORK@1                        # Permanently delete
+tdt work archive WORK@1                       # Move to archive
 ```
 
 ### Non-Conformance Reports (NCRs)
@@ -458,6 +522,8 @@ tdt ncr list --severity critical              # Filter by severity
 tdt ncr list --ncr-status open                # Filter by workflow status
 tdt ncr show NCR@1                            # Show details
 tdt ncr edit NCR@1                            # Open in editor
+tdt ncr delete NCR@1                          # Permanently delete
+tdt ncr archive NCR@1                         # Move to archive
 tdt ncr close NCR@1 --disposition rework      # Close with disposition
 tdt ncr close NCR@1 -d use-as-is --rationale "Within tolerance"
 ```
@@ -477,6 +543,8 @@ tdt capa list --capa-status implementation    # Filter by workflow status
 tdt capa list --overdue                       # Show overdue CAPAs
 tdt capa show CAPA@1                          # Show details
 tdt capa edit CAPA@1                          # Open in editor
+tdt capa delete CAPA@1                        # Permanently delete
+tdt capa archive CAPA@1                       # Move to archive
 tdt capa verify CAPA@1 --result effective     # Record effectiveness verification
 tdt capa verify CAPA@1 -r partial --method "Process audit"
 ```

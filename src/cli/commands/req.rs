@@ -88,6 +88,12 @@ pub enum ReqCommands {
 
     /// Edit a requirement in your editor
     Edit(EditArgs),
+
+    /// Delete a requirement
+    Delete(DeleteArgs),
+
+    /// Archive a requirement (move to .tdt/archive/)
+    Archive(ArchiveArgs),
 }
 
 /// Requirement type filter
@@ -304,12 +310,45 @@ pub struct EditArgs {
     pub id: Option<String>,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Requirement ID or short ID (REQ@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Requirement ID or short ID (REQ@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where requirements are stored
+const REQ_DIRS: &[&str] = &["requirements/inputs", "requirements/outputs"];
+
 pub fn run(cmd: ReqCommands, global: &GlobalOpts) -> Result<()> {
     match cmd {
         ReqCommands::List(args) => run_list(args, global),
         ReqCommands::New(args) => run_new(args, global),
         ReqCommands::Show(args) => run_show(args, global),
         ReqCommands::Edit(args) => run_edit(args),
+        ReqCommands::Delete(args) => run_delete(args),
+        ReqCommands::Archive(args) => run_archive(args),
     }
 }
 
@@ -1144,11 +1183,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -1158,7 +1193,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -1533,4 +1571,12 @@ fn load_all_results(project: &Project) -> Vec<crate::entities::result::Result> {
     }
 
     results
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, REQ_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, REQ_DIRS, args.force, true, args.quiet)
 }

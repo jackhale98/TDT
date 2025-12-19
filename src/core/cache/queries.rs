@@ -1387,4 +1387,99 @@ impl EntityCache {
     // =========================================================================
     // Aggregate Query Methods
     // =========================================================================
+
+    // =========================================================================
+    // Global Search Methods
+    // =========================================================================
+
+    /// Search across all entity types
+    ///
+    /// Searches in title field across all entities in the cache.
+    /// Supports filtering by entity type prefixes, status, author, and tag.
+    pub fn search_all(
+        &self,
+        query: &str,
+        type_prefixes: Option<&[&str]>,
+        status: Option<&str>,
+        author: Option<&str>,
+        tag: Option<&str>,
+        case_sensitive: bool,
+        limit: usize,
+    ) -> Vec<super::SearchResult> {
+        let mut sql = String::from(
+            r#"SELECT e.id, e.prefix, e.title, e.status, e.author
+               FROM entities e
+               WHERE 1=1"#,
+        );
+
+        let mut params_vec: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
+
+        // Search query (title)
+        if case_sensitive {
+            sql.push_str(" AND e.title LIKE ?");
+            params_vec.push(Box::new(format!("%{}%", query)));
+        } else {
+            sql.push_str(" AND LOWER(e.title) LIKE LOWER(?)");
+            params_vec.push(Box::new(format!("%{}%", query)));
+        }
+
+        // Filter by entity type(s)
+        if let Some(prefixes) = type_prefixes {
+            if !prefixes.is_empty() {
+                let placeholders: Vec<String> = prefixes
+                    .iter()
+                    .enumerate()
+                    .map(|(i, _)| format!("?{}", params_vec.len() + i + 1))
+                    .collect();
+                sql.push_str(&format!(" AND e.prefix IN ({})", placeholders.join(",")));
+                for prefix in prefixes {
+                    params_vec.push(Box::new(prefix.to_string()));
+                }
+            }
+        }
+
+        // Filter by status
+        if let Some(s) = status {
+            sql.push_str(&format!(" AND e.status = ?{}", params_vec.len() + 1));
+            params_vec.push(Box::new(s.to_string()));
+        }
+
+        // Filter by author
+        if let Some(a) = author {
+            sql.push_str(&format!(" AND e.author LIKE ?{}", params_vec.len() + 1));
+            params_vec.push(Box::new(format!("%{}%", a)));
+        }
+
+        // Filter by tag
+        if let Some(t) = tag {
+            sql.push_str(&format!(" AND e.tags LIKE ?{}", params_vec.len() + 1));
+            params_vec.push(Box::new(format!("%{}%", t)));
+        }
+
+        sql.push_str(" ORDER BY e.created DESC");
+        sql.push_str(&format!(" LIMIT {}", limit));
+
+        let mut stmt = match self.conn.prepare(&sql) {
+            Ok(s) => s,
+            Err(_) => return vec![],
+        };
+
+        let params_refs: Vec<&dyn rusqlite::ToSql> =
+            params_vec.iter().map(|p| p.as_ref()).collect();
+
+        let rows = match stmt.query_map(params_refs.as_slice(), |row| {
+            Ok(super::SearchResult {
+                id: row.get(0)?,
+                entity_type: row.get(1)?,
+                title: row.get(2)?,
+                status: row.get(3)?,
+                author: row.get(4)?,
+            })
+        }) {
+            Ok(r) => r,
+            Err(_) => return vec![],
+        };
+
+        rows.filter_map(|r| r.ok()).collect()
+    }
 }

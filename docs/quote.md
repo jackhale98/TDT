@@ -285,6 +285,19 @@ tdt quote edit QUOT-01HC2
 tdt quote edit QUOT@1
 ```
 
+### Delete or archive a quote
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt quote delete QUOT@1
+
+# Force delete even if referenced
+tdt quote delete QUOT@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt quote archive QUOT@1
+```
+
 ### Compare quotes
 
 Compare all quotes for a specific component or assembly:

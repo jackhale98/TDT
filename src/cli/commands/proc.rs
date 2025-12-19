@@ -9,9 +9,9 @@ use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::{CachedEntity, EntityCache, EntityFilter};
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::process::{Process, ProcessType};
 use crate::schema::template::{TemplateContext, TemplateGenerator};
@@ -80,6 +80,12 @@ pub enum ProcCommands {
 
     /// Edit a process in your editor
     Edit(EditArgs),
+
+    /// Delete a process
+    Delete(DeleteArgs),
+
+    /// Archive a process (soft delete)
+    Archive(ArchiveArgs),
 
     /// Visualize process flow with linked controls
     Flow(FlowArgs),
@@ -247,6 +253,37 @@ pub struct EditArgs {
 }
 
 #[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Process ID or short ID (PROC@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Process ID or short ID (PROC@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where processes are stored
+const PROCESS_DIRS: &[&str] = &["manufacturing/processes"];
+
+#[derive(clap::Args, Debug)]
 pub struct FlowArgs {
     /// Filter by process ID (optional - shows all if omitted)
     #[arg(long, short = 'p')]
@@ -268,6 +305,8 @@ pub fn run(cmd: ProcCommands, global: &GlobalOpts) -> Result<()> {
         ProcCommands::New(args) => run_new(args, global),
         ProcCommands::Show(args) => run_show(args, global),
         ProcCommands::Edit(args) => run_edit(args),
+        ProcCommands::Delete(args) => run_delete(args),
+        ProcCommands::Archive(args) => run_archive(args),
         ProcCommands::Flow(args) => run_flow(args, global),
     }
 }
@@ -728,11 +767,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -742,7 +777,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -965,6 +1003,14 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, PROCESS_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, PROCESS_DIRS, args.force, true, args.quiet)
 }
 
 /// Output cached processes in the requested format

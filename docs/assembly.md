@@ -202,6 +202,19 @@ tdt asm edit ASM-01HC2
 tdt asm edit ASM@1
 ```
 
+### Delete or archive an assembly
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt asm delete ASM@1
+
+# Force delete even if referenced
+tdt asm delete ASM@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt asm archive ASM@1
+```
+
 ## BOM Structure
 
 ### Single-Level BOM

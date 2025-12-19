@@ -251,6 +251,19 @@ tdt risk edit RISK-01HC2
 tdt risk edit RISK@1
 ```
 
+### Delete or archive a risk
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt risk delete RISK@1
+
+# Force delete even if referenced
+tdt risk delete RISK@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt risk archive RISK@1
+```
+
 ### Show risk matrix
 
 ```bash

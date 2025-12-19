@@ -3160,3 +3160,381 @@ fn test_dmm_json_output() {
         .stdout(predicate::str::contains("\"row_entities\""))
         .stdout(predicate::str::contains("\"col_entities\""));
 }
+
+// ============================================================================
+// Config Command Tests
+// ============================================================================
+
+#[test]
+fn test_config_show() {
+    let tmp = setup_test_project();
+
+    tdt()
+        .current_dir(tmp.path())
+        .args(["config", "show"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Effective Configuration"));
+}
+
+#[test]
+fn test_config_path() {
+    let tmp = setup_test_project();
+
+    tdt()
+        .current_dir(tmp.path())
+        .args(["config", "path"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Project:"));
+}
+
+#[test]
+fn test_config_keys() {
+    let tmp = setup_test_project();
+
+    tdt()
+        .current_dir(tmp.path())
+        .args(["config", "keys"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("author"))
+        .stdout(predicate::str::contains("editor"));
+}
+
+#[test]
+fn test_config_set_and_show() {
+    let tmp = setup_test_project();
+
+    // Set a config value
+    tdt()
+        .current_dir(tmp.path())
+        .args(["config", "set", "author", "Test Author"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Set author"));
+
+    // Show just that key
+    tdt()
+        .current_dir(tmp.path())
+        .args(["config", "show", "author"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Test Author"));
+}
+
+#[test]
+fn test_config_unset() {
+    let tmp = setup_test_project();
+
+    // Set then unset
+    tdt()
+        .current_dir(tmp.path())
+        .args(["config", "set", "author", "Test"])
+        .assert()
+        .success();
+
+    tdt()
+        .current_dir(tmp.path())
+        .args(["config", "unset", "author"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Removed author"));
+}
+
+// ============================================================================
+// Search Command Tests
+// ============================================================================
+
+#[test]
+fn test_search_empty_project() {
+    let tmp = setup_test_project();
+
+    tdt()
+        .current_dir(tmp.path())
+        .args(["search", "test"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No results found"));
+}
+
+#[test]
+fn test_search_finds_entities() {
+    let tmp = setup_test_project();
+
+    // Create some entities
+    create_test_requirement(&tmp, "Temperature Range", "input");
+    create_test_requirement(&tmp, "Power Consumption", "output");
+    create_test_risk(&tmp, "Battery Overheating", "design");
+
+    // Rebuild cache to index the entities
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success();
+
+    // Search for "Temperature"
+    tdt()
+        .current_dir(tmp.path())
+        .args(["search", "temperature"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Temperature Range"))
+        .stdout(predicate::str::contains("1 results"));
+}
+
+#[test]
+fn test_search_with_type_filter() {
+    let tmp = setup_test_project();
+
+    // Create entities of different types with similar names
+    create_test_requirement(&tmp, "Safety Requirement", "input");
+    create_test_risk(&tmp, "Safety Risk", "design");
+
+    // Rebuild cache
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success();
+
+    // Search with type filter
+    tdt()
+        .current_dir(tmp.path())
+        .args(["search", "safety", "-t", "req"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Safety Requirement"))
+        .stdout(predicate::str::contains("1 results"));
+}
+
+#[test]
+fn test_search_count_only() {
+    let tmp = setup_test_project();
+
+    create_test_requirement(&tmp, "Test One", "input");
+    create_test_requirement(&tmp, "Test Two", "input");
+
+    // Rebuild cache
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success();
+
+    // Search with count only
+    tdt()
+        .current_dir(tmp.path())
+        .args(["search", "test", "--count"])
+        .assert()
+        .success()
+        .stdout(predicate::str::is_match("^2\n$").unwrap());
+}
+
+// ============================================================================
+// Delete Command Tests
+// ============================================================================
+
+#[test]
+fn test_req_delete() {
+    let tmp = setup_test_project();
+
+    // Create a requirement
+    create_test_requirement(&tmp, "Delete Me", "input");
+
+    // List to get short ID
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success();
+
+    // Delete using short ID
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "delete", "REQ@1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted"));
+
+    // Verify it's gone
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No requirements found"));
+}
+
+#[test]
+fn test_req_delete_with_links_blocked() {
+    let tmp = setup_test_project();
+
+    // Create a requirement and a test that references it
+    tdt()
+        .current_dir(tmp.path())
+        .args([
+            "req",
+            "new",
+            "--title",
+            "Linked Req",
+            "--type",
+            "input",
+            "--no-edit",
+        ])
+        .assert()
+        .success();
+
+    tdt()
+        .current_dir(tmp.path())
+        .args([
+            "test",
+            "new",
+            "--title",
+            "Test Protocol",
+            "--type",
+            "verification",
+            "--no-edit",
+        ])
+        .assert()
+        .success();
+
+    // List to get short IDs
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success();
+    tdt()
+        .current_dir(tmp.path())
+        .args(["test", "list"])
+        .assert()
+        .success();
+
+    // Link the test to the requirement
+    tdt()
+        .current_dir(tmp.path())
+        .args(["link", "add", "TEST@1", "REQ@1", "-t", "verifies"])
+        .assert()
+        .success();
+
+    // Rebuild cache to pick up the link
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success();
+
+    // Try to delete - should fail
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "delete", "REQ@1"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("referenced by"));
+}
+
+#[test]
+fn test_req_delete_force() {
+    let tmp = setup_test_project();
+
+    // Create linked entities
+    tdt()
+        .current_dir(tmp.path())
+        .args([
+            "req",
+            "new",
+            "--title",
+            "Linked Req",
+            "--type",
+            "input",
+            "--no-edit",
+        ])
+        .assert()
+        .success();
+
+    tdt()
+        .current_dir(tmp.path())
+        .args([
+            "test",
+            "new",
+            "--title",
+            "Test Protocol",
+            "--type",
+            "verification",
+            "--no-edit",
+        ])
+        .assert()
+        .success();
+
+    // List and link
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success();
+    tdt()
+        .current_dir(tmp.path())
+        .args(["test", "list"])
+        .assert()
+        .success();
+    tdt()
+        .current_dir(tmp.path())
+        .args(["link", "add", "TEST@1", "REQ@1", "-t", "verifies"])
+        .assert()
+        .success();
+
+    // Rebuild cache to pick up the link
+    tdt()
+        .current_dir(tmp.path())
+        .args(["cache", "rebuild"])
+        .assert()
+        .success();
+
+    // Force delete should succeed
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "delete", "REQ@1", "--force"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Deleted"));
+}
+
+// ============================================================================
+// Archive Command Tests
+// ============================================================================
+
+#[test]
+fn test_req_archive() {
+    let tmp = setup_test_project();
+
+    // Create a requirement
+    create_test_requirement(&tmp, "Archive Me", "input");
+
+    // List to get short ID
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success();
+
+    // Archive using short ID
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "archive", "REQ@1"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Archived"));
+
+    // Verify it's gone from listing
+    tdt()
+        .current_dir(tmp.path())
+        .args(["req", "list"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("No requirements found"));
+
+    // Verify the archive directory exists
+    assert!(tmp.path().join(".tdt/archive/requirements/inputs").exists());
+}

@@ -11,9 +11,9 @@ use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::entity::Entity;
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::feature::Feature;
 use crate::entities::mate::{FitAnalysis, Mate, MateType};
@@ -33,6 +33,12 @@ pub enum MateCommands {
 
     /// Edit a mate in your editor
     Edit(EditArgs),
+
+    /// Delete a mate
+    Delete(DeleteArgs),
+
+    /// Archive a mate (soft delete)
+    Archive(ArchiveArgs),
 
     /// Recalculate fit analysis from current feature dimensions
     Recalc(RecalcArgs),
@@ -187,6 +193,37 @@ pub struct EditArgs {
 }
 
 #[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Mate ID or short ID (MATE@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Mate ID or short ID (MATE@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where mates are stored
+const MATE_DIRS: &[&str] = &["tolerances/mates"];
+
+#[derive(clap::Args, Debug)]
 pub struct RecalcArgs {
     /// Mate ID or short ID (MATE@N)
     pub id: String,
@@ -206,6 +243,8 @@ pub fn run(cmd: MateCommands, global: &GlobalOpts) -> Result<()> {
         MateCommands::New(args) => run_new(args, global),
         MateCommands::Show(args) => run_show(args, global),
         MateCommands::Edit(args) => run_edit(args),
+        MateCommands::Delete(args) => run_delete(args),
+        MateCommands::Archive(args) => run_archive(args),
         MateCommands::Recalc(args) => run_recalc(args),
         MateCommands::RecalcAll(args) => run_recalc_all(args),
     }
@@ -720,11 +759,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -734,7 +769,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -1038,6 +1076,14 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, MATE_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, MATE_DIRS, args.force, true, args.quiet)
 }
 
 fn run_recalc(args: RecalcArgs) -> Result<()> {

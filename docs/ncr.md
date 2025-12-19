@@ -296,6 +296,19 @@ tdt ncr edit NCR-01KC5
 tdt ncr edit NCR@1
 ```
 
+### Delete or archive an NCR
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt ncr delete NCR@1
+
+# Force delete even if referenced
+tdt ncr delete NCR@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt ncr archive NCR@1
+```
+
 ### Close an NCR
 
 ```bash

@@ -242,6 +242,19 @@ tdt ctrl edit CTRL-01KC5
 tdt ctrl edit CTRL@1
 ```
 
+### Delete or archive a control
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt ctrl delete CTRL@1
+
+# Force delete even if referenced
+tdt ctrl delete CTRL@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt ctrl archive CTRL@1
+```
+
 ## Control Types in Detail
 
 ### SPC (Statistical Process Control)

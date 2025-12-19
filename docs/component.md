@@ -212,6 +212,19 @@ tdt cmp edit CMP-01HC2
 tdt cmp edit CMP@1
 ```
 
+### Delete or archive a component
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt cmp delete CMP@1
+
+# Force delete even if referenced
+tdt cmp delete CMP@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt cmp archive CMP@1
+```
+
 ### Analyze component interactions
 
 Use the Design Structure Matrix (DSM) to analyze component relationships:

@@ -34,6 +34,12 @@ pub enum CmpCommands {
     /// Edit a component in your editor
     Edit(EditArgs),
 
+    /// Delete a component
+    Delete(DeleteArgs),
+
+    /// Archive a component (soft delete)
+    Archive(ArchiveArgs),
+
     /// Set the selected quote for pricing
     SetQuote(SetQuoteArgs),
 
@@ -277,6 +283,37 @@ pub struct EditArgs {
 }
 
 #[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Component ID or short ID (CMP@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Component ID or short ID (CMP@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where components are stored
+const COMPONENT_DIRS: &[&str] = &["bom/components"];
+
+#[derive(clap::Args, Debug)]
 pub struct SetQuoteArgs {
     /// Component ID or short ID (CMP@N)
     pub component: String,
@@ -298,6 +335,8 @@ pub fn run(cmd: CmpCommands, global: &GlobalOpts) -> Result<()> {
         CmpCommands::New(args) => run_new(args, global),
         CmpCommands::Show(args) => run_show(args, global),
         CmpCommands::Edit(args) => run_edit(args),
+        CmpCommands::Delete(args) => run_delete(args),
+        CmpCommands::Archive(args) => run_archive(args),
         CmpCommands::SetQuote(args) => run_set_quote(args),
         CmpCommands::ClearQuote(args) => run_clear_quote(args),
     }
@@ -1020,7 +1059,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -1378,6 +1420,14 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, COMPONENT_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, COMPONENT_DIRS, args.force, true, args.quiet)
 }
 
 /// Load all quotes from the project

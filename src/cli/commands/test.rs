@@ -6,15 +6,15 @@ use miette::{IntoDiagnostic, Result};
 use std::fs;
 
 use crate::cli::commands::utils::format_link_with_title;
-use crate::cli::helpers::{escape_csv, format_short_id, resolve_id_arg, truncate_str};
+use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::entity::Priority;
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
 use crate::core::CachedTest;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::result::{Result as TestResult, StepResult, StepResultRecord, Verdict};
 use crate::entities::test::{Test, TestLevel, TestMethod, TestType};
@@ -152,6 +152,12 @@ pub enum TestCommands {
 
     /// Edit a test in your editor
     Edit(EditArgs),
+
+    /// Delete a test
+    Delete(DeleteArgs),
+
+    /// Archive a test (move to .tdt/archive/)
+    Archive(ArchiveArgs),
 
     /// Execute a test and record a result
     Run(RunArgs),
@@ -381,6 +387,37 @@ pub struct EditArgs {
     pub id: String,
 }
 
+#[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Test ID or short ID (TEST@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Test ID or short ID (TEST@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where tests are stored
+const TEST_DIRS: &[&str] = &["verification/protocols", "validation/protocols"];
+
 /// Verdict options for test execution
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum CliVerdict {
@@ -422,8 +459,18 @@ pub fn run(cmd: TestCommands, global: &GlobalOpts) -> Result<()> {
         TestCommands::New(args) => run_new(args, global),
         TestCommands::Show(args) => run_show(args, global),
         TestCommands::Edit(args) => run_edit(args),
+        TestCommands::Delete(args) => run_delete_cmd(args),
+        TestCommands::Archive(args) => run_archive_cmd(args),
         TestCommands::Run(args) => run_run(args, global),
     }
+}
+
+fn run_delete_cmd(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, TEST_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive_cmd(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, TEST_DIRS, args.force, true, args.quiet)
 }
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
@@ -1337,11 +1384,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -1351,7 +1394,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());

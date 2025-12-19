@@ -11,9 +11,9 @@ use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::entity::Entity;
 use crate::core::identity::{EntityId, EntityPrefix};
+use crate::core::links::add_inferred_link;
 use crate::core::project::Project;
 use crate::core::shortid::ShortIdIndex;
-use crate::core::links::add_inferred_link;
 use crate::core::Config;
 use crate::entities::feature::Feature;
 use crate::entities::stackup::{Contributor, Direction, Disposition, FeatureRef, Stackup};
@@ -33,6 +33,12 @@ pub enum TolCommands {
 
     /// Edit a stackup in your editor
     Edit(EditArgs),
+
+    /// Delete a stackup
+    Delete(DeleteArgs),
+
+    /// Archive a stackup (soft delete)
+    Archive(ArchiveArgs),
 
     /// Run/recalculate analysis (worst-case, RSS, Monte Carlo)
     Analyze(AnalyzeArgs),
@@ -214,6 +220,37 @@ pub struct EditArgs {
 }
 
 #[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Stackup ID or short ID (TOL@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Stackup ID or short ID (TOL@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where stackups are stored
+const STACKUP_DIRS: &[&str] = &["tolerances/stackups"];
+
+#[derive(clap::Args, Debug)]
 pub struct AnalyzeArgs {
     /// Stackup ID or short ID (TOL@N) - omit when using --all
     pub id: Option<String>,
@@ -285,6 +322,8 @@ pub fn run(cmd: TolCommands, global: &GlobalOpts) -> Result<()> {
         TolCommands::New(args) => run_new(args, global),
         TolCommands::Show(args) => run_show(args, global),
         TolCommands::Edit(args) => run_edit(args),
+        TolCommands::Delete(args) => run_delete(args),
+        TolCommands::Archive(args) => run_archive(args),
         TolCommands::Analyze(args) => run_analyze(args),
         TolCommands::Add(args) => run_add(args),
         TolCommands::Remove(args) => run_remove(args),
@@ -830,11 +869,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 }
             }
         } else {
-            eprintln!(
-                "{} Invalid entity ID: {}",
-                style("!").yellow(),
-                link_target
-            );
+            eprintln!("{} Invalid entity ID: {}", style("!").yellow(), link_target);
         }
     }
 
@@ -844,7 +879,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());
@@ -1139,6 +1177,14 @@ fn run_edit(args: EditArgs) -> Result<()> {
     config.run_editor(&path).into_diagnostic()?;
 
     Ok(())
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, STACKUP_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, STACKUP_DIRS, args.force, true, args.quiet)
 }
 
 fn run_analyze(args: AnalyzeArgs) -> Result<()> {

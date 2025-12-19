@@ -6,7 +6,7 @@ use miette::{IntoDiagnostic, Result};
 use std::fs;
 
 use crate::cli::commands::utils::format_link_with_title;
-use crate::cli::helpers::{escape_csv, format_short_id, resolve_id_arg, truncate_str};
+use crate::cli::helpers::{escape_csv, format_short_id, truncate_str};
 use crate::cli::{GlobalOpts, OutputFormat};
 use crate::core::cache::EntityCache;
 use crate::core::identity::{EntityId, EntityPrefix};
@@ -62,6 +62,12 @@ pub enum RiskCommands {
 
     /// Edit a risk in your editor
     Edit(EditArgs),
+
+    /// Delete a risk
+    Delete(DeleteArgs),
+
+    /// Archive a risk (move to .tdt/archive/)
+    Archive(ArchiveArgs),
 
     /// Show risk statistics summary
     Summary(SummaryArgs),
@@ -292,6 +298,37 @@ pub struct EditArgs {
 }
 
 #[derive(clap::Args, Debug)]
+pub struct DeleteArgs {
+    /// Risk ID or short ID (RISK@N)
+    pub id: String,
+
+    /// Force deletion even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+#[derive(clap::Args, Debug)]
+pub struct ArchiveArgs {
+    /// Risk ID or short ID (RISK@N)
+    pub id: String,
+
+    /// Force archive even if other entities reference this one
+    #[arg(long)]
+    pub force: bool,
+
+    /// Suppress output
+    #[arg(long, short = 'q')]
+    pub quiet: bool,
+}
+
+/// Directories where risks are stored
+const RISK_DIRS: &[&str] = &["risks/design", "risks/process"];
+
+#[derive(clap::Args, Debug)]
 pub struct SummaryArgs {
     /// Show top N risks by RPN (default: 5)
     #[arg(long, short = 'n', default_value = "5")]
@@ -323,9 +360,19 @@ pub fn run(cmd: RiskCommands, global: &GlobalOpts) -> Result<()> {
         RiskCommands::New(args) => run_new(args, global),
         RiskCommands::Show(args) => run_show(args, global),
         RiskCommands::Edit(args) => run_edit(args),
+        RiskCommands::Delete(args) => run_delete(args),
+        RiskCommands::Archive(args) => run_archive(args),
         RiskCommands::Summary(args) => run_summary(args, global),
         RiskCommands::Matrix(args) => run_matrix(args, global),
     }
+}
+
+fn run_delete(args: DeleteArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, RISK_DIRS, args.force, false, args.quiet)
+}
+
+fn run_archive(args: ArchiveArgs) -> Result<()> {
+    crate::cli::commands::utils::run_delete(&args.id, RISK_DIRS, args.force, true, args.quiet)
 }
 
 fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
@@ -1021,7 +1068,10 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             println!("{}", id);
         }
         OutputFormat::ShortId => {
-            println!("{}", short_id.clone().unwrap_or_else(|| format_short_id(&id)));
+            println!(
+                "{}",
+                short_id.clone().unwrap_or_else(|| format_short_id(&id))
+            );
         }
         OutputFormat::Path => {
             println!("{}", file_path.display());

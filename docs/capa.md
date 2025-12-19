@@ -323,6 +323,19 @@ tdt capa edit CAPA-01KC5
 tdt capa edit CAPA@1
 ```
 
+### Delete or archive a CAPA
+
+```bash
+# Permanently delete (checks for incoming links first)
+tdt capa delete CAPA@1
+
+# Force delete even if referenced
+tdt capa delete CAPA@1 --force
+
+# Archive instead of delete (moves to .tdt/archive/)
+tdt capa archive CAPA@1
+```
+
 ### Verify CAPA effectiveness
 
 ```bash
