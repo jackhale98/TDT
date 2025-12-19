@@ -21,6 +21,8 @@ const SCHEMAS: &[(&str, &str)] = &[
     ("proc", include_str!("../../../schemas/proc.schema.json")),
     ("ctrl", include_str!("../../../schemas/ctrl.schema.json")),
     ("work", include_str!("../../../schemas/work.schema.json")),
+    ("lot", include_str!("../../../schemas/lot.schema.json")),
+    ("dev", include_str!("../../../schemas/dev.schema.json")),
     ("ncr", include_str!("../../../schemas/ncr.schema.json")),
     ("capa", include_str!("../../../schemas/capa.schema.json")),
     ("feat", include_str!("../../../schemas/feat.schema.json")),

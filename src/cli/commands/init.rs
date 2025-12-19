@@ -139,6 +139,8 @@ fn print_structure(root: &Path) {
         "validation/results/",
         "manufacturing/processes/",
         "manufacturing/controls/",
+        "manufacturing/lots/",
+        "manufacturing/deviations/",
     ];
 
     for dir in dirs {

@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pdt.dev/schemas/lot.schema.json",
+  "title": "LOT",
+  "description": "A production lot / batch (Device History Record)",
+  "type": "object",
+  "required": ["id", "title", "status", "created", "author"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^LOT-[0-9A-Z]{26}$",
+      "description": "Unique identifier (LOT prefix + ULID)"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "description": "Short descriptive title"
+    },
+    "lot_number": {
+      "type": ["string", "null"],
+      "description": "User-defined lot/batch identifier"
+    },
+    "quantity": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Quantity of units in this lot"
+    },
+    "lot_status": {
+      "type": "string",
+      "enum": ["in_progress", "on_hold", "completed", "scrapped"],
+      "default": "in_progress",
+      "description": "Production status of the lot"
+    },
+    "start_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Production start date"
+    },
+    "completion_date": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Production completion date"
+    },
+    "materials_used": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "component": {
+            "type": ["string", "null"],
+            "description": "Component ID (CMP-xxx)"
+          },
+          "supplier_lot": {
+            "type": ["string", "null"],
+            "description": "Supplier lot number (free text for traceability)"
+          },
+          "quantity": {
+            "type": ["integer", "null"],
+            "minimum": 0,
+            "description": "Quantity used"
+          }
+        }
+      },
+      "description": "Materials used in production for traceability"
+    },
+    "execution": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "process": {
+            "type": ["string", "null"],
+            "description": "Process ID (PROC-xxx)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "in_progress", "completed", "skipped"],
+            "default": "pending",
+            "description": "Execution status of this step"
+          },
+          "completed_date": {
+            "type": ["string", "null"],
+            "format": "date",
+            "description": "Date step was completed"
+          },
+          "operator": {
+            "type": ["string", "null"],
+            "description": "Operator who performed this step"
+          },
+          "notes": {
+            "type": ["string", "null"],
+            "description": "Notes about execution"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Measurement/inspection data (key-value pairs)"
+          }
+        }
+      },
+      "description": "Process execution records"
+    },
+    "notes": {
+      "type": ["string", "null"],
+      "description": "Production notes"
+    },
+    "links": {
+      "type": "object",
+      "properties": {
+        "product": {
+          "type": ["string", "null"],
+          "description": "Product being made (ASM or CMP ID)"
+        },
+        "processes": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Process entities in sequence"
+        },
+        "work_instructions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Work instruction entities"
+        },
+        "ncrs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "NCRs raised during production"
+        },
+        "results": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "In-process inspection results"
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "review", "approved", "released", "obsolete"],
+      "description": "Document status"
+    },
+    "created": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name"
+    },
+    "entity_revision": {
+      "type": "integer",
+      "minimum": 1,
+      "default": 1,
+      "description": "Entity revision number"
+    }
+  },
+  "additionalProperties": true
+}

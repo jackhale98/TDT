@@ -44,6 +44,10 @@ pub enum EntityPrefix {
     Ncr,
     /// Corrective/preventive action
     Capa,
+    /// Production lot / batch (DHR)
+    Lot,
+    /// Process deviation
+    Dev,
 }
 
 impl EntityPrefix {
@@ -67,6 +71,8 @@ impl EntityPrefix {
             EntityPrefix::Work => "WORK",
             EntityPrefix::Ncr => "NCR",
             EntityPrefix::Capa => "CAPA",
+            EntityPrefix::Lot => "LOT",
+            EntityPrefix::Dev => "DEV",
         }
     }
 
@@ -90,6 +96,8 @@ impl EntityPrefix {
             EntityPrefix::Work,
             EntityPrefix::Ncr,
             EntityPrefix::Capa,
+            EntityPrefix::Lot,
+            EntityPrefix::Dev,
         ]
     }
 
@@ -141,6 +149,8 @@ impl EntityPrefix {
                     "work_instructions" => return Some(EntityPrefix::Work),
                     "ncrs" => return Some(EntityPrefix::Ncr),
                     "capas" => return Some(EntityPrefix::Capa),
+                    "lots" => return Some(EntityPrefix::Lot),
+                    "deviations" => return Some(EntityPrefix::Dev),
                     _ => {}
                 }
             }
@@ -177,6 +187,8 @@ impl FromStr for EntityPrefix {
             "WORK" => Ok(EntityPrefix::Work),
             "NCR" => Ok(EntityPrefix::Ncr),
             "CAPA" => Ok(EntityPrefix::Capa),
+            "LOT" => Ok(EntityPrefix::Lot),
+            "DEV" => Ok(EntityPrefix::Dev),
             _ => Err(IdParseError::InvalidPrefix(s.to_string())),
         }
     }
@@ -263,7 +275,7 @@ impl<'de> Deserialize<'de> for EntityId {
 /// Errors that can occur when parsing entity IDs
 #[derive(Debug, Error)]
 pub enum IdParseError {
-    #[error("invalid entity prefix: '{0}' (valid: REQ, RISK, TEST, RSLT, TOL, MATE, ASM, CMP, FEAT, PROC, CTRL, QUOT, SUP, ACT, WORK, NCR, CAPA)")]
+    #[error("invalid entity prefix: '{0}' (valid: REQ, RISK, TEST, RSLT, TOL, MATE, ASM, CMP, FEAT, PROC, CTRL, QUOT, SUP, ACT, WORK, NCR, CAPA, LOT, DEV)")]
     InvalidPrefix(String),
 
     #[error("missing '-' delimiter in entity ID: '{0}'")]

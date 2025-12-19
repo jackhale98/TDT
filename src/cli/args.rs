@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use crate::cli::commands::{
     asm::AsmCommands, baseline::BaselineCommands, blame::BlameArgs, bulk::BulkCommands,
     cache::CacheCommands, capa::CapaCommands, cmp::CmpCommands, completions::CompletionsArgs,
-    config::ConfigCommands, ctrl::CtrlCommands, diff::DiffArgs, dmm::DmmArgs, dsm::DsmArgs,
-    feat::FeatCommands, history::HistoryArgs, import::ImportArgs, init::InitArgs,
-    link::LinkCommands, mate::MateCommands, ncr::NcrCommands, proc::ProcCommands,
+    config::ConfigCommands, ctrl::CtrlCommands, dev::DevCommands, diff::DiffArgs, dmm::DmmArgs,
+    dsm::DsmArgs, feat::FeatCommands, history::HistoryArgs, import::ImportArgs, init::InitArgs,
+    link::LinkCommands, lot::LotCommands, mate::MateCommands, ncr::NcrCommands, proc::ProcCommands,
     quote::QuoteCommands, report::ReportCommands, req::ReqCommands, risk::RiskCommands,
     rslt::RsltCommands, schema::SchemaCommands, search::SearchArgs, status::StatusArgs,
     sup::SupCommands, test::TestCommands, tol::TolCommands, trace::TraceCommands,
@@ -46,6 +46,8 @@ MANUFACTURING:
   proc        Manufacturing process management (new, list, show, edit)
   ctrl        Control plan item management (new, list, show, edit)
   work        Work instruction management (new, list, show, edit)
+  lot         Production lot/batch management (new, list, show, step, complete)
+  dev         Process deviation management (new, list, show, approve, expire)
 
 QUALITY:
   ncr         Non-conformance report management (new, list, show, edit)
@@ -195,6 +197,14 @@ pub enum Commands {
     /// Work instruction management (new, list, show, edit)
     #[command(subcommand)]
     Work(WorkCommands),
+
+    /// Production lot/batch management (new, list, show, step, complete)
+    #[command(subcommand)]
+    Lot(LotCommands),
+
+    /// Process deviation management (new, list, show, approve, expire)
+    #[command(subcommand)]
+    Dev(DevCommands),
 
     // ─────────────────────────────────────────────────────────────────────
     // QUALITY

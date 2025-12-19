@@ -164,6 +164,8 @@ impl Project {
             "manufacturing/work_instructions",
             "manufacturing/ncrs",
             "manufacturing/capas",
+            "manufacturing/lots",
+            "manufacturing/deviations",
         ];
 
         for dir in dirs {
@@ -210,6 +212,8 @@ impl Project {
             EntityPrefix::Work => "manufacturing/work_instructions",
             EntityPrefix::Ncr => "manufacturing/ncrs",
             EntityPrefix::Capa => "manufacturing/capas",
+            EntityPrefix::Lot => "manufacturing/lots",
+            EntityPrefix::Dev => "manufacturing/deviations",
         }
     }
 

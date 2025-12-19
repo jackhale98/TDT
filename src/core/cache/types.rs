@@ -239,6 +239,41 @@ pub struct CachedCapa {
     pub file_path: PathBuf,
 }
 
+/// Cached lot data (production batches / DHR)
+#[derive(Debug, Clone)]
+pub struct CachedLot {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub lot_number: Option<String>,
+    pub quantity: Option<i64>,
+    pub lot_status: Option<String>,
+    pub product_id: Option<String>,
+    pub author: String,
+    pub created: DateTime<Utc>,
+    pub file_path: PathBuf,
+}
+
+/// Cached deviation data (process deviations)
+#[derive(Debug, Clone)]
+pub struct CachedDeviation {
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub deviation_number: Option<String>,
+    pub deviation_type: Option<String>,
+    pub category: Option<String>,
+    pub dev_status: Option<String>,
+    pub risk_level: Option<String>,
+    pub effective_date: Option<String>,
+    pub expiration_date: Option<String>,
+    pub approved_by: Option<String>,
+    pub approval_date: Option<String>,
+    pub author: String,
+    pub created: DateTime<Utc>,
+    pub file_path: PathBuf,
+}
+
 /// Cached process data
 #[derive(Debug, Clone)]
 pub struct CachedProcess {

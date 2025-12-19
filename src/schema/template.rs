@@ -85,6 +85,12 @@ pub struct TemplateContext {
     pub capa_type: Option<String>,
     pub source_type: Option<String>,
     pub source_ref: Option<String>,
+    // LOT fields
+    pub lot_number: Option<String>,
+    pub quantity: Option<u32>,
+    // DEV (Deviation) fields
+    pub dev_type: Option<String>,
+    pub deviation_number: Option<String>,
 }
 
 impl TemplateContext {
@@ -147,6 +153,10 @@ impl TemplateContext {
             capa_type: None,
             source_type: None,
             source_ref: None,
+            lot_number: None,
+            quantity: None,
+            dev_type: None,
+            deviation_number: None,
         }
     }
 
@@ -411,6 +421,26 @@ impl TemplateContext {
 
     pub fn with_source_ref(mut self, source_ref: impl Into<String>) -> Self {
         self.source_ref = Some(source_ref.into());
+        self
+    }
+
+    pub fn with_lot_number(mut self, lot_number: impl Into<String>) -> Self {
+        self.lot_number = Some(lot_number.into());
+        self
+    }
+
+    pub fn with_quantity(mut self, quantity: u32) -> Self {
+        self.quantity = Some(quantity);
+        self
+    }
+
+    pub fn with_dev_type(mut self, dev_type: impl Into<String>) -> Self {
+        self.dev_type = Some(dev_type.into());
+        self
+    }
+
+    pub fn with_deviation_number(mut self, deviation_number: impl Into<String>) -> Self {
+        self.deviation_number = Some(deviation_number.into());
         self
     }
 }
@@ -782,16 +812,12 @@ entity_revision: 1
         let feature_type = ctx
             .feature_type
             .clone()
-            .unwrap_or_else(|| "hole".to_string());
+            .unwrap_or_else(|| "internal".to_string());
         let created = ctx.created.to_rfc3339();
 
-        // Determine if feature is internal based on type
-        // Internal features: hole, slot, pocket, counterbore, countersink, thread (internal threads)
-        // External features: shaft, boss, edge, planar_surface, other
-        let is_internal = matches!(
-            feature_type.as_str(),
-            "hole" | "slot" | "pocket" | "counterbore" | "countersink"
-        );
+        // Determine if dimension is internal based on feature type
+        // internal feature = internal dimension (hole), external feature = external dimension (shaft)
+        let is_internal = feature_type == "internal";
 
         format!(
             r#"# Feature: {title}
@@ -2012,7 +2038,7 @@ entity_revision: 1
         };
 
         let doc_line = if document_number.is_empty() {
-            "document_number: null".to_string()
+            "document_number: \"\"".to_string()
         } else {
             format!("document_number: \"{}\"", document_number)
         };
@@ -2304,6 +2330,179 @@ entity_revision: 1
             source_type = source_type,
             source_ref_line = source_ref_line,
             initiated_date = initiated_date,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a LOT template
+    pub fn generate_lot(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        Ok(self.hardcoded_lot_template(ctx))
+    }
+
+    fn hardcoded_lot_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let lot_number = ctx.lot_number.clone();
+        let quantity = ctx.quantity;
+        let created = ctx.created.to_rfc3339();
+        let start_date = ctx.created.format("%Y-%m-%d").to_string();
+
+        let lot_number_line = match lot_number {
+            Some(ln) => format!("lot_number: \"{}\"", ln),
+            None => "lot_number: null".to_string(),
+        };
+
+        let quantity_line = match quantity {
+            Some(q) => format!("quantity: {}", q),
+            None => "quantity: null".to_string(),
+        };
+
+        format!(
+            r#"# LOT: {title}
+# Created by TDT - Tessera Design Toolkit
+
+id: {id}
+title: "{title}"
+{lot_number_line}
+{quantity_line}
+
+lot_status: in_progress
+
+start_date: {start_date}
+completion_date: null
+
+# Materials used in production (for traceability)
+materials_used: []
+# Example:
+#   - component: CMP@1
+#     supplier_lot: "SUP-ABC-123"
+#     quantity: 25
+
+# Process execution records
+execution: []
+# Example:
+#   - process: PROC@1
+#     status: pending
+#     completed_date: null
+#     operator: null
+#     notes: null
+#     data: {{}}
+
+notes: |
+  # Production notes
+
+links:
+  product: null     # ASM or CMP ID being made
+  processes: []     # PROC entities in sequence
+  work_instructions: []  # WORK entities
+  ncrs: []          # NCRs raised during production
+  results: []       # In-process inspection results
+
+# Auto-managed metadata
+status: draft
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            lot_number_line = lot_number_line,
+            quantity_line = quantity_line,
+            start_date = start_date,
+            created = created,
+            author = ctx.author,
+        )
+    }
+
+    /// Generate a DEV (deviation) template
+    pub fn generate_dev(&self, ctx: &TemplateContext) -> Result<String, TemplateError> {
+        Ok(self.hardcoded_dev_template(ctx))
+    }
+
+    fn hardcoded_dev_template(&self, ctx: &TemplateContext) -> String {
+        let title = ctx.title.clone().unwrap_or_default();
+        let dev_type = ctx
+            .dev_type
+            .clone()
+            .unwrap_or_else(|| "temporary".to_string());
+        let category = ctx
+            .category
+            .clone()
+            .unwrap_or_else(|| "material".to_string());
+        let risk_level = ctx
+            .risk_level
+            .clone()
+            .unwrap_or_else(|| "low".to_string());
+        let deviation_number = ctx.deviation_number.clone();
+        let created = ctx.created.to_rfc3339();
+
+        let deviation_number_line = match deviation_number {
+            Some(dn) => format!("deviation_number: \"{}\"", dn),
+            None => "deviation_number: null".to_string(),
+        };
+
+        format!(
+            r#"# DEV: {title}
+# Created by TDT - Tessera Design Toolkit
+
+id: {id}
+title: "{title}"
+{deviation_number_line}
+
+deviation_type: {dev_type}
+category: {category}
+
+description: |
+  # Describe the deviation in detail
+  # What is being changed and why?
+
+# Risk assessment
+risk:
+  level: {risk_level}
+  assessment: |
+    # Risk assessment for this deviation
+  mitigations: []
+  # Example:
+  #   - "First article inspection required"
+  #   - "Material cert review by QE"
+
+# Approval (populated by 'tdt dev approve')
+approval:
+  approved_by: null
+  approval_date: null
+  authorization_level: null  # engineering | quality | management
+
+# Scope and timing
+effective_date: null
+expiration_date: null  # null for permanent deviations
+
+dev_status: pending
+
+notes: |
+  # Additional notes
+
+links:
+  processes: []      # PROC entities affected
+  lots: []           # LOT entities this applies to
+  components: []     # CMP entities affected
+  requirements: []   # REQ entities being deviated from
+  ncrs: []           # NCRs that triggered this deviation
+  change_order: null # ECO/DCN reference for permanent deviations
+
+tags: []
+status: draft
+
+# Auto-managed metadata
+created: {created}
+author: {author}
+entity_revision: 1
+"#,
+            id = ctx.id,
+            title = title,
+            deviation_number_line = deviation_number_line,
+            dev_type = dev_type,
+            category = category,
+            risk_level = risk_level,
             created = created,
             author = ctx.author,
         )

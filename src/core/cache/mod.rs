@@ -34,7 +34,7 @@ use crate::core::project::Project;
 const CACHE_FILE: &str = ".tdt/cache.db";
 
 /// Current schema version - cache is rebuilt on version mismatch
-const SCHEMA_VERSION: i32 = 7;
+const SCHEMA_VERSION: i32 = 9;
 
 /// The entity cache backed by SQLite
 pub struct EntityCache {
@@ -229,6 +229,8 @@ impl EntityCache {
             "manufacturing/work_instructions",
             "manufacturing/ncrs",
             "manufacturing/capas",
+            "manufacturing/lots",
+            "manufacturing/deviations",
         ]
     }
 

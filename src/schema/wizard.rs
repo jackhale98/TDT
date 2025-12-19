@@ -564,4 +564,100 @@ mod tests {
         // Just verify it can be created and has the REQ schema
         assert!(wizard.registry.has_schema(EntityPrefix::Req));
     }
+
+    #[test]
+    fn test_component_schema_has_mass_and_cost() {
+        let wizard = SchemaWizard::new();
+        let schema_str = wizard.registry.get(EntityPrefix::Cmp).unwrap();
+        let schema: Value = serde_json::from_str(schema_str).unwrap();
+
+        // Extract fields
+        let fields = wizard.extract_fields(&schema).unwrap();
+
+        // Debug: print all field names
+        let field_names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+        eprintln!("Component fields: {:?}", field_names);
+
+        // Check that mass_kg and unit_cost are in the fields
+        let mass_field = fields.iter().find(|f| f.name == "mass_kg");
+        let cost_field = fields.iter().find(|f| f.name == "unit_cost");
+
+        assert!(mass_field.is_some(), "mass_kg should be in wizard fields");
+        assert!(cost_field.is_some(), "unit_cost should be in wizard fields");
+
+        // Check they are Number type
+        if let Some(mass) = mass_field {
+            assert!(matches!(mass.field_type, FieldType::Number { .. }), "mass_kg should be Number type, got {:?}", mass.field_type);
+        }
+        if let Some(cost) = cost_field {
+            assert!(matches!(cost.field_type, FieldType::Number { .. }), "unit_cost should be Number type, got {:?}", cost.field_type);
+        }
+    }
+
+    #[test]
+    fn test_number_value_conversion() {
+        // Test that serde_json Number values are correctly parsed
+        let num = serde_json::Number::from_f64(1.5).unwrap();
+        let value = Value::Number(num);
+
+        // Test as_f64
+        assert_eq!(value.as_f64(), Some(1.5));
+
+        // Test with integer-like number
+        let num = serde_json::Number::from_f64(10.0).unwrap();
+        let value = Value::Number(num);
+        assert_eq!(value.as_f64(), Some(10.0));
+
+        // Test with 0.0
+        let num = serde_json::Number::from_f64(0.0).unwrap();
+        let value = Value::Number(num);
+        assert_eq!(value.as_f64(), Some(0.0));
+    }
+
+    #[test]
+    fn test_all_entity_wizards_have_fields() {
+        let wizard = SchemaWizard::new();
+
+        // Test each entity type that has a schema
+        let entity_types = [
+            (EntityPrefix::Req, vec!["title", "type"]),
+            (EntityPrefix::Risk, vec!["title", "severity", "occurrence"]),
+            (EntityPrefix::Test, vec!["title", "type"]),
+            (EntityPrefix::Cmp, vec!["title", "part_number", "make_buy", "mass_kg", "unit_cost"]),
+            (EntityPrefix::Asm, vec!["title", "part_number"]),
+            (EntityPrefix::Feat, vec!["title", "feature_type"]),
+            (EntityPrefix::Proc, vec!["title"]),
+            (EntityPrefix::Ctrl, vec!["title"]),
+            (EntityPrefix::Work, vec!["title"]),
+            (EntityPrefix::Ncr, vec!["title"]),
+            (EntityPrefix::Capa, vec!["title"]),
+            (EntityPrefix::Sup, vec!["name"]),
+            (EntityPrefix::Quot, vec!["title"]),
+            (EntityPrefix::Tol, vec!["title"]),
+            (EntityPrefix::Mate, vec!["title"]),
+            (EntityPrefix::Rslt, vec!["verdict"]),
+        ];
+
+        for (prefix, expected_fields) in entity_types {
+            if let Some(schema_str) = wizard.registry.get(prefix) {
+                let schema: Value = serde_json::from_str(schema_str).unwrap();
+                let fields = wizard.extract_fields(&schema).unwrap();
+                let field_names: Vec<&str> = fields.iter().map(|f| f.name.as_str()).collect();
+
+                eprintln!("{} fields: {:?}", prefix.as_str(), field_names);
+
+                for expected in expected_fields {
+                    assert!(
+                        field_names.contains(&expected),
+                        "{} should have field '{}', got {:?}",
+                        prefix.as_str(),
+                        expected,
+                        field_names
+                    );
+                }
+            } else {
+                eprintln!("No schema for {}", prefix.as_str());
+            }
+        }
+    }
 }

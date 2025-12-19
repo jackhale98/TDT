@@ -156,6 +156,8 @@ impl EntityCache {
             "CAPA" => self.cache_capa_data(id, &value)?,
             "ASM" => self.cache_assembly_data(id, &value)?,
             "RSLT" => self.cache_result_data(id, &value)?,
+            "LOT" => self.cache_lot_data(id, &value)?,
+            "DEV" => self.cache_deviation_data(id, &value)?,
             _ => {}
         }
 
@@ -649,6 +651,50 @@ impl EntityCache {
                     value["verdict"].as_str(),
                     value["executed_by"].as_str(),
                     value["executed_date"].as_str()
+                ],
+            )
+            .into_diagnostic()?;
+        Ok(())
+    }
+
+    pub(super) fn cache_lot_data(&self, id: &str, value: &serde_yml::Value) -> Result<()> {
+        self.conn
+            .execute(
+                r#"INSERT OR REPLACE INTO lots
+                   (id, lot_number, quantity, lot_status, product_id, start_date, completion_date)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)"#,
+                params![
+                    id,
+                    value["lot_number"].as_str(),
+                    value["quantity"].as_i64(),
+                    value["lot_status"].as_str(),
+                    value["links"]["product"].as_str(),
+                    value["start_date"].as_str(),
+                    value["completion_date"].as_str()
+                ],
+            )
+            .into_diagnostic()?;
+        Ok(())
+    }
+
+    pub(super) fn cache_deviation_data(&self, id: &str, value: &serde_yml::Value) -> Result<()> {
+        self.conn
+            .execute(
+                r#"INSERT OR REPLACE INTO deviations
+                   (id, deviation_number, deviation_type, category, dev_status, risk_level,
+                    effective_date, expiration_date, approved_by, approval_date)
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)"#,
+                params![
+                    id,
+                    value["deviation_number"].as_str(),
+                    value["deviation_type"].as_str(),
+                    value["category"].as_str(),
+                    value["dev_status"].as_str(),
+                    value["risk"]["level"].as_str(),
+                    value["effective_date"].as_str(),
+                    value["expiration_date"].as_str(),
+                    value["approval"]["approved_by"].as_str(),
+                    value["approval"]["approval_date"].as_str()
                 ],
             )
             .into_diagnostic()?;

@@ -986,6 +986,8 @@ fn find_entity_file(project: &Project, id: &EntityId) -> Result<PathBuf> {
         EntityPrefix::Ncr => vec![project.root().join("manufacturing/ncrs")],
         EntityPrefix::Capa => vec![project.root().join("manufacturing/capas")],
         EntityPrefix::Act => vec![project.root().join("manufacturing/actions")],
+        EntityPrefix::Lot => vec![project.root().join("manufacturing/lots")],
+        EntityPrefix::Dev => vec![project.root().join("manufacturing/deviations")],
     };
 
     for dir in search_dirs {

@@ -40,6 +40,8 @@ fn main() -> Result<()> {
         Commands::Proc(cmd) => tdt::cli::commands::proc::run(cmd, &global),
         Commands::Ctrl(cmd) => tdt::cli::commands::ctrl::run(cmd, &global),
         Commands::Work(cmd) => tdt::cli::commands::work::run(cmd, &global),
+        Commands::Lot(cmd) => tdt::cli::commands::lot::run(cmd, &global),
+        Commands::Dev(cmd) => tdt::cli::commands::dev::run(cmd, &global),
         Commands::Ncr(cmd) => tdt::cli::commands::ncr::run(cmd, &global),
         Commands::Capa(cmd) => tdt::cli::commands::capa::run(cmd, &global),
         Commands::Feat(cmd) => tdt::cli::commands::feat::run(cmd, &global),

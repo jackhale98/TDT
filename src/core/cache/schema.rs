@@ -202,6 +202,38 @@ impl EntityCache {
             CREATE INDEX IF NOT EXISTS idx_results_test ON results(test_id);
             CREATE INDEX IF NOT EXISTS idx_results_verdict ON results(verdict);
 
+            -- Lot-specific data (production batches / DHR)
+            CREATE TABLE IF NOT EXISTS lots (
+                id TEXT PRIMARY KEY,
+                lot_number TEXT,
+                quantity INTEGER,
+                lot_status TEXT,
+                product_id TEXT,
+                start_date TEXT,
+                completion_date TEXT,
+                FOREIGN KEY (id) REFERENCES entities(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_lots_lot_status ON lots(lot_status);
+            CREATE INDEX IF NOT EXISTS idx_lots_product ON lots(product_id);
+
+            -- Deviation-specific data (process deviations)
+            CREATE TABLE IF NOT EXISTS deviations (
+                id TEXT PRIMARY KEY,
+                deviation_number TEXT,
+                deviation_type TEXT,
+                category TEXT,
+                dev_status TEXT,
+                risk_level TEXT,
+                effective_date TEXT,
+                expiration_date TEXT,
+                approved_by TEXT,
+                approval_date TEXT,
+                FOREIGN KEY (id) REFERENCES entities(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_deviations_dev_status ON deviations(dev_status);
+            CREATE INDEX IF NOT EXISTS idx_deviations_type ON deviations(deviation_type);
+            CREATE INDEX IF NOT EXISTS idx_deviations_category ON deviations(category);
+
             -- Entity links/relationships
             CREATE TABLE IF NOT EXISTS links (
                 source_id TEXT NOT NULL,
