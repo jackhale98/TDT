@@ -826,14 +826,56 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         revision = result.get_string("revision").map(String::from);
         material = result.get_string("material").map(String::from);
         description = result.get_string("description").map(String::from);
-        mass_kg = result.values.get("mass_kg").and_then(|v| {
+
+        // Try to get mass_kg and unit_cost from wizard first
+        let wizard_mass = result.values.get("mass_kg").and_then(|v| {
             v.as_f64()
                 .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
         });
-        unit_cost = result.values.get("unit_cost").and_then(|v| {
+        let wizard_cost = result.values.get("unit_cost").and_then(|v| {
             v.as_f64()
                 .or_else(|| v.as_str().and_then(|s| s.parse().ok()))
         });
+
+        // If wizard didn't collect these (may be skipped), prompt explicitly
+        use dialoguer::{theme::ColorfulTheme, Input};
+        let theme = ColorfulTheme::default();
+
+        println!();
+        println!(
+            "{} Physical properties",
+            console::style("◆").cyan()
+        );
+
+        mass_kg = if wizard_mass.is_some() {
+            wizard_mass
+        } else {
+            let mass_input: String = Input::with_theme(&theme)
+                .with_prompt("Mass (kg) - leave empty to skip")
+                .allow_empty(true)
+                .interact_text()
+                .into_diagnostic()?;
+            if mass_input.is_empty() {
+                None
+            } else {
+                mass_input.parse().ok()
+            }
+        };
+
+        unit_cost = if wizard_cost.is_some() {
+            wizard_cost
+        } else {
+            let cost_input: String = Input::with_theme(&theme)
+                .with_prompt("Unit cost - leave empty to skip")
+                .allow_empty(true)
+                .interact_text()
+                .into_diagnostic()?;
+            if cost_input.is_empty() {
+                None
+            } else {
+                cost_input.parse().ok()
+            }
+        };
     } else {
         part_number = args
             .part_number

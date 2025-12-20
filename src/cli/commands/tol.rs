@@ -614,20 +614,42 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .get_string("title")
             .map(String::from)
             .unwrap_or_else(|| "New Stackup".to_string());
-        target_name = result
-            .get_string("target.name")
-            .map(String::from)
-            .unwrap_or_else(|| "Target".to_string());
-        target_nominal = result
-            .get_f64("target.nominal")
-            .unwrap_or(0.0);
-        target_upper = result
-            .get_f64("target.upper_limit")
-            .unwrap_or(0.0);
-        target_lower = result
-            .get_f64("target.lower_limit")
-            .unwrap_or(0.0);
         description = result.get_string("description").map(String::from);
+
+        // Wizard doesn't support nested object fields like "target"
+        // So we prompt for these separately using dialoguer
+        use dialoguer::{theme::ColorfulTheme, Input};
+        let theme = ColorfulTheme::default();
+
+        println!();
+        println!(
+            "{} Target specification",
+            console::style("◆").cyan()
+        );
+
+        target_name = Input::with_theme(&theme)
+            .with_prompt("Target name")
+            .default("Target".to_string())
+            .interact_text()
+            .into_diagnostic()?;
+
+        target_nominal = Input::with_theme(&theme)
+            .with_prompt("Target nominal value")
+            .default(0.0)
+            .interact_text()
+            .into_diagnostic()?;
+
+        target_upper = Input::with_theme(&theme)
+            .with_prompt("Upper specification limit (USL)")
+            .default(0.0)
+            .interact_text()
+            .into_diagnostic()?;
+
+        target_lower = Input::with_theme(&theme)
+            .with_prompt("Lower specification limit (LSL)")
+            .default(0.0)
+            .interact_text()
+            .into_diagnostic()?;
     } else {
         title = args.title.unwrap_or_else(|| "New Stackup".to_string());
         target_name = args.target_name.unwrap_or_else(|| "Target".to_string());

@@ -314,8 +314,13 @@
     }
 
     .concept-card .icon {
-      font-size: 32px;
       margin-bottom: 16px;
+      color: var(--accent);
+    }
+
+    .concept-card .icon svg {
+      width: 32px;
+      height: 32px;
     }
 
     .concept-card h4 {
@@ -364,7 +369,9 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px;
+      font-weight: 600;
       background: var(--bg-elevated);
       border: 2px solid var(--border);
       transition: all 0.3s ease;
@@ -541,9 +548,11 @@
       border: 2px solid var(--accent);
       border-radius: 50%;
       color: var(--accent);
+      font-family: 'Space Grotesk', sans-serif;
       font-weight: 700;
       font-size: 18px;
       flex-shrink: 0;
+      line-height: 1;
     }
 
     .step-content {
@@ -741,22 +750,22 @@
 
       <div class="concept-grid">
         <div class="concept-card">
-          <div class="icon">&#x1F4DD;</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg></div>
           <h4>Status</h4>
           <p>Every entity (requirement, risk, test, etc.) has a status that tracks where it is in the review process: Draft, Review, Approved, or Released.</p>
         </div>
         <div class="concept-card">
-          <div class="icon">&#x1F465;</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
           <h4>Team Roster</h4>
           <p>An optional file that lists who's on your team and their roles. Define your own approval rules based on your team's needs.</p>
         </div>
         <div class="concept-card">
-          <div class="icon">&#x1F4E5;</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></div>
           <h4>Submit</h4>
           <p>When you're ready for review, submit your work. TDT creates a branch, updates the status, and opens a pull request for you.</p>
         </div>
         <div class="concept-card">
-          <div class="icon">&#x2705;</div>
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg></div>
           <h4>Approve</h4>
           <p>Reviewers check the changes and approve. TDT records who approved, updates the status, and can merge the pull request automatically.</p>
         </div>
@@ -773,22 +782,22 @@
       <div class="workflow-diagram">
         <div class="workflow-steps">
           <div class="workflow-step">
-            <div class="step-icon draft">&#x270F;&#xFE0F;</div>
+            <div class="step-icon draft">1</div>
             <span class="step-label">Draft</span>
           </div>
-          <span class="workflow-arrow">&#x2192;</span>
+          <span class="workflow-arrow">&rarr;</span>
           <div class="workflow-step">
-            <div class="step-icon review">&#x1F440;</div>
+            <div class="step-icon review">2</div>
             <span class="step-label">Review</span>
           </div>
-          <span class="workflow-arrow">&#x2192;</span>
+          <span class="workflow-arrow">&rarr;</span>
           <div class="workflow-step">
-            <div class="step-icon approved">&#x2705;</div>
+            <div class="step-icon approved">3</div>
             <span class="step-label">Approved</span>
           </div>
-          <span class="workflow-arrow">&#x2192;</span>
+          <span class="workflow-arrow">&rarr;</span>
           <div class="workflow-step">
-            <div class="step-icon released">&#x1F680;</div>
+            <div class="step-icon released">4</div>
             <span class="step-label">Released</span>
           </div>
         </div>
