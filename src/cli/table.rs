@@ -458,6 +458,33 @@ impl CellValue {
             CellValue::Empty => String::new(),
         }
     }
+
+    /// Get the display width of this cell's content (for dynamic column sizing)
+    pub fn display_width(&self) -> usize {
+        match self {
+            CellValue::Id(id) => id.len().min(16), // IDs are truncated to 16
+            CellValue::ShortId(sid) => sid.len(),
+            CellValue::Text(s) => s.len(),
+            CellValue::Status(status) => status.to_string().len(),
+            CellValue::Priority(priority) => priority.to_string().len(),
+            CellValue::OptionalPriority(opt) => opt.map_or(1, |p| p.to_string().len()),
+            CellValue::Type(t) => t.len(),
+            CellValue::Verdict(v) => v.len().max(3), // "n/a" minimum
+            CellValue::NcrSeverity(s) => s.len(),
+            CellValue::FitResult(s) => s.len(),
+            CellValue::FitMatch(_) => 2, // "✓" or "⚠" or "-"
+            CellValue::AnalysisResult(s) => s.len(),
+            CellValue::Cpk(opt) => opt.map_or(1, |c| format!("{:.2}", c).len()),
+            CellValue::YieldPct(opt) => opt.map_or(1, |y| format!("{:.1}%", y).len()),
+            CellValue::Critical(_) => 3, // "yes" or "no"
+            CellValue::Date(_) => 10,    // "YYYY-MM-DD"
+            CellValue::DateTime(_) => 16, // "YYYY-MM-DD HH:MM"
+            CellValue::Number(n) => n.to_string().len(),
+            CellValue::Float(f, precision) => format!("{:.prec$}", f, prec = precision).len(),
+            CellValue::Tags(tags) => tags.join(", ").len(),
+            CellValue::Empty => 1,
+        }
+    }
 }
 
 /// Column definition with header label and width
@@ -554,19 +581,57 @@ impl<'a> TableFormatter<'a> {
         }
     }
 
+    /// Calculate dynamic column widths based on actual content
+    fn calculate_widths(&self, rows: &[TableRow], visible_columns: &[&str]) -> Vec<usize> {
+        let mut widths = Vec::new();
+
+        // SHORT column - find max short ID length, min 5 for header
+        let short_width = rows
+            .iter()
+            .map(|r| r.short_id.len())
+            .max()
+            .unwrap_or(5)
+            .max(5); // "SHORT" header
+        widths.push(short_width);
+
+        // Other columns
+        for col in self.columns {
+            if visible_columns.contains(&col.key) {
+                let header_len = col.header.len();
+                let max_content = rows
+                    .iter()
+                    .filter_map(|r| r.get(col.key))
+                    .map(|v| v.display_width())
+                    .max()
+                    .unwrap_or(0);
+
+                // Need +2 for truncation buffer (truncate_str uses width-2 for text)
+                // Use max of (header length, content length + 2), capped at defined max width
+                let content_with_buffer = max_content.saturating_add(2);
+                let width = header_len.max(content_with_buffer).min(col.width);
+                widths.push(width);
+            }
+        }
+
+        widths
+    }
+
     fn output_tsv(&self, rows: &[TableRow], visible_columns: &[&str]) {
+        // Calculate dynamic widths based on content
+        let widths = self.calculate_widths(rows, visible_columns);
+
         // Header row - always start with SHORT
-        let mut header_parts = vec![format!("{:<8}", style("SHORT").bold().dim())];
-        let mut widths = vec![8usize];
+        let mut header_parts = vec![format!("{:<width$}", style("SHORT").bold().dim(), width = widths[0])];
+        let mut width_idx = 1;
 
         for col in self.columns {
             if visible_columns.contains(&col.key) {
                 header_parts.push(format!(
                     "{:<width$}",
                     style(col.header).bold(),
-                    width = col.width
+                    width = widths[width_idx]
                 ));
-                widths.push(col.width);
+                width_idx += 1;
             }
         }
         println!("{}", header_parts.join(" "));
@@ -580,7 +645,7 @@ impl<'a> TableFormatter<'a> {
             if let Some(wrap_width) = self.config.wrap_width {
                 self.output_tsv_row_wrapped(row, visible_columns, &widths, wrap_width);
             } else {
-                self.output_tsv_row_truncated(row, visible_columns);
+                self.output_tsv_row_truncated(row, visible_columns, &widths);
             }
         }
 
@@ -596,16 +661,19 @@ impl<'a> TableFormatter<'a> {
         }
     }
 
-    fn output_tsv_row_truncated(&self, row: &TableRow, visible_columns: &[&str]) {
-        let mut row_parts = vec![format!("{:<8}", style(&row.short_id).cyan())];
+    fn output_tsv_row_truncated(&self, row: &TableRow, visible_columns: &[&str], widths: &[usize]) {
+        let mut row_parts = vec![format!("{:<width$}", style(&row.short_id).cyan(), width = widths[0])];
+        let mut width_idx = 1;
 
         for col in self.columns {
             if visible_columns.contains(&col.key) {
+                let w = widths[width_idx];
                 if let Some(value) = row.get(col.key) {
-                    row_parts.push(value.format_tsv(col.width));
+                    row_parts.push(value.format_tsv(w));
                 } else {
-                    row_parts.push(format!("{:<width$}", "-", width = col.width));
+                    row_parts.push(format!("{:<width$}", "-", width = w));
                 }
+                width_idx += 1;
             }
         }
         println!("{}", row_parts.join(" "));

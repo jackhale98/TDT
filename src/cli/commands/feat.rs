@@ -108,7 +108,7 @@ const FEAT_COLUMNS: &[ColumnDef] = &[
     ColumnDef::new("title", "TITLE", 20),
     ColumnDef::new("description", "DESCRIPTION", 30),
     ColumnDef::new("feature-type", "TYPE", 10),
-    ColumnDef::new("component", "COMPONENT", 40),
+    ColumnDef::new("component", "COMPONENT", 24),
     ColumnDef::new("status", "STATUS", 10),
     ColumnDef::new("author", "AUTHOR", 14),
     ColumnDef::new("created", "CREATED", 12),
