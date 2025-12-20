@@ -3,11 +3,15 @@
 pub mod cache;
 pub mod config;
 pub mod entity;
+pub mod git;
 pub mod identity;
 pub mod links;
 pub mod loader;
 pub mod project;
+pub mod provider;
 pub mod shortid;
+pub mod team;
+pub mod workflow;
 
 pub use cache::{
     CachedComponent, CachedEntity, CachedFeature, CachedLink, CachedQuote, CachedRequirement,
@@ -15,6 +19,10 @@ pub use cache::{
 };
 pub use config::Config;
 pub use entity::Entity;
+pub use git::{Git, GitError};
 pub use identity::{EntityId, EntityPrefix, IdParseError};
 pub use project::{Project, ProjectError};
+pub use provider::{Provider, ProviderClient, ProviderError, PrInfo, PrState};
 pub use shortid::ShortIdIndex;
+pub use team::{Role, TeamMember, TeamRoster};
+pub use workflow::{WorkflowConfig, WorkflowEngine, WorkflowError};

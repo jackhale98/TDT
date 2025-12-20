@@ -3,6 +3,7 @@
 use serde::Deserialize;
 use std::path::PathBuf;
 
+use crate::core::workflow::WorkflowConfig;
 use crate::core::Project;
 
 /// TDT configuration with layered hierarchy
@@ -20,6 +21,9 @@ pub struct Config {
 
     /// Default output format
     pub default_format: Option<String>,
+
+    /// Git workflow configuration (opt-in)
+    pub workflow: WorkflowConfig,
 }
 
 impl Config {
@@ -76,6 +80,10 @@ impl Config {
         }
         if other.default_format.is_some() {
             self.default_format = other.default_format;
+        }
+        // Workflow config: merge if the other has it enabled
+        if other.workflow.enabled {
+            self.workflow = other.workflow;
         }
     }
 

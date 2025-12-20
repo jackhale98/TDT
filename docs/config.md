@@ -22,6 +22,11 @@ Configuration is loaded from multiple sources (highest priority first):
 | `editor` | Editor command for `tdt edit` | `"code --wait"` |
 | `pager` | Pager command for long output | `"less"` |
 | `default_format` | Default output format | `"yaml"` |
+| `workflow.enabled` | Enable workflow commands | `true` |
+| `workflow.provider` | Git provider: github, gitlab, or none | `"github"` |
+| `workflow.auto_commit` | Auto-commit on status changes | `true` |
+| `workflow.auto_merge` | Merge PR automatically on approval | `false` |
+| `workflow.base_branch` | Target branch for PRs | `"main"` |
 
 ## CLI Commands
 
@@ -139,6 +144,14 @@ author: "Jane Doe"
 editor: "code --wait"
 pager: "less"
 default_format: "yaml"
+
+# Workflow configuration (optional)
+workflow:
+  enabled: true
+  provider: github    # github, gitlab, or none
+  auto_commit: true
+  auto_merge: false
+  base_branch: main
 ```
 
 ## Environment Variables

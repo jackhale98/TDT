@@ -87,6 +87,21 @@ const VALID_KEYS: &[(&str, &str)] = &[
         "default_format",
         "Default output format (yaml, json, tsv, etc.)",
     ),
+    // Workflow configuration
+    ("workflow.enabled", "Enable workflow commands (true/false)"),
+    (
+        "workflow.provider",
+        "Git provider: github, gitlab, or none",
+    ),
+    (
+        "workflow.auto_commit",
+        "Auto-commit on status changes (true/false)",
+    ),
+    (
+        "workflow.auto_merge",
+        "Merge PR automatically on approval (true/false)",
+    ),
+    ("workflow.base_branch", "Target branch for PRs (e.g., main)"),
 ];
 
 /// Run a config subcommand

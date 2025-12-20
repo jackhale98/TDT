@@ -40,3 +40,4 @@ pub mod trace;
 pub mod validate;
 pub mod where_used;
 pub mod work;
+pub mod workflow;

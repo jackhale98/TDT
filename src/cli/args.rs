@@ -13,6 +13,7 @@ use crate::cli::commands::{
     rslt::RsltCommands, schema::SchemaCommands, search::SearchArgs, status::StatusArgs,
     sup::SupCommands, test::TestCommands, tol::TolCommands, trace::TraceCommands,
     validate::ValidateArgs, where_used::WhereUsedArgs, work::WorkCommands,
+    workflow::{ApproveArgs, RejectArgs, ReleaseArgs, ReviewCommands, SubmitArgs, TeamCommands},
 };
 
 /// Custom help template with grouped commands
@@ -71,6 +72,14 @@ VERSION CONTROL:
   blame       View git blame for an entity
   diff        View git diff for an entity
   baseline    Baseline management (create, compare, list, changed)
+
+WORKFLOW (opt-in):
+  submit      Submit entities for review (creates PR)
+  approve     Approve entities under review
+  reject      Reject entities back to draft
+  release     Release approved entities
+  review      View pending reviews (list, summary)
+  team        Team roster management (list, whoami, init, add, remove)
 
 UTILITIES:
   import      Import entities from CSV files
@@ -271,6 +280,29 @@ pub enum Commands {
     /// Baseline management (create, compare, list, changed)
     #[command(subcommand)]
     Baseline(BaselineCommands),
+
+    // ─────────────────────────────────────────────────────────────────────
+    // WORKFLOW (opt-in)
+    // ─────────────────────────────────────────────────────────────────────
+    /// Submit entities for review (creates PR)
+    Submit(SubmitArgs),
+
+    /// Approve entities under review
+    Approve(ApproveArgs),
+
+    /// Reject entities back to draft
+    Reject(RejectArgs),
+
+    /// Release approved entities
+    Release(ReleaseArgs),
+
+    /// View pending reviews (list, summary)
+    #[command(subcommand)]
+    Review(ReviewCommands),
+
+    /// Team roster management (list, whoami, init, add, remove)
+    #[command(subcommand)]
+    Team(TeamCommands),
 
     // ─────────────────────────────────────────────────────────────────────
     // UTILITIES

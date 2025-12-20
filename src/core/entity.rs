@@ -28,7 +28,7 @@ pub trait Entity: Serialize + DeserializeOwned {
 
 /// Status values common across entity types
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize, serde::Deserialize,
 )]
 #[serde(rename_all = "lowercase")]
 #[derive(Default)]
