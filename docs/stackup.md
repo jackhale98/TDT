@@ -113,7 +113,7 @@ title: "Gap Analysis"
 
 description: |
   Analysis of the gap between the housing and cover.
-  Gap must be maintained for thermal expansion allowance.
+  Gap must be maintained for proper assembly clearance.
 
 target:
   name: "Gap"

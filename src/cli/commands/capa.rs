@@ -559,10 +559,23 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .get_string("capa_type")
             .map(String::from)
             .unwrap_or_else(|| "corrective".to_string());
-        source_type = result
-            .get_string("source.type")
-            .map(String::from)
-            .unwrap_or_else(|| "ncr".to_string());
+
+        // Wizard can't handle nested fields like "source.type", so prompt explicitly
+        use dialoguer::{theme::ColorfulTheme, Select};
+        let theme = ColorfulTheme::default();
+
+        println!();
+        println!("{} Source information", console::style("◆").cyan());
+
+        let source_options = ["ncr", "audit", "customer_complaint", "trend_analysis", "risk"];
+        let source_selection = Select::with_theme(&theme)
+            .with_prompt("Source type")
+            .items(&source_options)
+            .default(0)
+            .interact()
+            .into_diagnostic()?;
+        source_type = source_options[source_selection].to_string();
+
         problem_statement = result.get_string("problem_statement").map(String::from);
     } else {
         title = args.title.unwrap_or_else(|| "New CAPA".to_string());

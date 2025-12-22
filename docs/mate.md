@@ -257,7 +257,7 @@ Both min and max clearances are positive - shaft always fits freely in hole.
 min_clearance > 0 AND max_clearance > 0
 ```
 
-**Applications**: Easy assembly, sliding fits, thermal expansion allowance
+**Applications**: Easy assembly, sliding fits, running clearance
 
 ### Interference Fit (Press Fit)
 

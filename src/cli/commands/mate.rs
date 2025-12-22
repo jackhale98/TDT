@@ -1199,14 +1199,13 @@ fn run_recalc_all(args: RecalcAllArgs) -> Result<()> {
 }
 
 /// Calculate fit from two feature's primary dimensions
+/// Auto-detects which feature is hole vs shaft based on the `internal` field
 fn calculate_fit_from_features(feat_a: &Feature, feat_b: &Feature) -> Option<FitAnalysis> {
     let dim_a = feat_a.primary_dimension()?;
     let dim_b = feat_b.primary_dimension()?;
 
-    Some(FitAnalysis::calculate(
-        (dim_a.nominal, dim_a.plus_tol, dim_a.minus_tol),
-        (dim_b.nominal, dim_b.plus_tol, dim_b.minus_tol),
-    ))
+    // Use from_dimensions which auto-detects hole/shaft based on internal field
+    FitAnalysis::from_dimensions(dim_a, dim_b).ok()
 }
 
 /// Load a feature by ID from the project

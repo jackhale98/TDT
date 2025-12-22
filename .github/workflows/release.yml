@@ -41,11 +41,18 @@ jobs:
             cross: true
             rustflags: "-C target-cpu=pentium -C target-feature=+sse"
 
-          # Linux ARM64
+          # Linux ARM64 (glibc)
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             artifact: tdt
             archive: tdt-linux-arm64.tar.gz
+            cross: true
+
+          # Linux ARM64 (musl/Termux/Android)
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-latest
+            artifact: tdt
+            archive: tdt-linux-musl-arm64.tar.gz
             cross: true
 
           # macOS x64 (Intel)
