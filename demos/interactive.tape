@@ -26,7 +26,7 @@ Type "tdt req new -i"
 Enter
 Sleep 1s
 
-# Wizard prompts in order: type, title, priority, category, tags, text, rationale, acceptance_criteria
+# Wizard prompts in order: type, title, priority, category, tags, revision, text, rationale, acceptance_criteria
 
 # 1. Type selection (enum - input/output)
 Type "input"
@@ -53,17 +53,21 @@ Type "thermal,critical,motor"
 Enter
 Sleep 500ms
 
-# 6. Text (requirement statement)
+# 6. Revision (integer, default 1 - just press Enter)
+Enter
+Sleep 500ms
+
+# 7. Text (requirement statement)
 Type "The motor shall operate continuously within -20C to +85C ambient temperature."
 Enter
 Sleep 500ms
 
-# 7. Rationale
+# 8. Rationale
 Type "Required for automotive applications per ISO 16750-4"
 Enter
 Sleep 500ms
 
-# 8. Acceptance criteria (can enter multiple, empty to finish)
+# 9. Acceptance criteria (can enter multiple, empty to finish)
 Type "Temperature chamber test from -25C to +90C for 4 hours"
 Enter
 Sleep 500ms

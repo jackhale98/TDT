@@ -2178,21 +2178,21 @@ REQ-01KCA9X3JQFT8BHK2VCN5M9B
 
       <div class="features-grid">
         <div class="feature-card" style="text-align: center;">
-          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">1,000</div>
+          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">50,000</div>
           <h3>Entities Tested</h3>
-          <p>Benchmarked with 1,000 mixed entities: requirements, components, risks, tests, suppliers.</p>
+          <p>Benchmarked with 50K mixed entities: requirements, components, risks, tests, suppliers.</p>
         </div>
 
         <div class="feature-card" style="text-align: center;">
-          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">22ms</div>
-          <h3>List 500 Entities</h3>
-          <p>Query, filter, and display 500 requirements with full table formatting.</p>
+          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">3.8s</div>
+          <h3>Full Validation</h3>
+          <p>Validate all 50,000 entities with schema checking and link verification.</p>
         </div>
 
         <div class="feature-card" style="text-align: center;">
-          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">7.5K/s</div>
+          <div class="stat-number" style="font-size: 48px; font-weight: 700; color: var(--accent); margin-bottom: 8px;">13K/s</div>
           <h3>Validation Rate</h3>
-          <p>Schema validation at ~7,500 entities per second with SQLite caching.</p>
+          <p>Schema validation at ~13,000 entities per second with SQLite caching.</p>
         </div>
 
         <div class="feature-card" style="text-align: center;">
@@ -2205,27 +2205,23 @@ REQ-01KCA9X3JQFT8BHK2VCN5M9B
       <div style="margin-top: 48px; text-align: center;">
         <div class="code-block" style="max-width: 800px; margin: 0 auto; text-align: left;">
           <div class="code-header">
-            <span class="code-title">Benchmark (1,000 entities)</span>
+            <span class="code-title">Benchmark (50,000 entities)</span>
           </div>
-          <pre><span style="color: var(--text-muted)"># List 500 requirements</span>
-<span style="color: var(--accent)">$</span> tdt req list
-<span style="color: var(--text-muted)">0.022s</span>
+          <pre><span style="color: var(--text-muted)"># Import 25,000 requirements from CSV</span>
+<span style="color: var(--accent)">$</span> tdt import req requirements.csv
+<span style="color: var(--text-muted)">37.15s (673/s)</span>
 
-<span style="color: var(--text-muted)"># Filter by priority</span>
-<span style="color: var(--accent)">$</span> tdt req list --priority critical
-<span style="color: var(--text-muted)">0.019s</span>
-
-<span style="color: var(--text-muted)"># Validate all 1,000 entities</span>
+<span style="color: var(--text-muted)"># Validate all 50,000 entities</span>
 <span style="color: var(--accent)">$</span> tdt validate
-<span style="color: var(--text-muted)">0.128s (7,587 entities/s)</span>
+<span style="color: var(--text-muted)">3.834s (13,040 entities/s)</span>
+
+<span style="color: var(--text-muted)"># List 25,000 requirements</span>
+<span style="color: var(--accent)">$</span> tdt req list --count
+<span style="color: var(--text-muted)">25000 requirements</span>
 
 <span style="color: var(--text-muted)"># Project status</span>
 <span style="color: var(--accent)">$</span> tdt status
-<span style="color: var(--text-muted)">0.045s</span>
-
-<span style="color: var(--text-muted)"># Cache rebuild</span>
-<span style="color: var(--accent)">$</span> tdt cache rebuild
-<span style="color: var(--text-muted)">0.217s</span></pre>
+<span style="color: var(--text-muted)">0.048s</span></pre>
         </div>
       </div>
 
