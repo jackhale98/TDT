@@ -916,33 +916,22 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         ctx
     };
 
-    let mut yaml_content = generator
+    let yaml_content = generator
         .generate_component(&ctx)
         .map_err(|e| miette::miette!("{}", e))?;
 
-    // Apply wizard values via string replacement (for interactive mode)
+    // Parse template and apply wizard values (more robust than string replacement)
+    let mut component: Component = serde_yml::from_str(&yaml_content).into_diagnostic()?;
     if args.interactive {
         if let Some(ref desc) = description {
             if !desc.is_empty() {
-                // Indent multi-line description for YAML block scalar
-                let indented_desc = desc
-                    .lines()
-                    .map(|line| format!("  {}", line))
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                yaml_content = yaml_content.replace(
-                    "description: |\n  # Detailed description of this component\n  # Include key specifications and requirements",
-                    &format!("description: |\n{}", indented_desc),
-                );
+                component.description = Some(desc.clone());
             }
         }
-        if let Some(mass) = mass_kg {
-            yaml_content = yaml_content.replace("mass_kg: null", &format!("mass_kg: {}", mass));
-        }
-        if let Some(cost) = unit_cost {
-            yaml_content = yaml_content.replace("unit_cost: null", &format!("unit_cost: {}", cost));
-        }
+        component.mass_kg = mass_kg;
+        component.unit_cost = unit_cost;
     }
+    let yaml_content = serde_yml::to_string(&component).into_diagnostic()?;
 
     // Write file
     let output_dir = project.root().join("bom/components");

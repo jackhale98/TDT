@@ -1062,4 +1062,149 @@ mod tests {
         let changed_again = contrib.sync_from_feature(&feature);
         assert!(!changed_again);
     }
+
+    #[test]
+    fn test_pin_in_hole_clearance_analysis() {
+        // Simulates a real-world pin-in-hole clearance analysis
+        // Hole: diameter 10mm, Pin: diameter 8mm
+        // Expected clearance (gap) = Hole - Pin = 10 - 8 = 2mm
+        let mut stackup = Stackup::new(
+            "Pin-Hole Clearance",
+            "Gap",
+            2.0,   // nominal gap
+            3.0,   // upper limit
+            0.0,   // lower limit
+            "Test",
+        );
+
+        // Hole feature (positive contributor - adds to gap)
+        stackup.add_contributor(Contributor {
+            name: "Hole - diameter".to_string(),
+            feature: None,
+            direction: Direction::Positive,
+            nominal: 10.0,
+            plus_tol: 0.015,  // H7 hole tolerance
+            minus_tol: 0.0,
+            distribution: Distribution::Normal,
+            source: None,
+        });
+
+        // Pin/shaft feature (negative contributor - subtracts from gap)
+        stackup.add_contributor(Contributor {
+            name: "OD - diameter".to_string(),
+            feature: None,
+            direction: Direction::Negative,
+            nominal: 8.0,
+            plus_tol: 0.0,
+            minus_tol: 0.009,  // f7 shaft tolerance
+            distribution: Distribution::Normal,
+            source: None,
+        });
+
+        // Run analysis
+        let wc = stackup.calculate_worst_case();
+        let rss = stackup.calculate_rss();
+        let mc = stackup.calculate_monte_carlo(10000);
+
+        // Worst case:
+        // min = (10 - 0) - (8 + 0) = 2.0
+        // max = (10 + 0.015) - (8 - 0.009) = 2.024
+        assert!(
+            (wc.min - 2.0).abs() < 0.001,
+            "Worst case min should be ~2.0, got {}",
+            wc.min
+        );
+        assert!(
+            (wc.max - 2.024).abs() < 0.001,
+            "Worst case max should be ~2.024, got {}",
+            wc.max
+        );
+
+        // RSS mean should be approximately 2.0 (with small offset for asymmetric tolerances)
+        // Mean offset for hole: (0.015 - 0) / 2 = 0.0075
+        // Mean offset for pin: (0 - 0.009) / 2 = -0.0045
+        // Expected mean = (10 + 0.0075) - (8 - 0.0045) = 10.0075 - 7.9955 = 2.012
+        assert!(
+            (rss.mean - 2.012).abs() < 0.01,
+            "RSS mean should be ~2.012, got {}",
+            rss.mean
+        );
+
+        // Monte Carlo mean should be close to RSS mean
+        assert!(
+            (mc.mean - 2.0).abs() < 0.1,
+            "Monte Carlo mean should be ~2.0, got {}",
+            mc.mean
+        );
+
+        // Both analyses should pass (gap is within spec)
+        assert_eq!(wc.result, AnalysisResult::Pass);
+        assert!(mc.yield_percent > 99.0);
+    }
+
+    #[test]
+    fn test_stackup_yaml_roundtrip_direction() {
+        // Test that direction is preserved correctly through YAML serialization
+        let mut stackup = Stackup::new("Direction Test", "Gap", 2.0, 3.0, 0.0, "Test");
+
+        stackup.add_contributor(Contributor {
+            name: "Positive".to_string(),
+            feature: None,
+            direction: Direction::Positive,
+            nominal: 10.0,
+            plus_tol: 0.1,
+            minus_tol: 0.1,
+            distribution: Distribution::Normal,
+            source: None,
+        });
+
+        stackup.add_contributor(Contributor {
+            name: "Negative".to_string(),
+            feature: None,
+            direction: Direction::Negative,
+            nominal: 8.0,
+            plus_tol: 0.1,
+            minus_tol: 0.1,
+            distribution: Distribution::Normal,
+            source: None,
+        });
+
+        // Serialize to YAML
+        let yaml = serde_yml::to_string(&stackup).unwrap();
+
+        // Verify YAML contains correct direction strings
+        assert!(
+            yaml.contains("direction: positive"),
+            "YAML should contain 'direction: positive'"
+        );
+        assert!(
+            yaml.contains("direction: negative"),
+            "YAML should contain 'direction: negative'"
+        );
+
+        // Deserialize back
+        let parsed: Stackup = serde_yml::from_str(&yaml).unwrap();
+
+        // Verify directions are preserved
+        assert_eq!(
+            parsed.contributors[0].direction,
+            Direction::Positive,
+            "First contributor should be Positive"
+        );
+        assert_eq!(
+            parsed.contributors[1].direction,
+            Direction::Negative,
+            "Second contributor should be Negative"
+        );
+
+        // Run RSS calculation on deserialized stackup
+        let rss = parsed.calculate_rss();
+
+        // Mean should be 10 - 8 = 2.0 (symmetric tolerances, no offset)
+        assert!(
+            (rss.mean - 2.0).abs() < 0.001,
+            "RSS mean after YAML roundtrip should be ~2.0, got {}",
+            rss.mean
+        );
+    }
 }

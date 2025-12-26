@@ -29,9 +29,9 @@ pub struct TeamListArgs {
     #[arg(long, short = 'r')]
     pub role: Option<Role>,
 
-    /// Output format (table, json)
-    #[arg(long, short = 'f', default_value = "table")]
-    pub format: String,
+    /// Output style (table, json)
+    #[arg(long, short = 'o', default_value = "table")]
+    pub output: String,
 }
 
 /// Initialize team roster
@@ -104,7 +104,7 @@ impl TeamListArgs {
             return Ok(());
         }
 
-        match self.format.as_str() {
+        match self.output.as_str() {
             "json" => {
                 let json = serde_json::to_string_pretty(&members).into_diagnostic()?;
                 println!("{}", json);

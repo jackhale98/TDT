@@ -546,6 +546,8 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
     let capa_type: String;
     let source_type: String;
     let problem_statement: Option<String>;
+    let capa_number: Option<String>;
+    let capa_status: Option<String>;
 
     if args.interactive {
         let wizard = SchemaWizard::new();
@@ -577,11 +579,15 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         source_type = source_options[source_selection].to_string();
 
         problem_statement = result.get_string("problem_statement").map(String::from);
+        capa_number = result.get_string("capa_number").map(String::from);
+        capa_status = result.get_string("capa_status").map(String::from);
     } else {
         title = args.title.unwrap_or_else(|| "New CAPA".to_string());
         capa_type = args.r#type;
         source_type = args.source;
         problem_statement = None;
+        capa_number = None;
+        capa_status = None;
     }
 
     // Validate enums
@@ -631,6 +637,18 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                     &format!("problem_statement: |\n{}", indented),
                 );
             }
+        }
+        if let Some(ref num) = capa_number {
+            yaml_content = yaml_content.replace(
+                "capa_number: null",
+                &format!("capa_number: \"{}\"", num),
+            );
+        }
+        if let Some(ref status) = capa_status {
+            yaml_content = yaml_content.replace(
+                "capa_status: initiation",
+                &format!("capa_status: {}", status),
+            );
         }
     }
 

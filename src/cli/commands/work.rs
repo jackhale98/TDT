@@ -528,6 +528,9 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
 
     let title: String;
     let mut description: Option<String> = None;
+    let mut document_number: Option<String> = None;
+    let mut revision: Option<String> = None;
+    let mut estimated_duration: Option<f64> = None;
 
     if args.interactive {
         let wizard = SchemaWizard::new();
@@ -538,10 +541,14 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .map(String::from)
             .unwrap_or_else(|| "New Work Instruction".to_string());
         description = result.get_string("description").map(String::from);
+        document_number = result.get_string("document_number").map(String::from);
+        revision = result.get_string("revision").map(String::from);
+        estimated_duration = result.get_f64("estimated_duration_minutes");
     } else {
         title = args
             .title
             .unwrap_or_else(|| "New Work Instruction".to_string());
+        document_number = args.doc_number.clone();
     }
 
     // Generate ID
@@ -558,7 +565,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
     let generator = TemplateGenerator::new().map_err(|e| miette::miette!("{}", e))?;
     let mut ctx = TemplateContext::new(id.clone(), config.author()).with_title(&title);
 
-    if let Some(ref doc_num) = args.doc_number {
+    if let Some(ref doc_num) = document_number {
         ctx = ctx.with_document_number(doc_num);
     }
     if let Some(ref proc_id) = process_id {
@@ -569,7 +576,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         .generate_work_instruction(&ctx)
         .map_err(|e| miette::miette!("{}", e))?;
 
-    // Apply interactive mode values
+    // Apply wizard-collected values via string replacement
     if args.interactive {
         if let Some(ref desc) = description {
             if !desc.is_empty() {
@@ -583,6 +590,18 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                     &format!("description: |\n{}", indented),
                 );
             }
+        }
+        if let Some(ref rev) = revision {
+            yaml_content = yaml_content.replace(
+                "revision: \"A\"",
+                &format!("revision: \"{}\"", rev),
+            );
+        }
+        if let Some(dur) = estimated_duration {
+            yaml_content = yaml_content.replace(
+                "estimated_duration_minutes: null",
+                &format!("estimated_duration_minutes: {}", dur),
+            );
         }
     }
 

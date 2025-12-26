@@ -554,6 +554,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
     let part_number: String;
     let title: String;
     let description: Option<String>;
+    let revision: Option<String>;
 
     if args.interactive {
         // Use schema-driven wizard
@@ -571,6 +572,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .unwrap_or_else(|| "New Assembly".to_string());
 
         description = result.get_string("description").map(String::from);
+        revision = result.get_string("revision").map(String::from);
     } else {
         part_number = args
             .part_number
@@ -579,6 +581,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .title
             .ok_or_else(|| miette::miette!("Title is required (use --title or -T)"))?;
         description = None;
+        revision = args.revision.clone();
     }
 
     // Generate ID
@@ -590,7 +593,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         .with_title(&title)
         .with_part_number(&part_number);
 
-    let ctx = if let Some(ref rev) = args.revision {
+    let ctx = if let Some(ref rev) = revision {
         ctx.with_part_revision(rev)
     } else {
         ctx

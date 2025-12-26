@@ -29,12 +29,12 @@ pub struct ReviewListArgs {
     #[arg(long)]
     pub all: bool,
 
-    /// Output format (table, short-id, json)
-    #[arg(long, short = 'f', default_value = "table")]
-    pub format: String,
+    /// Output style (table, short-id, json)
+    #[arg(long, short = 'o', default_value = "table")]
+    pub output: String,
 
     /// Print commands as they run
-    #[arg(long, short = 'v')]
+    #[arg(long)]
     pub verbose: bool,
 }
 
@@ -122,7 +122,7 @@ impl ReviewListArgs {
     }
 
     fn print_pr_reviews(&self, items: &[PrReviewItem]) -> Result<()> {
-        match self.format.as_str() {
+        match self.output.as_str() {
             "short-id" => {
                 for item in items {
                     println!("{}", item.short_id);
@@ -242,7 +242,7 @@ impl ReviewListArgs {
             return Ok(());
         }
 
-        match self.format.as_str() {
+        match self.output.as_str() {
             "short-id" => {
                 for item in items {
                     println!("{}", item.short_id);

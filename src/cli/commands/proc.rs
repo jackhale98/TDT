@@ -584,6 +584,9 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
     let process_type: String;
     let operation_number: Option<String>;
     let description: Option<String>;
+    let cycle_time: Option<f64>;
+    let setup_time: Option<f64>;
+    let operator_skill: Option<String>;
 
     if args.interactive {
         let wizard = SchemaWizard::new();
@@ -599,11 +602,17 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .unwrap_or_else(|| "machining".to_string());
         operation_number = result.get_string("operation_number").map(String::from);
         description = result.get_string("description").map(String::from);
+        cycle_time = result.get_f64("cycle_time_minutes");
+        setup_time = result.get_f64("setup_time_minutes");
+        operator_skill = result.get_string("operator_skill").map(String::from);
     } else {
         title = args.title.unwrap_or_else(|| "New Process".to_string());
         process_type = args.r#type.to_string();
         operation_number = args.op_number.clone();
         description = None;
+        cycle_time = args.cycle_time;
+        setup_time = args.setup_time;
+        operator_skill = None;
     }
 
     // Generate ID
@@ -618,16 +627,24 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
     if let Some(ref op) = operation_number {
         ctx = ctx.with_operation_number(op);
     }
-    if let Some(cycle) = args.cycle_time {
+    if let Some(cycle) = cycle_time {
         ctx = ctx.with_cycle_time(cycle);
     }
-    if let Some(setup) = args.setup_time {
+    if let Some(setup) = setup_time {
         ctx = ctx.with_setup_time(setup);
     }
 
     let mut yaml_content = generator
         .generate_process(&ctx)
         .map_err(|e| miette::miette!("{}", e))?;
+
+    // Apply wizard-collected operator_skill via string replacement
+    if let Some(ref skill) = operator_skill {
+        yaml_content = yaml_content.replace(
+            "operator_skill: entry",
+            &format!("operator_skill: {}", skill),
+        );
+    }
 
     // Apply wizard description via string replacement (for interactive mode)
     if args.interactive {

@@ -112,16 +112,16 @@ impl std::fmt::Display for ListColumn {
 
 /// Column definitions for mate list output
 const MATE_COLUMNS: &[ColumnDef] = &[
-    ColumnDef::new("id", "SHORT", 8),
-    ColumnDef::new("title", "TITLE", 20),
+    ColumnDef::new("id", "ID", 30),
+    ColumnDef::new("title", "TITLE", 30),
     ColumnDef::new("mate-type", "TYPE", 16),
     ColumnDef::new("fit-result", "FIT", 12),
     ColumnDef::new("match", "OK", 4),
-    ColumnDef::new("feature-a", "FEATURE A", 16),
-    ColumnDef::new("feature-b", "FEATURE B", 16),
+    ColumnDef::new("feature-a", "FEATURE A", 25),
+    ColumnDef::new("feature-b", "FEATURE B", 25),
     ColumnDef::new("status", "STATUS", 10),
-    ColumnDef::new("author", "AUTHOR", 15),
-    ColumnDef::new("created", "CREATED", 12),
+    ColumnDef::new("author", "AUTHOR", 20),
+    ColumnDef::new("created", "CREATED", 16),
 ];
 
 #[derive(clap::Args, Debug)]
@@ -159,8 +159,12 @@ pub struct ListArgs {
     pub sort: Option<ListColumn>,
 
     /// Columns to display
-    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Id, ListColumn::Title, ListColumn::MateType, ListColumn::FitResult, ListColumn::Match, ListColumn::Status])]
+    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Title, ListColumn::MateType, ListColumn::FitResult, ListColumn::Match, ListColumn::Status])]
     pub columns: Vec<ListColumn>,
+
+    /// Show full ID column (hidden by default since SHORT is always shown)
+    #[arg(long)]
+    pub show_id: bool,
 
     /// Wrap text in columns (mobile-friendly output with specified width)
     #[arg(long, short = 'w')]
@@ -432,11 +436,14 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             print!("{}", yaml);
         }
         OutputFormat::Csv | OutputFormat::Tsv | OutputFormat::Md => {
-            let columns: Vec<&str> = args
+            let mut columns: Vec<&str> = args
                 .columns
                 .iter()
                 .map(|c| c.to_string().leak() as &str)
                 .collect();
+            if args.show_id && !columns.contains(&"id") {
+                columns.insert(0, "id");
+            }
             let rows: Vec<TableRow> = mates.iter().map(|m| mate_to_row(m, &short_ids)).collect();
 
             let config = TableConfig {

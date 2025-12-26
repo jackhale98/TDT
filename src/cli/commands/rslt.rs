@@ -784,7 +784,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
     let config = Config::load();
 
     // Determine values - either from schema-driven wizard or args
-    let (test_id, verdict, title, category, executed_by, verdict_rationale) = if args.interactive {
+    let (test_id, verdict, title, category, executed_by, verdict_rationale, duration, notes) = if args.interactive {
         // Use the schema-driven wizard
         let wizard = SchemaWizard::new();
         let result = wizard.run(EntityPrefix::Rslt)?;
@@ -824,6 +824,8 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .unwrap_or_else(|| config.author());
 
         let verdict_rationale = result.get_string("verdict_rationale").map(String::from);
+        let duration = result.get_string("duration").map(String::from);
+        let notes = result.get_string("notes").map(String::from);
 
         (
             test_id,
@@ -832,6 +834,8 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             category,
             executed_by,
             verdict_rationale,
+            duration,
+            notes,
         )
     } else {
         // Default mode - use args with defaults
@@ -865,7 +869,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         let category = args.category.unwrap_or_default();
         let executed_by = args.executed_by.unwrap_or_else(|| config.author());
 
-        (test_id, verdict, title, category, executed_by, None)
+        (test_id, verdict, title, category, executed_by, None, None, None)
     };
 
     // Determine test type by looking up the test
@@ -902,6 +906,25 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 yaml_content = yaml_content.replace(
                     "verdict_rationale: |\n  # Explain the verdict\n  # Especially important for fail or conditional results",
                     &format!("verdict_rationale: |\n{}", indented),
+                );
+            }
+        }
+        if let Some(ref dur) = duration {
+            yaml_content = yaml_content.replace(
+                "duration: null",
+                &format!("duration: \"{}\"", dur),
+            );
+        }
+        if let Some(ref n) = notes {
+            if !n.is_empty() {
+                let indented = n
+                    .lines()
+                    .map(|line| format!("  {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                yaml_content = yaml_content.replace(
+                    "notes: |\n  # Additional notes about this test execution",
+                    &format!("notes: |\n{}", indented),
                 );
             }
         }

@@ -2,6 +2,14 @@
 //!
 //! This module provides a generic wizard that can create any entity type
 //! by reading its JSON Schema and prompting the user for values.
+//!
+//! ## Validation
+//!
+//! The wizard validates user input against JSON Schema constraints:
+//! - String fields: minLength, maxLength
+//! - Integer fields: minimum, maximum (with parse validation)
+//! - Number fields: minimum, maximum, NaN/Infinity rejection
+//! - Required fields: must not be empty or whitespace-only
 
 use console::style;
 use dialoguer::{theme::ColorfulTheme, Input, Select};
@@ -383,7 +391,7 @@ impl SchemaWizard {
         })
     }
 
-    /// Prompt the user for a field value
+    /// Prompt the user for a field value with validation
     fn prompt_field(&self, field: &FieldInfo) -> Result<Option<Value>> {
         let prompt = self.format_prompt(field);
 
@@ -391,6 +399,14 @@ impl SchemaWizard {
             FieldType::Skip => Ok(None),
 
             FieldType::Enum { values } => {
+                // Handle empty enum arrays gracefully
+                if values.is_empty() {
+                    return Err(miette::miette!(
+                        "Field '{}' has no valid options in schema",
+                        field.name
+                    ));
+                }
+
                 let default_idx = field
                     .default
                     .as_ref()
@@ -403,37 +419,76 @@ impl SchemaWizard {
                     .items(values)
                     .default(default_idx)
                     .interact()
-                    .into_diagnostic()?;
+                    .into_diagnostic()
+                    .map_err(|e| miette::miette!("Failed to read selection for '{}': {}", field.name, e))?;
 
                 Ok(Some(Value::String(values[selection].clone())))
             }
 
-            FieldType::String { .. } => {
+            FieldType::String {
+                min_length,
+                max_length,
+            } => {
                 let default_str = field
                     .default
                     .as_ref()
                     .and_then(|d| d.as_str())
                     .unwrap_or("");
 
-                let value: String = if !default_str.is_empty() {
-                    Input::with_theme(&self.theme)
-                        .with_prompt(&prompt)
-                        .default(default_str.to_string())
-                        .allow_empty(!field.required)
-                        .interact_text()
-                        .into_diagnostic()?
-                } else if !field.required {
-                    Input::with_theme(&self.theme)
-                        .with_prompt(&prompt)
-                        .allow_empty(true)
-                        .interact_text()
-                        .into_diagnostic()?
-                } else {
-                    Input::with_theme(&self.theme)
-                        .with_prompt(&prompt)
-                        .interact_text()
-                        .into_diagnostic()?
+                // Build prompt with constraints hint
+                let constraints_hint = match (min_length, max_length) {
+                    (Some(min), Some(max)) => format!(" [{}-{} chars]", min, max),
+                    (Some(min), None) => format!(" [min {} chars]", min),
+                    (None, Some(max)) => format!(" [max {} chars]", max),
+                    (None, None) => String::new(),
                 };
+                let full_prompt = format!("{}{}", prompt, style(constraints_hint).dim());
+
+                // Capture constraints for closure
+                let min_len = *min_length;
+                let max_len = *max_length;
+                let is_required = field.required;
+                let field_name = field.name.clone();
+
+                let value: String = Input::with_theme(&self.theme)
+                    .with_prompt(&full_prompt)
+                    .default(default_str.to_string())
+                    .allow_empty(!field.required)
+                    .validate_with(move |input: &String| -> std::result::Result<(), String> {
+                        // Check for whitespace-only on required fields
+                        if is_required && input.trim().is_empty() {
+                            return Err(format!("'{}' is required and cannot be empty or whitespace-only", field_name));
+                        }
+
+                        // Allow empty for optional fields
+                        if input.is_empty() && !is_required {
+                            return Ok(());
+                        }
+
+                        // Validate length constraints
+                        let len = input.len() as u64;
+                        if let Some(min) = min_len {
+                            if len < min {
+                                return Err(format!(
+                                    "Must be at least {} characters (got {})",
+                                    min, len
+                                ));
+                            }
+                        }
+                        if let Some(max) = max_len {
+                            if len > max {
+                                return Err(format!(
+                                    "Must be at most {} characters (got {})",
+                                    max, len
+                                ));
+                            }
+                        }
+
+                        Ok(())
+                    })
+                    .interact_text()
+                    .into_diagnostic()
+                    .map_err(|e| miette::miette!("Failed to read '{}': {}", field.name, e))?;
 
                 if value.is_empty() && !field.required {
                     Ok(None)
@@ -442,49 +497,142 @@ impl SchemaWizard {
                 }
             }
 
-            FieldType::Integer { .. } => {
+            FieldType::Integer { minimum, maximum } => {
                 let default_val = field.default.as_ref().and_then(|d| d.as_i64()).unwrap_or(0);
 
+                // Build prompt with constraints hint
+                let constraints_hint = match (minimum, maximum) {
+                    (Some(min), Some(max)) => format!(" [{}-{}]", min, max),
+                    (Some(min), None) => format!(" [min {}]", min),
+                    (None, Some(max)) => format!(" [max {}]", max),
+                    (None, None) => String::new(),
+                };
+                let full_prompt = format!("{}{}", prompt, style(constraints_hint).dim());
+
+                // Capture constraints for closure
+                let min_val = *minimum;
+                let max_val = *maximum;
+                let is_required = field.required;
+                let field_name = field.name.clone();
+
                 let value: String = Input::with_theme(&self.theme)
-                    .with_prompt(&prompt)
+                    .with_prompt(&full_prompt)
                     .default(default_val.to_string())
                     .allow_empty(!field.required)
+                    .validate_with(move |input: &String| -> std::result::Result<(), String> {
+                        // Allow empty for optional fields
+                        if input.is_empty() && !is_required {
+                            return Ok(());
+                        }
+
+                        // Must be a valid integer
+                        let parsed: i64 = input.parse().map_err(|_| {
+                            format!("'{}' is not a valid integer", input)
+                        })?;
+
+                        // Validate bounds
+                        if let Some(min) = min_val {
+                            if parsed < min {
+                                return Err(format!("Must be at least {} (got {})", min, parsed));
+                            }
+                        }
+                        if let Some(max) = max_val {
+                            if parsed > max {
+                                return Err(format!("Must be at most {} (got {})", max, parsed));
+                            }
+                        }
+
+                        Ok(())
+                    })
                     .interact_text()
-                    .into_diagnostic()?;
+                    .into_diagnostic()
+                    .map_err(|e| miette::miette!("Failed to read '{}': {}", field_name, e))?;
 
                 if value.is_empty() && !field.required {
                     Ok(None)
                 } else {
-                    let parsed: i64 = value.parse().unwrap_or(default_val);
+                    // Safe to unwrap because validation passed
+                    let parsed: i64 = value.parse().expect("validation should have caught invalid integer");
                     Ok(Some(Value::Number(parsed.into())))
                 }
             }
 
-            FieldType::Number { .. } => {
+            FieldType::Number { minimum, maximum } => {
                 let default_val = field
                     .default
                     .as_ref()
                     .and_then(|d| d.as_f64())
                     .unwrap_or(0.0);
 
+                // Build prompt with constraints hint
+                let constraints_hint = match (minimum, maximum) {
+                    (Some(min), Some(max)) => format!(" [{}-{}]", min, max),
+                    (Some(min), None) => format!(" [min {}]", min),
+                    (None, Some(max)) => format!(" [max {}]", max),
+                    (None, None) => String::new(),
+                };
+                let full_prompt = format!("{}{}", prompt, style(constraints_hint).dim());
+
+                // Capture constraints for closure
+                let min_val = *minimum;
+                let max_val = *maximum;
+                let is_required = field.required;
+                let field_name = field.name.clone();
+
                 let value: String = Input::with_theme(&self.theme)
-                    .with_prompt(&prompt)
+                    .with_prompt(&full_prompt)
                     .default(if default_val == 0.0 {
                         String::new()
                     } else {
                         default_val.to_string()
                     })
                     .allow_empty(!field.required)
+                    .validate_with(move |input: &String| -> std::result::Result<(), String> {
+                        // Allow empty for optional fields
+                        if input.is_empty() && !is_required {
+                            return Ok(());
+                        }
+
+                        // Must be a valid number
+                        let parsed: f64 = input.parse().map_err(|_| {
+                            format!("'{}' is not a valid number", input)
+                        })?;
+
+                        // Reject NaN and Infinity
+                        if parsed.is_nan() {
+                            return Err("NaN is not a valid value".to_string());
+                        }
+                        if parsed.is_infinite() {
+                            return Err("Infinity is not a valid value".to_string());
+                        }
+
+                        // Validate bounds
+                        if let Some(min) = min_val {
+                            if parsed < min {
+                                return Err(format!("Must be at least {} (got {})", min, parsed));
+                            }
+                        }
+                        if let Some(max) = max_val {
+                            if parsed > max {
+                                return Err(format!("Must be at most {} (got {})", max, parsed));
+                            }
+                        }
+
+                        Ok(())
+                    })
                     .interact_text()
-                    .into_diagnostic()?;
+                    .into_diagnostic()
+                    .map_err(|e| miette::miette!("Failed to read '{}': {}", field_name, e))?;
 
                 if value.is_empty() && !field.required {
                     Ok(None)
                 } else {
-                    let parsed: f64 = value.parse().unwrap_or(default_val);
-                    Ok(Some(Value::Number(
-                        serde_json::Number::from_f64(parsed).unwrap_or_else(|| 0.into()),
-                    )))
+                    // Safe to unwrap because validation passed
+                    let parsed: f64 = value.parse().expect("validation should have caught invalid number");
+                    // from_f64 returns None for NaN/Infinity, but we already validated against those
+                    let num = serde_json::Number::from_f64(parsed)
+                        .ok_or_else(|| miette::miette!("Invalid number value for '{}'", field.name))?;
+                    Ok(Some(Value::Number(num)))
                 }
             }
 
@@ -503,7 +651,8 @@ impl SchemaWizard {
                     .items(items)
                     .default(default_idx)
                     .interact()
-                    .into_diagnostic()?;
+                    .into_diagnostic()
+                    .map_err(|e| miette::miette!("Failed to read '{}': {}", field.name, e))?;
 
                 Ok(Some(Value::Bool(selection == 0)))
             }
@@ -514,16 +663,25 @@ impl SchemaWizard {
                     .with_prompt(format!("{} (comma-separated)", prompt))
                     .allow_empty(true)
                     .interact_text()
-                    .into_diagnostic()?;
+                    .into_diagnostic()
+                    .map_err(|e| miette::miette!("Failed to read '{}': {}", field.name, e))?;
 
                 if value.is_empty() {
                     Ok(None)
                 } else {
+                    // Split on comma, trim each item, filter out empty items
                     let items: Vec<Value> = value
                         .split(',')
-                        .map(|s| Value::String(s.trim().to_string()))
+                        .map(|s| s.trim())
+                        .filter(|s| !s.is_empty())
+                        .map(|s| Value::String(s.to_string()))
                         .collect();
-                    Ok(Some(Value::Array(items)))
+
+                    if items.is_empty() {
+                        Ok(None)
+                    } else {
+                        Ok(Some(Value::Array(items)))
+                    }
                 }
             }
         }

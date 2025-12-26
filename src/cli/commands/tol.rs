@@ -105,16 +105,16 @@ impl std::fmt::Display for ListColumn {
 
 /// Column definitions for stackup list output
 const TOL_COLUMNS: &[ColumnDef] = &[
-    ColumnDef::new("id", "SHORT", 8),
-    ColumnDef::new("title", "TITLE", 22),
+    ColumnDef::new("id", "ID", 30),
+    ColumnDef::new("title", "TITLE", 30),
     ColumnDef::new("result", "RESULT", 10),
-    ColumnDef::new("cpk", "CPK", 7),
-    ColumnDef::new("yield", "YIELD", 8),
+    ColumnDef::new("cpk", "CPK", 8),
+    ColumnDef::new("yield", "YIELD", 10),
     ColumnDef::new("disposition", "DISPOSITION", 14),
     ColumnDef::new("status", "STATUS", 10),
     ColumnDef::new("critical", "CRIT", 5),
-    ColumnDef::new("author", "AUTHOR", 15),
-    ColumnDef::new("created", "CREATED", 12),
+    ColumnDef::new("author", "AUTHOR", 20),
+    ColumnDef::new("created", "CREATED", 16),
 ];
 
 #[derive(clap::Args, Debug)]
@@ -148,8 +148,12 @@ pub struct ListArgs {
     pub recent: Option<u32>,
 
     /// Columns to display
-    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Id, ListColumn::Title, ListColumn::Result, ListColumn::Cpk, ListColumn::Yield, ListColumn::Status])]
+    #[arg(long, value_delimiter = ',', default_values_t = vec![ListColumn::Title, ListColumn::Result, ListColumn::Cpk, ListColumn::Yield, ListColumn::Status])]
     pub columns: Vec<ListColumn>,
+
+    /// Show full ID column (hidden by default since SHORT is always shown)
+    #[arg(long)]
+    pub show_id: bool,
 
     /// Sort by column
     #[arg(long)]
@@ -298,6 +302,10 @@ pub struct AnalyzeArgs {
     /// Only show what would be analyzed (don't run analysis)
     #[arg(long)]
     pub dry_run: bool,
+
+    /// Debug mode - trace calculation steps
+    #[arg(long)]
+    pub debug: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -560,11 +568,14 @@ fn run_list(args: ListArgs, global: &GlobalOpts) -> Result<()> {
             print!("{}", yaml);
         }
         OutputFormat::Csv | OutputFormat::Tsv | OutputFormat::Md => {
-            let columns: Vec<&str> = args
+            let mut columns: Vec<&str> = args
                 .columns
                 .iter()
                 .map(|c| c.to_string().leak() as &str)
                 .collect();
+            if args.show_id && !columns.contains(&"id") {
+                columns.insert(0, "id");
+            }
             let rows: Vec<TableRow> = stackups
                 .iter()
                 .map(|s| stackup_to_row(s, &short_ids))
@@ -877,13 +888,15 @@ fn run_show(args: ShowArgs, global: &GlobalOpts) -> Result<()> {
                     };
                     // Use tolerance as reference for precision
                     let ref_precision = c.plus_tol.max(c.minus_tol).max(0.001);
-                    let avg_tol = smart_round((c.plus_tol + c.minus_tol) / 2.0, ref_precision);
+                    let plus_str = smart_round(c.plus_tol, ref_precision);
+                    let minus_str = smart_round(c.minus_tol, ref_precision);
                     println!(
-                        "  {} {} {} ±{}",
+                        "  {} {} {} +{}/-{}",
                         dir,
                         style(&c.name).cyan(),
                         c.nominal,
-                        avg_tol
+                        plus_str,
+                        minus_str
                     );
 
                     // Show component info if available from feature reference
@@ -1031,6 +1044,40 @@ fn run_analyze(args: AnalyzeArgs) -> Result<()> {
         return Err(miette::miette!(
             "Stackup has no contributors. Add contributors before running analysis."
         ));
+    }
+
+    // Debug mode - trace the RSS calculation step by step
+    if args.debug {
+        use crate::entities::stackup::Direction;
+        println!("{}", style("=== DEBUG: RSS Calculation Trace ===").yellow().bold());
+        let mut debug_mean = 0.0;
+        for (i, contrib) in stackup.contributors.iter().enumerate() {
+            let mean_offset = (contrib.plus_tol - contrib.minus_tol) / 2.0;
+            let process_mean = contrib.nominal + mean_offset;
+            let dir_str = match contrib.direction {
+                Direction::Positive => "Positive",
+                Direction::Negative => "Negative",
+            };
+            let contribution = match contrib.direction {
+                Direction::Positive => process_mean,
+                Direction::Negative => -process_mean,
+            };
+            debug_mean += contribution;
+            println!(
+                "  [{}] {} | dir={} | nominal={:.4} | offset={:.4} | process_mean={:.4} | contribution={:+.4} | running_mean={:.4}",
+                i + 1,
+                contrib.name,
+                dir_str,
+                contrib.nominal,
+                mean_offset,
+                process_mean,
+                contribution,
+                debug_mean
+            );
+        }
+        println!("  {}", style(format!("Final RSS mean: {:.4}", debug_mean)).cyan());
+        println!("{}", style("=== END DEBUG ===").yellow().bold());
+        println!();
     }
 
     // Run analysis - use with_samples if we need histogram or CSV
@@ -1729,6 +1776,7 @@ fn run_add(args: AddArgs) -> Result<()> {
             csv: false,
             bins: 40,
             dry_run: false,
+            debug: false,
         })?;
     }
 

@@ -149,3 +149,148 @@ impl Config {
             .status()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_config_default() {
+        let config = Config::default();
+        assert!(config.author.is_none());
+        assert!(config.editor.is_none());
+        assert!(config.pager.is_none());
+        assert!(config.default_format.is_none());
+        assert!(!config.workflow.enabled);
+    }
+
+    #[test]
+    fn test_config_merge_overrides() {
+        let mut base = Config {
+            author: Some("base_author".to_string()),
+            editor: Some("vim".to_string()),
+            pager: Some("less".to_string()),
+            default_format: Some("yaml".to_string()),
+            workflow: WorkflowConfig::default(),
+        };
+
+        let other = Config {
+            author: Some("new_author".to_string()),
+            editor: None, // Should NOT override
+            pager: Some("more".to_string()),
+            default_format: None, // Should NOT override
+            workflow: WorkflowConfig::default(),
+        };
+
+        base.merge(other);
+
+        assert_eq!(base.author, Some("new_author".to_string()));
+        assert_eq!(base.editor, Some("vim".to_string())); // Kept original
+        assert_eq!(base.pager, Some("more".to_string()));
+        assert_eq!(base.default_format, Some("yaml".to_string())); // Kept original
+    }
+
+    #[test]
+    fn test_config_merge_empty_base() {
+        let mut base = Config::default();
+
+        let other = Config {
+            author: Some("author".to_string()),
+            editor: Some("emacs".to_string()),
+            pager: None,
+            default_format: Some("json".to_string()),
+            workflow: WorkflowConfig::default(),
+        };
+
+        base.merge(other);
+
+        assert_eq!(base.author, Some("author".to_string()));
+        assert_eq!(base.editor, Some("emacs".to_string()));
+        assert!(base.pager.is_none());
+        assert_eq!(base.default_format, Some("json".to_string()));
+    }
+
+    #[test]
+    fn test_config_author_explicit() {
+        let config = Config {
+            author: Some("explicit_author".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(config.author(), "explicit_author");
+    }
+
+    #[test]
+    fn test_config_author_fallback() {
+        // When no explicit author, should fallback to git config or username
+        let config = Config::default();
+        let author = config.author();
+        // Should not be empty - will be git user.name or USER/USERNAME env
+        assert!(!author.is_empty());
+    }
+
+    #[test]
+    fn test_config_editor_explicit() {
+        let config = Config {
+            editor: Some("nano".to_string()),
+            ..Default::default()
+        };
+        assert_eq!(config.editor(), "nano");
+    }
+
+    #[test]
+    fn test_config_editor_fallback() {
+        // When no explicit editor, should fallback to EDITOR, VISUAL, or vi
+        let config = Config::default();
+        let editor = config.editor();
+        // Should return something (either from env or "vi")
+        assert!(!editor.is_empty());
+    }
+
+    #[test]
+    fn test_config_global_path_exists() {
+        // Should return Some path (though file may not exist)
+        let path = Config::global_config_path();
+        assert!(path.is_some());
+        let path = path.unwrap();
+        assert!(path.to_string_lossy().contains("tdt"));
+        assert!(path.to_string_lossy().contains("config.yaml"));
+    }
+
+    #[test]
+    fn test_config_deserialize_yaml() {
+        let yaml = r#"
+author: test_author
+editor: code --wait
+pager: bat
+default_format: json
+workflow:
+  enabled: false
+"#;
+        let config: Config = serde_yml::from_str(yaml).unwrap();
+        assert_eq!(config.author, Some("test_author".to_string()));
+        assert_eq!(config.editor, Some("code --wait".to_string()));
+        assert_eq!(config.pager, Some("bat".to_string()));
+        assert_eq!(config.default_format, Some("json".to_string()));
+        assert!(!config.workflow.enabled);
+    }
+
+    #[test]
+    fn test_config_deserialize_partial_yaml() {
+        let yaml = r#"
+author: partial_author
+"#;
+        let config: Config = serde_yml::from_str(yaml).unwrap();
+        assert_eq!(config.author, Some("partial_author".to_string()));
+        assert!(config.editor.is_none());
+        assert!(config.pager.is_none());
+        assert!(config.default_format.is_none());
+    }
+
+    #[test]
+    fn test_config_deserialize_empty_yaml() {
+        let yaml = "{}";
+        let config: Config = serde_yml::from_str(yaml).unwrap();
+        assert!(config.author.is_none());
+        assert!(config.editor.is_none());
+    }
+}

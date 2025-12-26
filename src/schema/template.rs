@@ -1045,13 +1045,13 @@ contributors:
   #   source: "DWG-001 Rev A"
   #
   # Manual contributor (no feature link):
-  - name: "Part A Length"
-    direction: positive
-    nominal: 10.0
-    plus_tol: 0.1
-    minus_tol: 0.05
-    distribution: normal
-    source: "DWG-001 Rev A"
+  # - name: "Part A Length"
+  #   direction: positive
+  #   nominal: 10.0
+  #   plus_tol: 0.1
+  #   minus_tol: 0.05
+  #   distribution: normal
+  #   source: "DWG-001 Rev A"
 
 # Analysis results (auto-calculated)
 # Run 'tdt tol analyze TOL@N' to calculate

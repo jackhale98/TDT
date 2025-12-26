@@ -372,7 +372,7 @@ pub struct DeleteArgs {
     pub id: String,
 
     /// Force deletion even if entity is linked
-    #[arg(long, short = 'f')]
+    #[arg(long)]
     pub force: bool,
 
     /// Skip confirmation prompt
@@ -386,7 +386,7 @@ pub struct ArchiveArgs {
     pub id: String,
 
     /// Force archival even if entity is linked
-    #[arg(long, short = 'f')]
+    #[arg(long)]
     pub force: bool,
 
     /// Skip confirmation prompt

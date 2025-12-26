@@ -577,6 +577,8 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
     let title: String;
     let control_type: String;
     let description: Option<String>;
+    let control_category: Option<String>;
+    let reaction_plan: Option<String>;
 
     if args.interactive {
         let wizard = SchemaWizard::new();
@@ -591,10 +593,14 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .map(String::from)
             .unwrap_or_else(|| "inspection".to_string());
         description = result.get_string("description").map(String::from);
+        control_category = result.get_string("control_category").map(String::from);
+        reaction_plan = result.get_string("reaction_plan").map(String::from);
     } else {
         title = args.title.unwrap_or_else(|| "New Control".to_string());
         control_type = args.r#type;
         description = None;
+        control_category = None;
+        reaction_plan = None;
     }
 
     // Validate control type
@@ -637,7 +643,7 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         .generate_control(&ctx)
         .map_err(|e| miette::miette!("{}", e))?;
 
-    // Apply wizard description via string replacement (for interactive mode)
+    // Apply wizard values via string replacement (for interactive mode)
     if args.interactive {
         if let Some(ref desc) = description {
             if !desc.is_empty() {
@@ -649,6 +655,25 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
                 yaml_content = yaml_content.replace(
                     "description: |\n  # Detailed description of this control plan item\n  # Include what is being controlled and why",
                     &format!("description: |\n{}", indented),
+                );
+            }
+        }
+        if let Some(ref cat) = control_category {
+            yaml_content = yaml_content.replace(
+                "control_category: variable",
+                &format!("control_category: {}", cat),
+            );
+        }
+        if let Some(ref plan) = reaction_plan {
+            if !plan.is_empty() {
+                let indented = plan
+                    .lines()
+                    .map(|line| format!("  {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                yaml_content = yaml_content.replace(
+                    "reaction_plan: |\n  # What to do if control limit is exceeded",
+                    &format!("reaction_plan: |\n{}", indented),
                 );
             }
         }

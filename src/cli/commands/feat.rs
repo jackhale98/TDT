@@ -762,21 +762,19 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         .with_component_id(&component_id)
         .with_feature_type(&feature_type);
 
-    let mut yaml_content = generator
+    let yaml_content = generator
         .generate_feature(&ctx)
         .map_err(|e| miette::miette!("{}", e))?;
 
-    // Replace default dimension values with user-provided ones (for interactive mode)
-    if args.interactive {
-        yaml_content = yaml_content
-            .replace(
-                "name: \"diameter\"",
-                &format!("name: \"{}\"", dimension_name),
-            )
-            .replace("nominal: 10.0", &format!("nominal: {}", nominal))
-            .replace("plus_tol: 0.1", &format!("plus_tol: {}", plus_tol))
-            .replace("minus_tol: 0.05", &format!("minus_tol: {}", minus_tol));
+    // Parse template and apply wizard values (more robust than string replacement)
+    let mut feature: Feature = serde_yml::from_str(&yaml_content).into_diagnostic()?;
+    if args.interactive && !feature.dimensions.is_empty() {
+        feature.dimensions[0].name = dimension_name.clone();
+        feature.dimensions[0].nominal = nominal;
+        feature.dimensions[0].plus_tol = plus_tol;
+        feature.dimensions[0].minus_tol = minus_tol;
     }
+    let yaml_content = serde_yml::to_string(&feature).into_diagnostic()?;
 
     // Write file
     let output_dir = project.root().join("tolerances/features");

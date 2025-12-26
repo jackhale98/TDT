@@ -3797,3 +3797,528 @@ fn test_schema_show_raw_json() {
         .stdout(predicate::str::contains("\"$schema\""))
         .stdout(predicate::str::contains("\"properties\""));
 }
+
+// ============================================================================
+// Report Command Tests
+// ============================================================================
+
+#[test]
+fn test_report_rvm_empty_project() {
+    let tmp = setup_test_project();
+
+    // RVM on empty project should succeed with empty output
+    tdt()
+        .current_dir(tmp.path())
+        .args(["report", "rvm"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_report_rvm_with_requirements() {
+    let tmp = setup_test_project();
+
+    // Create a requirement
+    create_test_requirement(&tmp, "Test Requirement", "input");
+
+    // RVM should show the requirement
+    tdt()
+        .current_dir(tmp.path())
+        .args(["report", "rvm"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Test Requirement"));
+}
+
+#[test]
+fn test_report_rvm_with_linked_test() {
+    let tmp = setup_test_project();
+
+    // Create a requirement
+    let req_id = create_test_requirement(&tmp, "Linked Requirement", "input");
+
+    // Create a test
+    let test_id = create_test_protocol(&tmp, "Verification Test", "verification");
+
+    // Link them
+    if !req_id.is_empty() && !test_id.is_empty() {
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "add", &req_id, "--type", "verified_by", &test_id])
+            .assert()
+            .success();
+
+        // RVM should show the linked test
+        tdt()
+            .current_dir(tmp.path())
+            .args(["report", "rvm"])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Linked Requirement"));
+    }
+}
+
+#[test]
+fn test_report_fmea_empty_project() {
+    let tmp = setup_test_project();
+
+    // FMEA on empty project should succeed
+    tdt()
+        .current_dir(tmp.path())
+        .args(["report", "fmea"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_report_fmea_with_risks() {
+    let tmp = setup_test_project();
+
+    // Create a risk
+    create_test_risk(&tmp, "Test Risk", "design");
+
+    // FMEA should show the risk (check for total count and risk ID)
+    tdt()
+        .current_dir(tmp.path())
+        .args(["report", "fmea"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Total Risks"))
+        .stdout(predicate::str::contains("RISK@1").or(predicate::str::contains("RISK-")));
+}
+
+#[test]
+fn test_report_bom_with_assembly() {
+    let tmp = setup_test_project();
+
+    // Create an assembly
+    let output = tdt()
+        .current_dir(tmp.path())
+        .args([
+            "asm",
+            "new",
+            "--part-number",
+            "ASM-BOM-001",
+            "--title",
+            "BOM Test Assembly",
+            "--no-edit",
+            "-f",
+            "id",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let asm_id = stdout.trim();
+
+    if !asm_id.is_empty() && asm_id.starts_with("ASM-") {
+        // BOM report for assembly should succeed
+        tdt()
+            .current_dir(tmp.path())
+            .args(["report", "bom", asm_id])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("BOM Test Assembly"));
+    }
+}
+
+#[test]
+fn test_report_bom_with_components_in_assembly() {
+    let tmp = setup_test_project();
+
+    // Create a component
+    create_test_component(&tmp, "PART-BOM-001", "BOM Component");
+
+    // Create an assembly
+    let output = tdt()
+        .current_dir(tmp.path())
+        .args([
+            "asm",
+            "new",
+            "--part-number",
+            "ASM-BOM-002",
+            "--title",
+            "Assembly With Parts",
+            "--no-edit",
+            "-f",
+            "id",
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let asm_id = stdout.trim();
+
+    if !asm_id.is_empty() && asm_id.starts_with("ASM-") {
+        // BOM report should work (even if empty of components)
+        tdt()
+            .current_dir(tmp.path())
+            .args(["report", "bom", asm_id])
+            .assert()
+            .success();
+    }
+}
+
+#[test]
+fn test_report_test_status_empty() {
+    let tmp = setup_test_project();
+
+    // Test status on empty project should succeed
+    tdt()
+        .current_dir(tmp.path())
+        .args(["report", "test-status"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_report_open_issues_empty() {
+    let tmp = setup_test_project();
+
+    // Open issues on empty project should succeed
+    tdt()
+        .current_dir(tmp.path())
+        .args(["report", "open-issues"])
+        .assert()
+        .success();
+}
+
+// ============================================================================
+// Link Management Tests
+// ============================================================================
+
+#[test]
+fn test_link_add_verified_by() {
+    let tmp = setup_test_project();
+
+    // Create a requirement and a test
+    let req_id = create_test_requirement(&tmp, "Req for Link", "input");
+    let test_id = create_test_protocol(&tmp, "Test for Link", "verification");
+
+    if !req_id.is_empty() && !test_id.is_empty() {
+        // Add link
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "add", &req_id, "--type", "verified_by", &test_id])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Added link"));
+
+        // Verify link exists
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "show", &req_id])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("verified_by"));
+    }
+}
+
+#[test]
+fn test_link_add_mitigated_by() {
+    let tmp = setup_test_project();
+
+    // Create a risk and a component
+    let risk_id = create_test_risk(&tmp, "Risk for Link", "design");
+    let cmp_id = create_test_component(&tmp, "PART-002", "Component for Link");
+
+    if !risk_id.is_empty() && !cmp_id.is_empty() {
+        // Add link
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "add", &risk_id, "--type", "mitigated_by", &cmp_id])
+            .assert()
+            .success();
+
+        // Verify link exists
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "show", &risk_id])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("mitigated_by"));
+    }
+}
+
+#[test]
+fn test_link_remove() {
+    let tmp = setup_test_project();
+
+    // Create a requirement and a test
+    let req_id = create_test_requirement(&tmp, "Req for Remove", "input");
+    let test_id = create_test_protocol(&tmp, "Test for Remove", "verification");
+
+    if !req_id.is_empty() && !test_id.is_empty() {
+        // Add link
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "add", &req_id, "--type", "verified_by", &test_id])
+            .assert()
+            .success();
+
+        // Remove link
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "remove", &req_id, "--type", "verified_by", &test_id])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Removed link"));
+
+        // Verify link is gone
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "show", &req_id])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("No links").or(predicate::str::contains("verified_by").not()));
+    }
+}
+
+#[test]
+fn test_link_show_no_links() {
+    let tmp = setup_test_project();
+
+    // Create a requirement with no links
+    let req_id = create_test_requirement(&tmp, "No Links Req", "input");
+
+    if !req_id.is_empty() {
+        // Show should indicate no links
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "show", &req_id])
+            .assert()
+            .success();
+    }
+}
+
+#[test]
+fn test_link_bidirectional() {
+    let tmp = setup_test_project();
+
+    // Create two requirements
+    let req1_id = create_test_requirement(&tmp, "Parent Req", "input");
+    let req2_id = create_test_requirement(&tmp, "Child Req", "output");
+
+    if !req1_id.is_empty() && !req2_id.is_empty() {
+        // Add derives_from link (child derives from parent)
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "add", &req2_id, "--type", "derives_from", &req1_id])
+            .assert()
+            .success();
+
+        // Check child has derives_from
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "show", &req2_id])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("derives_from"));
+    }
+}
+
+// ============================================================================
+// Trace Command Tests (Additional)
+// ============================================================================
+
+#[test]
+fn test_trace_from_with_linked_entities() {
+    let tmp = setup_test_project();
+
+    // Create linked entities
+    let req_id = create_test_requirement(&tmp, "Trace Source", "input");
+    let test_id = create_test_protocol(&tmp, "Trace Target", "verification");
+
+    if !req_id.is_empty() && !test_id.is_empty() {
+        // Add link
+        tdt()
+            .current_dir(tmp.path())
+            .args(["link", "add", &req_id, "--type", "verified_by", &test_id])
+            .assert()
+            .success();
+
+        // Trace from requirement
+        tdt()
+            .current_dir(tmp.path())
+            .args(["trace", "from", &req_id])
+            .assert()
+            .success()
+            .stdout(predicate::str::contains("Trace Source"));
+    }
+}
+
+#[test]
+fn test_trace_to_unlinked_entity() {
+    let tmp = setup_test_project();
+
+    let req_id = create_test_requirement(&tmp, "Trace To Target", "input");
+
+    if !req_id.is_empty() {
+        // Trace to requirement (shows what points to it)
+        tdt()
+            .current_dir(tmp.path())
+            .args(["trace", "to", &req_id])
+            .assert()
+            .success();
+    }
+}
+
+#[test]
+fn test_trace_orphans_with_requirements() {
+    let tmp = setup_test_project();
+
+    // Create some requirements (they will be orphaned since not linked)
+    create_test_requirement(&tmp, "Orphan Req 1", "input");
+    create_test_requirement(&tmp, "Orphan Req 2", "input");
+
+    // Check orphans - unlinked requirements should appear
+    tdt()
+        .current_dir(tmp.path())
+        .args(["trace", "orphans"])
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Orphan Req 1"))
+        .stdout(predicate::str::contains("Orphan Req 2"));
+}
+
+// ============================================================================
+// Workflow Command Tests
+// ============================================================================
+
+#[test]
+fn test_workflow_review_list_empty() {
+    let tmp = setup_test_project();
+
+    // Review list on empty project should work
+    tdt()
+        .current_dir(tmp.path())
+        .args(["review", "list"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_workflow_review_summary() {
+    let tmp = setup_test_project();
+
+    // Review summary should work
+    tdt()
+        .current_dir(tmp.path())
+        .args(["review", "summary"])
+        .assert()
+        .success();
+}
+
+#[test]
+fn test_workflow_team_list_no_roster() {
+    let tmp = setup_test_project();
+
+    // Team list should fail gracefully when no roster exists
+    tdt()
+        .current_dir(tmp.path())
+        .args(["team", "list"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("No team roster found"));
+}
+
+#[test]
+fn test_workflow_team_whoami_no_roster() {
+    let tmp = setup_test_project();
+
+    // Whoami should fail gracefully when no roster exists
+    tdt()
+        .current_dir(tmp.path())
+        .args(["team", "whoami"])
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("No team roster found"));
+}
+
+// ============================================================================
+// Where-Used Command Tests
+// ============================================================================
+
+#[test]
+fn test_where_used_component() {
+    let tmp = setup_test_project();
+
+    let cmp_id = create_test_component(&tmp, "PART-003", "Where Used Test");
+
+    if !cmp_id.is_empty() {
+        // Where-used on component
+        tdt()
+            .current_dir(tmp.path())
+            .args(["where-used", &cmp_id])
+            .assert()
+            .success();
+    }
+}
+
+#[test]
+fn test_where_used_no_references() {
+    let tmp = setup_test_project();
+
+    let req_id = create_test_requirement(&tmp, "Orphan Req", "input");
+
+    if !req_id.is_empty() {
+        // Where-used on unreferenced entity
+        tdt()
+            .current_dir(tmp.path())
+            .args(["where-used", &req_id])
+            .assert()
+            .success();
+    }
+}
+
+// ============================================================================
+// Baseline Command Tests
+// ============================================================================
+
+#[test]
+fn test_baseline_list_empty() {
+    let tmp = setup_test_project();
+
+    // Baseline list on project without baselines
+    tdt()
+        .current_dir(tmp.path())
+        .args(["baseline", "list"])
+        .assert()
+        .success();
+}
+
+// ============================================================================
+// History/Blame/Diff Command Tests
+// ============================================================================
+
+#[test]
+fn test_history_command() {
+    let tmp = setup_test_project();
+
+    let req_id = create_test_requirement(&tmp, "History Test", "input");
+
+    if !req_id.is_empty() {
+        // History should work (though may show no commits in fresh repo)
+        tdt()
+            .current_dir(tmp.path())
+            .args(["history", &req_id])
+            .assert()
+            .success();
+    }
+}
+
+#[test]
+fn test_diff_command() {
+    let tmp = setup_test_project();
+
+    let req_id = create_test_requirement(&tmp, "Diff Test", "input");
+
+    if !req_id.is_empty() {
+        // Diff should work
+        tdt()
+            .current_dir(tmp.path())
+            .args(["diff", &req_id])
+            .assert()
+            .success();
+    }
+}

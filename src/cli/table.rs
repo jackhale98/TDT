@@ -606,9 +606,12 @@ impl<'a> TableFormatter<'a> {
                     .unwrap_or(0);
 
                 // Need +2 for truncation buffer (truncate_str uses width-2 for text)
-                // Use max of (header length, content length + 2), capped at defined max width
+                // Auto-size: use max of (header, content+2), but cap at col.width
+                // if content is longer (prevents excessive expansion)
                 let content_with_buffer = max_content.saturating_add(2);
-                let width = header_len.max(content_with_buffer).min(col.width);
+                let natural_width = header_len.max(content_with_buffer);
+                // Cap at defined width to prevent excessive expansion, but allow shrinking
+                let width = natural_width.min(col.width);
                 widths.push(width);
             }
         }

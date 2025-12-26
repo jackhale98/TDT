@@ -598,6 +598,8 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
     let lot_number: Option<String>;
     let quantity: Option<u32>;
     let product: Option<String>;
+    let lot_status: Option<String>;
+    let notes: Option<String>;
 
     if args.interactive {
         let wizard = SchemaWizard::new();
@@ -608,8 +610,11 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
             .map(String::from)
             .unwrap_or_else(|| "New Production Lot".to_string());
         lot_number = result.get_string("lot_number").map(String::from);
-        quantity = result.get_string("quantity").and_then(|s| s.parse().ok());
+        // Use get_i64 for integer fields instead of parsing from string
+        quantity = result.get_i64("quantity").map(|n| n as u32);
         product = result.get_string("product").map(String::from);
+        lot_status = result.get_string("lot_status").map(String::from);
+        notes = result.get_string("notes").map(String::from);
     } else {
         title = args
             .title
@@ -617,6 +622,8 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         lot_number = args.lot_number;
         quantity = args.quantity;
         product = args.product;
+        lot_status = None;
+        notes = None;
     }
 
     // Generate ID
@@ -644,6 +651,29 @@ fn run_new(args: NewArgs, global: &GlobalOpts) -> Result<()> {
         let resolved = short_ids.resolve(prod).unwrap_or_else(|| prod.clone());
         yaml_content =
             yaml_content.replace("  product: null", &format!("  product: \"{}\"", resolved));
+    }
+
+    // Apply wizard-collected values via string replacement
+    if args.interactive {
+        if let Some(ref status) = lot_status {
+            yaml_content = yaml_content.replace(
+                "lot_status: in_progress",
+                &format!("lot_status: {}", status),
+            );
+        }
+        if let Some(ref n) = notes {
+            if !n.is_empty() {
+                let indented = n
+                    .lines()
+                    .map(|line| format!("  {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                yaml_content = yaml_content.replace(
+                    "notes: |\n  # Production notes",
+                    &format!("notes: |\n{}", indented),
+                );
+            }
+        }
     }
 
     // Write file
