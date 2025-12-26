@@ -98,7 +98,7 @@ RISK@1   RISK-01HC2JB7...  design    Battery Overheating              review    
 # Use prefixed short IDs instead of full IDs
 tdt req show REQ@1
 tdt risk show RISK@1
-tdt link add REQ@1 --type verified_by TEST@1
+tdt link add REQ@1 TEST@1
 tdt trace from REQ@1
 ```
 

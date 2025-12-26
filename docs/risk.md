@@ -389,17 +389,17 @@ proposed → in_progress → completed → verified
 ## Link Management
 
 ```bash
-# Link risk to a requirement
-tdt link add RISK-01HC2 --type related_to REQ-01HC3
+# Link risk to a requirement (auto-infers link type)
+tdt link add RISK@1 REQ@1
 
 # Link risk to mitigation design output
-tdt link add RISK-01HC2 --type mitigated_by REQ-01HC4
+tdt link add RISK@1 REQ@2 mitigated_by
 
 # Link risk to verification test
-tdt link add RISK-01HC2 --type verified_by TEST-01HC5
+tdt link add RISK@1 TEST@1 verified_by
 
 # Show all links for a risk
-tdt link show RISK-01HC2
+tdt link show RISK@1
 
 # Check for broken links
 tdt link check

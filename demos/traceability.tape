@@ -32,17 +32,17 @@ Enter
 Sleep 1s
 
 # Create component
-Type "tdt cmp new -p 'PN-001' --title 'Thermal Controller' --no-edit -q"
+Type "tdt cmp new -p 'TC-001' --title 'Thermal Controller' --no-edit -q"
 Enter
 Sleep 1s
 
-# Link requirement to test
-Type "tdt link add REQ@1 --type verified_by TEST@1"
+# Link requirement to test (auto-infers verified_by)
+Type "tdt link add REQ@1 TEST@1"
 Enter
 Sleep 2s
 
-# Link requirement to component
-Type "tdt link add REQ@1 --type allocated_to CMP@1"
+# Link component to requirement (auto-infers requirements)
+Type "tdt link add CMP@1 REQ@1"
 Enter
 Sleep 2s
 
